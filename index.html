@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>未来喫茶 — プロセカ計算機ツール集</title>
+  <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
+  <link rel="icon" href="img/icon.png" type="image/png">
+  <link rel="stylesheet" href="css/style.css?v=19">
+</head>
+<body>
+
+  <div class="bg-effects" id="bgEffects"></div>
+
+  <!-- Navigation -->
+  <nav class="nav" id="nav">
+    <div class="nav-inner">
+      <a href="#/" class="nav-logo" data-link>
+        <span class="nav-logo-icon"><img src="img/icon.png" alt="" width="30" height="30" decoding="async"></span>
+        <span>未来喫茶</span>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="メニュー">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#/" data-link class="active">ホーム</a></li>
+        <li><a href="#/amatsuyu" data-link>あまつゆ</a></li>
+        <li><a href="#/event" data-link>イベントP</a></li>
+        <li><a href="#/exec" data-link>実効値</a></li>
+        <li><a href="#/adjust" data-link>Pt調整</a></li>
+        <li><a href="#/kizuna" data-link>キズナ</a></li>
+        <li><a href="#/diagnosis" data-link>イベラン</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="page" id="app"></main>
+
+  <footer class="footer">
+    <p>© 2026 未来喫茶 — プロジェクトセカイ非公式ツール集</p>
+    <p class="mt-1">このサイトはファンメイドです。SEGA・Colorful Palette とは関係ありません。</p>
+  </footer>
+
+  <!-- ==================== HOME ==================== -->
+  <template id="tmpl-home">
+    <div class="page-content page-home">
+      <section class="hero">
+        <img src="img/icon.png" alt="" class="hero-logo" width="72" height="72" decoding="async">
+        <h1 class="hero-title">未来喫茶</h1>
+        <p class="hero-subtitle">プロジェクトセカイをもっと楽しむための<br>計算機・ツールを集めました</p>
+      </section>
+
+      <section class="home-tools">
+        <div class="section-heading">
+          <h2>🧮 計算機ツール</h2>
+          <p>使いたいツールを選んでください</p>
+        </div>
+        <div class="card-grid">
+          <a href="#/amatsuyu" class="tool-card tool-card--green" data-link data-category="マイセカイ" style="--card-delay: 0ms">
+            <div class="tool-card-content">
+              <div class="tool-card-icon green">💧</div>
+              <h3>あまつゆ計算機</h3>
+              <p>目標フラワーから必要あまつゆ・周回数・双葉数を計算</p>
+            </div>
+            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          </a>
+          <a href="#/event" class="tool-card tool-card--blue" data-link data-category="イベント" style="--card-delay: 60ms">
+            <div class="tool-card-content">
+              <div class="tool-card-icon blue">🏆</div>
+              <h3>イベントポイント計算</h3>
+              <p>目標Pt・1周あたりPtから必要周回数・クリスタル・時間を算出</p>
+            </div>
+            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          </a>
+          <a href="#/exec" class="tool-card tool-card--cyan" data-link data-category="編成" style="--card-delay: 120ms">
+            <div class="tool-card-content">
+              <div class="tool-card-icon cyan">📐</div>
+              <h3>実効値計算</h3>
+              <p>リーダー・サブから実行値・内部値を算出</p>
+            </div>
+            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          </a>
+          <a href="#/adjust" class="tool-card tool-card--yellow" data-link data-category="エンヴィー" style="--card-delay: 180ms">
+            <div class="tool-card-content">
+              <div class="tool-card-icon yellow">🦐</div>
+              <h3>ポイント調整</h3>
+              <p>目標Ptに一致するスコア・ボーナス・炊き数を検索</p>
+            </div>
+            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          </a>
+          <a href="#/kizuna" class="tool-card tool-card--green" data-link data-category="キズナ" style="--card-delay: 240ms">
+            <div class="tool-card-content">
+              <div class="tool-card-icon green">💕</div>
+              <h3>キズナ計算</h3>
+              <p>目標LvまでのEXP・プレイ回数・クリスタルを計算</p>
+            </div>
+            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          </a>
+          <a href="#/diagnosis" class="tool-card tool-card--blue" data-link data-category="診断" style="--card-delay: 300ms">
+            <div class="tool-card-content">
+              <div class="tool-card-icon blue">📈</div>
+              <h3>イベラン診断</h3>
+              <p>ボーダー参考データから推定Ptを算出し、達成度をS〜Dで診断</p>
+            </div>
+            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          </a>
+        </div>
+      </section>
+
+      <div class="divider home-animate"></div>
+
+      <section class="home-news">
+        <div class="section-heading"><h2>📢 お知らせ</h2></div>
+        <div class="info-box home-animate">
+          <strong>2026.05.15</strong> — プロセカアプリ（未来喫茶）準拠の6種計算機を実装しました。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- ==================== あまつゆ計算機 ==================== -->
+  <template id="tmpl-amatsuyu">
+    <div class="page-content page-enter">
+      <div class="calc-page">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>💧 あまつゆ計算機</h1>
+          <p>目標フラワーと集め方を選び、「計算する」で必要量を表示します</p>
+        </div>
+        <div class="calc-form">
+          <div class="form-group">
+            <label>集め方</label>
+            <div class="amatsuyu-mode" role="radiogroup" aria-label="集め方">
+              <label class="amatsuyu-mode-option">
+                <input type="radio" name="amatsuyuMode" value="live" checked>
+                <span class="amatsuyu-mode-option-inner">🎤 周回（ライブ）</span>
+              </label>
+              <label class="amatsuyu-mode-option">
+                <input type="radio" name="amatsuyuMode" value="mysekai">
+                <span class="amatsuyu-mode-option-inner">🌿 マイセカイ（双葉）</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>目標フラワー（0〜400）</label>
+            <input type="number" class="form-input" id="amatsuyuTarget" value="400" min="0" max="400">
+          </div>
+          <div class="divider"></div>
+          <p class="text-muted mb-2" style="font-size:0.88rem;">BD所持状況</p>
+          <div class="form-group">
+            <label class="form-toggle"><input type="checkbox" id="amatsuyuNewBD"><span class="toggle-track"></span><span class="toggle-label">新規バースデーあり（+50%）</span></label>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-toggle"><input type="checkbox" id="amatsuyuOld1"><span class="toggle-track"></span><span class="toggle-label">過去BD①（+15%）</span></label></div>
+            <div class="form-group"><label class="form-toggle"><input type="checkbox" id="amatsuyuOld2"><span class="toggle-track"></span><span class="toggle-label">過去BD②（+15%）</span></label></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-toggle"><input type="checkbox" id="amatsuyuOld3"><span class="toggle-track"></span><span class="toggle-label">過去BD③（+15%）</span></label></div>
+            <div class="form-group"><label class="form-toggle"><input type="checkbox" id="amatsuyuOld4"><span class="toggle-track"></span><span class="toggle-label">過去BD④（+15%）</span></label></div>
+          </div>
+          <div class="divider"></div>
+          <div class="form-group" id="amatsuyuCookGroup">
+            <label for="amatsuyuCook">炊き数（0〜10）— 周回時のみ</label>
+            <select class="form-select" id="amatsuyuCook" aria-label="炊き数"></select>
+          </div>
+          <button type="button" class="btn btn-primary btn-block mt-2" id="amatsuyuCalcBtn" data-calc="amatsuyu">計算する</button>
+        </div>
+        <div class="result-panel amatsuyu-result-panel" id="amatsuyuResult">
+          <div class="amatsuyu-summary">
+            <p class="amatsuyu-summary-label">共通（目標達成に必要）</p>
+            <div class="amatsuyu-summary-grid" id="amatsuyuSummary"></div>
+          </div>
+          <p class="amatsuyu-main-label" id="amatsuyuMainLabel">計算結果</p>
+          <div class="amatsuyu-routes amatsuyu-routes--single" id="amatsuyuRoutes"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-event">
+    <div class="page-content page-enter">
+      <div class="calc-page">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>🏆 イベントポイント計算</h1>
+          <p>目標Pt到達に必要な周回数・クリスタル・時間を計算します</p>
+        </div>
+        <div class="calc-form calc-form--event">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="eventTarget">目標Pt</label>
+              <input type="text" class="form-input" id="eventTarget" inputmode="numeric" autocomplete="off" placeholder="例: 3000000">
+            </div>
+            <div class="form-group">
+              <label for="eventCurrent">現在Pt</label>
+              <input type="text" class="form-input" id="eventCurrent" inputmode="numeric" autocomplete="off" placeholder="例: 0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="eventPtPerRun">1周あたりPt</label>
+              <input type="text" class="form-input" id="eventPtPerRun" inputmode="numeric" autocomplete="off" placeholder="例: 40000">
+            </div>
+            <div class="form-group">
+              <label for="eventLbPerRun">炊き数（LB）</label>
+              <select class="form-select" id="eventLbPerRun" aria-label="炊き数"></select>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-block mt-2" id="eventCalcBtn" data-calc="event">計算する</button>
+        </div>
+        <div class="result-panel" id="eventResult">
+          <div class="result-title">計算結果</div>
+          <div class="result-grid" id="eventResultGrid"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-exec">
+    <div class="page-content page-enter">
+      <div class="calc-page">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>📐 実効値計算</h1>
+          <p>リーダー・サブのボーナスから実行値・内部値を算出します</p>
+        </div>
+        <div class="calc-form">
+          <div class="form-group"><label>リーダー</label><input type="number" class="form-input" id="execLeader" placeholder="0" min="0"></div>
+          <div class="form-row">
+            <div class="form-group"><label>サブ1</label><input type="number" class="form-input" id="execSub1" placeholder="0" min="0"></div>
+            <div class="form-group"><label>サブ2</label><input type="number" class="form-input" id="execSub2" placeholder="0" min="0"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>サブ3</label><input type="number" class="form-input" id="execSub3" placeholder="0" min="0"></div>
+            <div class="form-group"><label>サブ4</label><input type="number" class="form-input" id="execSub4" placeholder="0" min="0"></div>
+          </div>
+          <button type="button" class="btn btn-primary btn-block mt-2" id="execCalcBtn" data-calc="exec">計算する</button>
+        </div>
+        <div class="result-panel" id="execResult">
+          <div class="result-title">結果（タップでコピー）</div>
+          <div class="copy-row"><span>内部値</span><strong id="execInternal">0</strong><button type="button" class="btn btn-secondary" id="execCopyInternal">コピー</button></div>
+          <div class="copy-row"><span>実行値</span><strong id="execValue">0</strong><button type="button" class="btn btn-secondary" id="execCopyExec">コピー</button></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-adjust">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>🦐 ポイント調整</h1>
+        </div>
+        <div class="calc-form">
+          <div class="form-group">
+            <label for="adjustTarget">獲得したいポイント</label>
+            <input type="number" class="form-input" id="adjustTarget" inputmode="numeric" autocomplete="off" placeholder="例: 29800" min="1">
+          </div>
+          <div class="form-group">
+            <label for="adjustBonusMax">ボーナス最大値（%）</label>
+            <input type="number" class="form-input" id="adjustBonusMax" inputmode="numeric" autocomplete="off" placeholder="例: 500" min="0" max="1040" step="1">
+          </div>
+          <div class="adjust-filters">
+            <p class="adjust-filters__title">絞り込み</p>
+            <p class="text-muted mb-1" style="font-size:0.85rem;">炊き数</p>
+            <div class="taki-chips" id="adjustTakiChips"></div>
+            <div class="form-group mt-2">
+              <label class="form-toggle">
+                <input type="checkbox" id="adjustBonusStep5" checked>
+                <span class="toggle-track"></span>
+                <span class="toggle-label">ボーナスを5%区切りで探索</span>
+              </label>
+            </div>
+          </div>
+          <p id="adjustError" class="adjust-error"></p>
+          <button type="button" class="btn btn-primary btn-block mt-2" id="adjustCalcBtn" data-calc="adjust">計算</button>
+        </div>
+        <div class="result-panel" id="adjustResult">
+          <div class="result-title">検索結果 <span id="adjustCount">0</span> 件</div>
+          <div class="match-list" id="adjustMatches"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-kizuna">
+    <div class="page-content page-enter">
+      <div class="calc-page">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>💕 キズナ計算</h1>
+          <p>目標Lvまでの必要EXP・プレイ回数・クリスタルを計算します</p>
+        </div>
+        <div class="calc-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="kizunaCurrent">現在Lv</label>
+              <select class="form-select" id="kizunaCurrent" aria-label="現在Lv"></select>
+            </div>
+            <div class="form-group">
+              <label for="kizunaTarget">目標Lv</label>
+              <select class="form-select" id="kizunaTarget" aria-label="目標Lv"></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="kizunaTakisu">炊き数</label>
+            <select class="form-select" id="kizunaTakisu" aria-label="炊き数"></select>
+          </div>
+          <button type="button" class="btn btn-primary btn-block mt-2" id="kizunaCalcBtn" data-calc="kizuna">計算する</button>
+        </div>
+        <div class="result-panel" id="kizunaResult">
+          <div class="result-title">計算結果</div>
+          <div class="result-grid" id="kizunaResultGrid"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-diagnosis">
+    <div class="page-content page-enter">
+      <div class="calc-page">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>📈 イベラン診断</h1>
+          <p>参考データのボーダー履歴から推定Ptを算出し、入力リソースで達成できるか診断します</p>
+        </div>
+        <div class="calc-form">
+          <div class="form-group">
+            <label for="diagnosisPreset">目標順位</label>
+            <select class="form-select" id="diagnosisPreset" aria-label="目標順位">
+              <option value="10">TOP 10</option>
+              <option value="50">TOP 50</option>
+              <option value="100">TOP 100</option>
+              <option value="500" selected>TOP 500</option>
+              <option value="1000">TOP 1000</option>
+              <option value="5000">TOP 5000</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="diagnosisFilterType">絞り込み</label>
+              <select class="form-select" id="diagnosisFilterType" aria-label="絞り込み種別">
+                <option value="banner">バナーキャラクター</option>
+                <option value="unit">ユニット</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="diagnosisFilterValue" id="diagnosisFilterValueLabel">バナーキャラクター</label>
+              <select class="form-select" id="diagnosisFilterValue" aria-label="絞り込み値"></select>
+              <p class="form-hint" id="diagnosisFilterHint">一致イベントのポイント上位5件の平均で推定Ptを算出</p>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="diagnosisSougou">総合力（万）</label><input type="text" class="form-input" id="diagnosisSougou" inputmode="decimal" autocomplete="off" placeholder="例: 40.4" min="10" max="60"></div>
+            <div class="form-group"><label for="diagnosisJikkochi">実効値（%）</label><input type="text" class="form-input" id="diagnosisJikkochi" inputmode="numeric" autocomplete="off" placeholder="例: 270"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="diagnosisBonus">イベントボーナス（%）</label><input type="text" class="form-input" id="diagnosisBonus" inputmode="numeric" autocomplete="off" placeholder="例: 435"></div>
+            <div class="form-group"><label for="diagnosisHours">総プレイ可能時間（h）</label><input type="text" class="form-input" id="diagnosisHours" inputmode="numeric" autocomplete="off" placeholder="例: 60"></div>
+          </div>
+          <div class="form-group">
+            <label for="diagnosisCrystals">準備可能クリスタル（個）</label>
+            <input type="text" class="form-input" id="diagnosisCrystals" inputmode="numeric" autocomplete="off" placeholder="例: 100000">
+          </div>
+          <button type="button" class="btn btn-primary btn-block mt-2" id="diagnosisCalcBtn" data-calc="diagnosis">計算する</button>
+        </div>
+        <div class="result-panel" id="diagnosisResult">
+          <div class="result-title">計算結果</div>
+          <div id="diagnosisResultBody" class="diagnosis-result"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-404">
+    <div class="page-content page-enter">
+      <div class="calc-page text-center" style="padding-top: 6rem;">
+        <h1 style="font-size: 4rem; margin-bottom: 1rem;">☕ 404</h1>
+        <p style="font-size: 1.2rem; color: var(--text-secondary);">ページが見つかりませんでした</p>
+        <a href="#/" class="btn btn-primary mt-4" data-link>ホームに戻る</a>
+      </div>
+    </div>
+  </template>
+
+  <script src="js/router.js?v=14"></script>
+  <script src="js/border-rankings-data.js?v=1"></script>
+  <script src="js/pjsk-engine.js?v=29"></script>
+  <script src="js/calculators.js?v=39"></script>
+  <script src="js/app.js?v=13"></script>
+</body>
+</html>
