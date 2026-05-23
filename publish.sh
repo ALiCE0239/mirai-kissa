@@ -1,32 +1,60 @@
 #!/usr/bin/env bash
+# GitHub Pages 公開（gh 不要版）
+# 1. ブラウザでリポジトリを作成 → 2. このスクリプトで push → 3. Pages 設定
 set -euo pipefail
 cd "$(dirname "$0")"
 
-GH="$(command -v gh || true)"
-if [[ -z "$GH" ]]; then
-  echo "gh (GitHub CLI) をインストールしてください: brew install gh"
-  exit 1
+REPO="mirai-kissa"
+OWNER="ALiCE0239"
+REMOTE="git@github.com:${OWNER}/${REPO}.git"
+PAGES_URL="https://$(echo "$OWNER" | tr '[:upper:]' '[:lower:]').github.io/${REPO}/"
+
+if ! git ls-remote "$REMOTE" HEAD &>/dev/null; then
+  echo "=========================================="
+  echo "  リポジトリがまだありません"
+  echo "=========================================="
+  echo ""
+  echo "次の URL をブラウザで開き、「Create repository」を押してください。"
+  echo "  ※ README / .gitignore / license はすべて付けない"
+  echo ""
+  echo "  https://github.com/new?name=${REPO}&visibility=public"
+  echo ""
+  read -r -p "作成が終わったら Enter を押してください… "
+  if ! git ls-remote "$REMOTE" HEAD &>/dev/null; then
+    echo "エラー: まだ ${OWNER}/${REPO} が見つかりません。名前と公開設定を確認してください。"
+    exit 1
+  fi
 fi
 
-if ! "$GH" auth status >/dev/null 2>&1; then
-  echo "GitHub CLI にログインしてください:"
-  echo "  gh auth login -h github.com -p ssh -s repo,workflow --skip-ssh-key -w"
-  exit 1
+if ! git remote get-url origin &>/dev/null; then
+  git remote add origin "$REMOTE"
+elif [[ "$(git remote get-url origin)" != "$REMOTE" ]]; then
+  git remote set-url origin "$REMOTE"
 fi
 
-if ! "$GH" repo view ALiCE0239/mirai-kissa >/dev/null 2>&1; then
-  "$GH" repo create mirai-kissa --public --description "未来喫茶 — プロセカ計算機ツール集"
-fi
-
-if ! git remote get-url origin >/dev/null 2>&1; then
-  git remote add origin git@github.com:ALiCE0239/mirai-kissa.git
-fi
-
+echo "push しています…"
 git push -u origin main
 
-"$GH" api repos/ALiCE0239/mirai-kissa/pages -X POST -f build_type=workflow 2>/dev/null || true
-
 echo ""
-echo "デプロイ完了。1〜3分後に公開されます:"
-echo "  https://alice0239.github.io/mirai-kissa/"
-echo "Pages 設定: https://github.com/ALiCE0239/mirai-kissa/settings/pages"
+echo "=========================================="
+echo "  push 完了"
+echo "=========================================="
+echo ""
+echo "あと 1 手順: GitHub Pages を有効化（ブラウザ）"
+echo ""
+echo "  https://github.com/${OWNER}/${REPO}/settings/pages"
+echo ""
+echo "  Build and deployment → Source:"
+echo "    「GitHub Actions」を選択"
+echo ""
+echo "  （初回は Actions タブで workflow が走り、1〜3 分で公開されます）"
+echo ""
+echo "公開 URL:"
+echo "  ${PAGES_URL}"
+echo ""
+
+GH="$(command -v gh 2>/dev/null || true)"
+if [[ -n "$GH" ]] && "$GH" auth status &>/dev/null 2>&1; then
+  "$GH" api "repos/${OWNER}/${REPO}/pages" -X POST -f build_type=workflow 2>/dev/null \
+    && echo "（gh 認証済みのため Pages を API で設定しました）" || true
+fi
