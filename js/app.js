@@ -47,11 +47,47 @@
     });
   }
 
+  function initHome() {
+    const toggle = document.getElementById('homeToolsToggle');
+    const panel = document.getElementById('homeToolsPanel');
+    if (!toggle || !panel || toggle.dataset.bound === '1') return;
+    toggle.dataset.bound = '1';
+
+    const open = () => {
+      panel.hidden = false;
+      requestAnimationFrame(() => {
+        panel.classList.add('is-open');
+        toggle.setAttribute('aria-expanded', 'true');
+      });
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    const close = () => {
+      panel.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        panel.hidden = true;
+      };
+      panel.addEventListener('transitionend', (e) => {
+        if (e.propertyName === 'grid-template-rows') finish();
+      }, { once: true });
+      setTimeout(finish, 500);
+    };
+
+    toggle.addEventListener('click', () => {
+      if (panel.classList.contains('is-open')) close();
+      else open();
+    });
+  }
+
   function initRouter() {
     const router = new Router();
 
     router
-      .add('/',         'tmpl-home',      null)
+      .add('/',         'tmpl-home',      () => initHome())
       .add('/amatsuyu', 'tmpl-amatsuyu',  () => Calculators.initAmatsuyu())
       .add('/event',    'tmpl-event',     () => Calculators.initEvent())
       .add('/exec',     'tmpl-exec',      () => Calculators.initExec())

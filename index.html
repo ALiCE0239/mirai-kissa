@@ -6,7 +6,7 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=19">
+  <link rel="stylesheet" href="css/style.css?v=28">
 </head>
 <body>
 
@@ -35,6 +35,7 @@
   </nav>
 
   <main class="page" id="app"></main>
+  <div id="diagnosisShareMount" class="diagnosis-share-mount" aria-hidden="true"></div>
 
   <footer class="footer">
     <p>© 2026 未来喫茶 — プロジェクトセカイ非公式ツール集</p>
@@ -48,11 +49,18 @@
         <img src="img/icon.png" alt="" class="hero-logo" width="72" height="72" decoding="async">
         <h1 class="hero-title">未来喫茶</h1>
         <p class="hero-subtitle">プロジェクトセカイをもっと楽しむための<br>計算機・ツールを集めました</p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn-primary hero-cta" id="homeToolsToggle" aria-expanded="false" aria-controls="homeToolsPanel">
+            <span class="hero-cta__label">計算機</span>
+            <svg class="hero-cta__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
       </section>
 
-      <section class="home-tools">
+      <div class="home-tools-panel" id="homeToolsPanel" hidden>
+      <section class="home-tools" aria-labelledby="homeToolsHeading">
         <div class="section-heading">
-          <h2>🧮 計算機ツール</h2>
+          <h2 id="homeToolsHeading">🧮 計算機一覧</h2>
           <p>使いたいツールを選んでください</p>
         </div>
         <div class="card-grid">
@@ -106,6 +114,7 @@
           </a>
         </div>
       </section>
+      </div>
 
       <div class="divider home-animate"></div>
 
@@ -366,7 +375,13 @@
           <button type="button" class="btn btn-primary btn-block mt-2" id="diagnosisCalcBtn" data-calc="diagnosis">計算する</button>
         </div>
         <div class="result-panel" id="diagnosisResult">
-          <div class="result-title">計算結果</div>
+          <div class="result-title-row">
+            <div class="result-title">計算結果</div>
+            <div class="result-actions">
+              <button type="button" class="btn btn-secondary btn-save-image" id="diagnosisSaveImageBtn" hidden>画像で保存</button>
+            </div>
+          </div>
+          <p class="form-hint diagnosis-save-hint" id="diagnosisSaveHint" hidden>960×540px の横長カード画像をダウンロードします</p>
           <div id="diagnosisResultBody" class="diagnosis-result"></div>
         </div>
       </div>
@@ -385,8 +400,8 @@
 
   <script src="js/router.js?v=14"></script>
   <script src="js/border-rankings-data.js?v=1"></script>
-  <script src="js/pjsk-engine.js?v=29"></script>
-  <script src="js/calculators.js?v=39"></script>
-  <script src="js/app.js?v=13"></script>
+  <script src="js/pjsk-engine.js?v=30"></script>
+  <script src="js/calculators.js?v=49"></script>
+  <script src="js/app.js?v=14"></script>
 </body>
 </html>
