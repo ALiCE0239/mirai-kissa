@@ -525,6 +525,21 @@ const Calculators = {
   // ========================================
   initDiagnosis() {
     this._hide('diagnosisResult');
+    this._lastDiagnosis = null;
+    this._lastDiagnosisInputs = null;
+    const saveBtn = this._el('diagnosisSaveImageBtn');
+    const saveHint = this._el('diagnosisSaveHint');
+    if (saveBtn) {
+      saveBtn.hidden = true;
+      saveBtn.classList.remove('is-loading');
+      saveBtn.textContent = '画像で保存';
+      saveBtn.onclick = (e) => {
+        e.preventDefault();
+        this._saveDiagnosisImage();
+      };
+    }
+    if (saveHint) saveHint.hidden = true;
+
     PjskEngine.ensureBorderData();
     this._fillDiagnosisFilterOptions();
 
@@ -578,15 +593,19 @@ const Calculators = {
     const filterType = this._el('diagnosisFilterType')?.value === 'unit' ? 'unit' : 'banner';
     const filterValue = this._el('diagnosisFilterValue')?.value || '';
 
-    const r = PjskEngine.runDiagnosis({
-      presetId,
-      filterType,
-      filterValue,
+    const inputs = {
       sougouryokuMan: this._num('diagnosisSougou', 36),
       jikkochiPct: this._int('diagnosisJikkochi', 270),
       bonusPct: this._int('diagnosisBonus', 435),
       totalPlayHours: this._int('diagnosisHours', 60),
       availableCrystals: this._int('diagnosisCrystals', 100000),
+    };
+
+    const r = PjskEngine.runDiagnosis({
+      presetId,
+      filterType,
+      filterValue,
+      ...inputs,
     });
 
     if (!r.ok) {
@@ -594,8 +613,44 @@ const Calculators = {
       return;
     }
 
+    this._lastDiagnosis = r;
+    this._lastDiagnosisInputs = inputs;
     this._renderDiagnosisResult(r);
     this._show('diagnosisResult');
+    const saveBtn = this._el('diagnosisSaveImageBtn');
+    const saveHint = this._el('diagnosisSaveHint');
+    if (saveBtn) saveBtn.hidden = false;
+    if (saveHint) saveHint.hidden = false;
+  },
+
+  async _saveDiagnosisImage() {
+    if (!this._lastDiagnosis || !this._lastDiagnosisInputs) {
+      alert('先に「計算する」を実行してください。');
+      return;
+    }
+    const btn = this._el('diagnosisSaveImageBtn');
+    const prevLabel = btn?.textContent;
+    if (btn) {
+      btn.classList.add('is-loading');
+      btn.textContent = '生成中…';
+    }
+
+    try {
+      const filename = await DiagnosisShare.exportImage(
+        this._lastDiagnosis,
+        this._lastDiagnosisInputs,
+      );
+      if (btn) btn.textContent = '保存しました';
+      setTimeout(() => {
+        if (btn && prevLabel) btn.textContent = prevLabel;
+      }, 2000);
+    } catch (err) {
+      console.error('[未来喫茶] 診断画像の保存に失敗:', err);
+      alert(err.message || '画像の保存に失敗しました。しばらくしてから再度お試しください。');
+      if (btn && prevLabel) btn.textContent = prevLabel;
+    } finally {
+      if (btn) btn.classList.remove('is-loading');
+    }
   },
 
   _diagnosisUtilLevel(pct) {
@@ -656,7 +711,7 @@ const Calculators = {
       s: '余裕あり',
       a: '達成見込み◎',
       b: '達成見込み○',
-      c: 'ぎりぎり達成可能',
+      c: '目標の±5%以内',
       d: '目標達成は困難',
     };
     const rankSub = rankSubMap[rank] || r.rank;
@@ -821,6 +876,220 @@ const Calculators = {
   },
 };
 
+/** イベラン診断 — 結果をカード画像として保存 */
+const DiagnosisShare = {
+  CARD_WIDTH: 960,
+  CARD_HEIGHT: 540,
+
+  _esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
+  _rankSub(rank) {
+    const map = {
+      s: '余裕あり',
+      a: '達成見込み◎',
+      b: '達成見込み○',
+      c: '目標の±5%以内',
+      d: '目標達成は困難',
+    };
+    return map[rank] || rank.toUpperCase();
+  },
+
+  _iconUrl() {
+    try {
+      return new URL('img/icon.png', window.location.href).href;
+    } catch {
+      return 'img/icon.png';
+    }
+  },
+
+  _reachableShareText(r) {
+    if (!r.reachable) {
+      return 'TOP 1000 も厳しい';
+    }
+    return r.reachable.preset.label;
+  },
+
+  buildCardHtml(r, inputs, iconSrc) {
+    const logo = iconSrc || this._iconUrl();
+    const rank = r.rank.toLowerCase();
+    const isFail = rank === 'd';
+    const meterPlan = r.needPlan || r.plan;
+    const timePct = Math.min(999, r.utilTime);
+    const crystalPct = Math.min(999, r.utilCrystal);
+    const timeBar = Math.min(100, timePct);
+    const crystalBar = Math.min(100, crystalPct);
+
+    const statusLine = isFail
+      ? `不足 約 ${fmtNum(r.shortfallPt)} Pt（達成率 ${fmtNum1(r.achievablePct)}%）`
+      : `余裕 +${fmtNum1(r.marginPct)}%（+${fmtNum(r.surplusPt)} Pt）`;
+
+    const capPt = r.cap.plannedPt;
+    const capMeetsTarget = capPt >= r.targetPt;
+    const capTone = capMeetsTarget ? 'surplus' : 'shortfall';
+
+    return `
+      <article class="diagnosis-share-card diagnosis-share-card--${rank}" style="width:${this.CARD_WIDTH}px;height:${this.CARD_HEIGHT}px">
+        <header class="diagnosis-share-card__top">
+          <img class="diagnosis-share-card__logo" src="${this._esc(logo)}" alt="" width="36" height="36" crossorigin="anonymous">
+          <span class="diagnosis-share-card__site">未来喫茶</span>
+          <span class="diagnosis-share-card__type">イベラン診断</span>
+        </header>
+
+        <div class="diagnosis-share-card__body">
+          <aside class="diagnosis-share-card__rank-panel">
+            <div class="diagnosis-share-card__panel-meta">
+              <span class="diagnosis-share-card__chip diagnosis-share-card__chip--filter">${this._esc(r.filterLabel)}：${this._esc(r.borderEst.filterValue)}</span>
+              <span class="diagnosis-share-card__chip">${this._esc(r.preset.label)}</span>
+            </div>
+            <p class="diagnosis-share-card__rank" aria-hidden="true">${this._esc(r.rank)}</p>
+            <p class="diagnosis-share-card__rank-sub">${this._esc(this._rankSub(rank))}</p>
+            <p class="diagnosis-share-card__rank-label">達成判定</p>
+          </aside>
+
+          <div class="diagnosis-share-card__main">
+            <section class="diagnosis-share-card__hero">
+              <div class="diagnosis-share-card__pt-labels">
+                <span>推定目標Pt</span>
+                <span>獲得可能Pt</span>
+              </div>
+              <div class="diagnosis-share-card__pt-row">
+                <div class="diagnosis-share-card__pt-col">
+                  <p class="diagnosis-share-card__pt-value diagnosis-share-card__pt-value--target">${fmtNum(r.targetPt)}<span>Pt</span></p>
+                </div>
+                <div class="diagnosis-share-card__pt-col diagnosis-share-card__pt-col--cap">
+                  <p class="diagnosis-share-card__pt-value diagnosis-share-card__pt-value--cap diagnosis-share-card__pt-value--${capTone}">${fmtNum(capPt)}<span>Pt</span></p>
+                  <p class="diagnosis-share-card__margin-note diagnosis-share-card__margin-note--${isFail ? 'fail' : 'ok'}">${this._esc(statusLine)}</p>
+                </div>
+              </div>
+            </section>
+
+            <div class="diagnosis-share-card__meters">
+              <div class="diagnosis-share-card__meter">
+                <div class="diagnosis-share-card__meter-head">
+                  <span>時間消化率</span>
+                  <strong>${fmtNum1(timePct)}%</strong>
+                </div>
+                <div class="diagnosis-share-card__meter-track">
+                  <div class="diagnosis-share-card__meter-fill" style="width:${timeBar}%"></div>
+                </div>
+                <p class="diagnosis-share-card__meter-sub">必要 ${fmtNum1(meterPlan.needHours)} h ／ 可能 ${fmtNum1(r.available)} h</p>
+              </div>
+              <div class="diagnosis-share-card__meter">
+                <div class="diagnosis-share-card__meter-head">
+                  <span>クリスタル消化率</span>
+                  <strong>${fmtNum1(crystalPct)}%</strong>
+                </div>
+                <div class="diagnosis-share-card__meter-track">
+                  <div class="diagnosis-share-card__meter-fill diagnosis-share-card__meter-fill--crystal" style="width:${crystalBar}%"></div>
+                </div>
+                <p class="diagnosis-share-card__meter-sub">必要 ${fmtNum(meterPlan.needCrystals)} 個 ／ 可能 ${fmtNum(r.crystals)} 個</p>
+              </div>
+            </div>
+
+            <ul class="diagnosis-share-card__stats">
+              <li class="diagnosis-share-card__stat-primary"><span>総合力</span><strong>${fmtNum1(inputs.sougouryokuMan)}<small>万</small></strong></li>
+              <li class="diagnosis-share-card__stat-primary"><span>実行値</span><strong>${fmtNum(inputs.jikkochiPct)}<small>%</small></strong></li>
+              <li class="diagnosis-share-card__stat-primary"><span>ボーナス</span><strong>${fmtNum(inputs.bonusPct)}<small>%</small></strong></li>
+              <li class="diagnosis-share-card__stat-primary"><span>狙える順位</span><strong>${this._esc(this._reachableShareText(r))}</strong></li>
+            </ul>
+          </div>
+        </div>
+      </article>
+    `;
+  },
+
+  async _loadHtml2Canvas() {
+    if (window.html2canvas) return window.html2canvas;
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-diagnosis-share="html2canvas"]');
+      if (existing) {
+        if (window.html2canvas) {
+          resolve(window.html2canvas);
+          return;
+        }
+        existing.addEventListener('load', () => {
+          if (window.html2canvas) resolve(window.html2canvas);
+          else reject(new Error('画像ライブラリの読み込みに失敗しました'));
+        });
+        existing.addEventListener('error', () => reject(new Error('画像ライブラリの読み込みに失敗しました')));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      script.async = true;
+      script.dataset.diagnosisShare = 'html2canvas';
+      script.onload = () => {
+        if (window.html2canvas) resolve(window.html2canvas);
+        else reject(new Error('画像ライブラリの読み込みに失敗しました'));
+      };
+      script.onerror = () => reject(new Error('画像ライブラリの読み込みに失敗しました'));
+      document.head.appendChild(script);
+    });
+  },
+
+  async exportImage(r, inputs) {
+    const mount = document.getElementById('diagnosisShareMount');
+    if (!mount) throw new Error('共有用の描画領域がありません');
+
+    mount.innerHTML = this.buildCardHtml(r, inputs, this._iconUrl());
+    const card = mount.querySelector('.diagnosis-share-card');
+    if (!card) throw new Error('カードの生成に失敗しました');
+
+    const logo = card.querySelector('.diagnosis-share-card__logo');
+    if (logo) {
+      await new Promise((resolve) => {
+        if (logo.complete) {
+          resolve();
+          return;
+        }
+        logo.onload = () => resolve();
+        logo.onerror = () => resolve();
+      });
+    }
+
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+
+    const html2canvas = await this._loadHtml2Canvas();
+    const canvas = await html2canvas(card, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false,
+      width: this.CARD_WIDTH,
+      height: this.CARD_HEIGHT,
+    });
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (b) resolve(b);
+        else reject(new Error('画像の生成に失敗しました'));
+      }, 'image/png');
+    });
+
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const filename = `mirai-kissa-diagnosis-${r.preset.label.replace(/\s+/g, '')}-${r.rank}-${date}.png`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    return filename;
+  },
+};
+
 if (typeof window !== 'undefined') {
   window.Calculators = Calculators;
+  window.DiagnosisShare = DiagnosisShare;
 }

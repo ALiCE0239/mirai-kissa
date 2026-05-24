@@ -420,18 +420,21 @@ const PjskEngine = {
     return ptPerRun > 0 ? Math.ceil(targetPt / ptPerRun) : 0;
   },
 
-  /** 余裕率（(獲得可能Pt−目標Pt)/目標Pt）のランク閾値 */
-  DIAGNOSIS_MARGIN_THRESHOLDS: { S: 0.50, A: 0.30, B: 0.15, C: 0 },
-
   /**
-   * 獲得可能Ptが目標をどの程度上回るかで S/A/B/C/D を判定。
-   * D … 上回らない（100%以内では届かない）
+   * 余裕率（(獲得可能Pt−目標Pt)/目標Pt）のランク閾値
+   * C … -5%〜+5%（0%付近±5%以内）。+5%超〜B未満も従来どおり C
+   * D … -5%未満
    */
+  DIAGNOSIS_MARGIN_THRESHOLDS: { S: 0.50, A: 0.30, B: 0.15, C: -0.05, C_MAX: 0.05 },
+
   diagnosisRankFromMargin(marginRatio) {
-    if (marginRatio < this.DIAGNOSIS_MARGIN_THRESHOLDS.C) return 'D';
-    if (marginRatio >= this.DIAGNOSIS_MARGIN_THRESHOLDS.S) return 'S';
-    if (marginRatio >= this.DIAGNOSIS_MARGIN_THRESHOLDS.A) return 'A';
-    if (marginRatio >= this.DIAGNOSIS_MARGIN_THRESHOLDS.B) return 'B';
+    const t = this.DIAGNOSIS_MARGIN_THRESHOLDS;
+    if (marginRatio < t.C) return 'D';
+    if (marginRatio >= t.S) return 'S';
+    if (marginRatio >= t.A) return 'A';
+    if (marginRatio >= t.B) return 'B';
+    if (marginRatio <= t.C_MAX) return 'C';
+    if (marginRatio < t.B) return 'C';
     return 'C';
   },
 
@@ -745,7 +748,7 @@ const PjskEngine = {
       S: '獲得可能Ptが目標を大きく上回っています。余裕を持って達成できる見込みです。',
       A: '獲得可能Ptに十分な余裕があります。安定して目標達成が見込めます。',
       B: '獲得可能Ptが目標を上回っています。計画的に周回すれば達成可能です。',
-      C: '獲得可能Ptは目標をわずかに上回る程度です。ぎりぎりの達成になるためペース管理が重要です。',
+      C: '獲得可能Ptは目標の±5%以内です。余裕が少ないためペース管理が重要です。',
       D: '現在のプレイ時間・クリスタルでは、目標順位の推定Ptに届きません。目標達成は難しい状況です。',
     };
 
