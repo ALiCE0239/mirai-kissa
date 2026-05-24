@@ -1,0 +1,23 @@
+未来喫茶 — 楽曲・基礎点リストの管理
+================================
+
+■ サイトが参照するデータ（本番）
+  js/song-kiso-data.js … 670曲の楽曲名・基礎点・ユニットがコードに組み込まれています
+  （fetch 不要のため、file:// や GitHub Pages でもプルダウンが動きます）
+
+■ 編集用マスター（人が編集しやすいコピー）
+  data/楽曲基礎点.txt
+
+  手順:
+  1. data/楽曲基礎点.txt を編集して保存
+  2. js/song-kiso-data.js を再生成（下記）
+  3. ブラウザを強制再読み込み → git push
+
+■ song-kiso-data.js の再生成（開発者向け）
+  プロジェクトフォルダで:
+    python3 scripts/build-song-kiso-data.py
+
+  data/楽曲基礎点.txt から js/song-kiso-data.js を出力します。
+
+■ ポイント調整NEXT
+  「楽曲」プルダウンから選択すると基礎点が自動で入ります。

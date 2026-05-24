@@ -206,21 +206,21 @@ const PjskEngine = {
     return Math.floor(score / this.SCORE_BAND_WIDTH);
   },
 
-  /** (基礎点 + r) × (100 + B%) / 100 を小数第2位以下切捨て（小数1桁） */
+  /** (100 + r) × (100 + B%) / 100 を小数第2位以下切捨て（小数1桁）。基礎点は炊き前EPのみ反映 */
   soloLivePointStep2(scoreBand, bonusPct) {
     const raw = (this.SOLO_LIVE_KISO + scoreBand) * (100 + bonusPct) / 100;
     return Math.floor(raw * 10) / 10;
   },
 
   /** 炊き前イベントP = floor(中間値 × 基礎点 / 100) */
-  soloLiveEpBeforeCook(scoreBand, bonusPct) {
+  soloLiveEpBeforeCook(scoreBand, bonusPct, kiso = this.SOLO_LIVE_KISO) {
     const v = this.soloLivePointStep2(scoreBand, bonusPct);
-    return Math.floor((v * this.SOLO_LIVE_KISO) / 100);
+    return Math.floor((v * kiso) / 100);
   },
 
   /** 獲得Pt = 炊き前EP × [イベントP]倍率 */
-  soloLiveTotalPoint(scoreBand, bonusPct, taki) {
-    return this.soloLiveEpBeforeCook(scoreBand, bonusPct) * this.lbEventPtMul(taki);
+  soloLiveTotalPoint(scoreBand, bonusPct, taki, kiso = this.SOLO_LIVE_KISO) {
+    return this.soloLiveEpBeforeCook(scoreBand, bonusPct, kiso) * this.lbEventPtMul(taki);
   },
 
   bandBounds(r) {
@@ -228,8 +228,11 @@ const PjskEngine = {
     return { low, high: low + (this.SCORE_BAND_WIDTH - 1) };
   },
 
-  findExactMatches(target, filterTaki, filterBonusMin, filterBonusMax, bonusStep = 1) {
+  findExactMatches(target, filterTaki, filterBonusMin, filterBonusMax, bonusStep = 1, kiso = this.SOLO_LIVE_KISO) {
     const out = [];
+    const k = Math.floor(Number(kiso));
+    if (!Number.isFinite(k) || k < 1) return out;
+
     const bMin = Math.max(this.BONUS_MIN, filterBonusMin);
     const bMax = Math.min(this.BONUS_MAX, filterBonusMax);
     const step = bonusStep > 1 ? Math.floor(bonusStep) : 1;
@@ -241,8 +244,8 @@ const PjskEngine = {
 
     for (let r = 0; r < this.SCORE_BAND_COUNT; r++) {
       for (let b100 = bStart; b100 <= bMax; b100 += step) {
-        const step2 = this.soloLivePointStep2(r, b100);
-        const ep = this.soloLiveEpBeforeCook(r, b100);
+        const step2 = this.soloLivePointStep2(r, b100, k);
+        const ep = this.soloLiveEpBeforeCook(r, b100, k);
         for (const [takiStr, mul] of Object.entries(this.LB_EVENT_PT_MULTIPLIERS)) {
           const taki = parseInt(takiStr, 10);
           if (filterTaki && !filterTaki.has(taki)) continue;
@@ -250,6 +253,7 @@ const PjskEngine = {
           if (total === target) {
             const band = this.bandBounds(r);
             out.push({
+              kiso: k,
               scoreLow: band.low, scoreHigh: band.high,
               bonusHundred: b100, taki,
               step2Value: step2, epBeforeCook: ep,
