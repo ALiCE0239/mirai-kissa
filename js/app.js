@@ -47,19 +47,24 @@
     });
   }
 
-  function initHome() {
-    const toggle = document.getElementById('homeToolsToggle');
-    const panel = document.getElementById('homeToolsPanel');
+  function bindHomePanel(toggle, panel, onOpen) {
     if (!toggle || !panel || toggle.dataset.bound === '1') return;
     toggle.dataset.bound = '1';
 
     const open = () => {
+      if (onOpen) onOpen();
       panel.hidden = false;
       requestAnimationFrame(() => {
         panel.classList.add('is-open');
         toggle.setAttribute('aria-expanded', 'true');
       });
       panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    const forceClose = () => {
+      panel.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      panel.hidden = true;
     };
 
     const close = () => {
@@ -81,6 +86,36 @@
       if (panel.classList.contains('is-open')) close();
       else open();
     });
+
+    return {
+      open,
+      close,
+      forceClose,
+      isOpen: () => panel.classList.contains('is-open'),
+    };
+  }
+
+  function initHome() {
+    const toolsToggle = document.getElementById('homeToolsToggle');
+    const toolsPanel = document.getElementById('homeToolsPanel');
+    const iberanToggle = document.getElementById('homeIberanToggle');
+    const iberanPanel = document.getElementById('homeIberanPanel');
+    if (!toolsToggle || !toolsPanel) return;
+
+    let iberanCtrl = null;
+    if (iberanToggle && iberanPanel) {
+      iberanCtrl = { panel: iberanPanel, toggle: iberanToggle, api: null };
+    }
+
+    const toolsApi = bindHomePanel(toolsToggle, toolsPanel, () => {
+      if (iberanCtrl?.api?.isOpen()) iberanCtrl.api.forceClose();
+    });
+
+    if (iberanCtrl) {
+      iberanCtrl.api = bindHomePanel(iberanCtrl.toggle, iberanCtrl.panel, () => {
+        if (toolsApi?.isOpen()) toolsApi.forceClose();
+      });
+    }
   }
 
   function initRouter() {
@@ -91,7 +126,8 @@
       .add('/amatsuyu', 'tmpl-amatsuyu',  () => Calculators.initAmatsuyu())
       .add('/event',    'tmpl-event',     () => Calculators.initEvent())
       .add('/exec',     'tmpl-exec',      () => Calculators.initExec())
-      .add('/adjust',   'tmpl-adjust',    () => Calculators.initAdjust())
+      .add('/adjust',      'tmpl-adjust',      () => Calculators.initAdjust())
+      .add('/adjust-next', 'tmpl-adjust-next', () => Calculators.initAdjustNext())
       .add('/kizuna',   'tmpl-kizuna',    () => Calculators.initKizuna())
       .add('/diagnosis','tmpl-diagnosis', () => Calculators.initDiagnosis())
       .add('404',       'tmpl-404',       null);
@@ -102,7 +138,8 @@
         '/amatsuyu':  'あまつゆ計算機 — 未来喫茶',
         '/event':     'イベントPt計算 — 未来喫茶',
         '/exec':      '実効値計算 — 未来喫茶',
-        '/adjust':    'ポイント調整 — 未来喫茶',
+        '/adjust':      'ポイント調整 — 未来喫茶',
+        '/adjust-next': 'ポイント調整NEXT — 未来喫茶',
         '/kizuna':    'キズナ計算 — 未来喫茶',
         '/diagnosis': 'イベラン診断 — 未来喫茶',
       };

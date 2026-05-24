@@ -7,6 +7,7 @@ const Calculators = {
     event: 'calcEvent',
     exec: 'calcExec',
     adjust: 'calcAdjust',
+    'adjust-next': 'calcAdjustNext',
     kizuna: 'calcKizuna',
     diagnosis: 'calcDiagnosis',
   },
@@ -474,6 +475,243 @@ const Calculators = {
     }
 
     this._show('adjustResult');
+  },
+
+  // ========================================
+  // ポイント調整 NEXT（楽曲基礎点）
+  // ========================================
+  _adjustNextEsc(t) {
+    return String(t)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
+  _adjustNextUnitLabel(unit) {
+    const labels = {
+      '1:レオニ': 'Leo/need',
+      '2:モモ': 'MORE MORE JUMP!',
+      '3:ビビ': 'Vivid BAD SQUAD',
+      '4:ダショ': 'ワンダーランズ×ショウタイム',
+      '5:ニーゴ': '25時、ナイトコードで。',
+      '6:バチャ': 'チャルシンガー',
+      '7:その他': 'その他',
+    };
+    return labels[unit] || unit;
+  },
+
+  _adjustNextSortUnits(units) {
+    return [...units].sort((a, b) => {
+      const na = parseInt(String(a).split(':')[0], 10) || 99;
+      const nb = parseInt(String(b).split(':')[0], 10) || 99;
+      return na - nb;
+    });
+  },
+
+  _adjustNextFillUnitSelect() {
+    const sel = this._el('adjustNextUnitSelect');
+    if (!sel || typeof SongKiso === 'undefined') return;
+    const all = SongKiso.getAllSongs();
+    const units = this._adjustNextSortUnits([...new Set(all.map((s) => s.unit).filter(Boolean))]);
+    const current = sel.value;
+    sel.innerHTML =
+      `<option value="">全て（全楽曲）（${all.length}曲）</option>` +
+      units.map((u) => {
+        const n = all.filter((s) => s.unit === u).length;
+        return `<option value="${this._adjustNextEsc(u)}">${this._adjustNextEsc(this._adjustNextUnitLabel(u))}（${n}曲）</option>`;
+      }).join('');
+    if (current === '' || units.includes(current)) {
+      sel.value = current;
+    } else {
+      sel.value = '';
+    }
+  },
+
+  _adjustNextSongsForPicker() {
+    if (typeof SongKiso === 'undefined') return [];
+    const unit = this._el('adjustNextUnitSelect')?.value ?? '';
+    const q = this._el('adjustNextSongSearch')?.value?.trim().toLowerCase() || '';
+    let songs = unit
+      ? SongKiso.getAllSongs().filter((s) => s.unit === unit)
+      : SongKiso.getAllSongs();
+    if (q) songs = songs.filter((s) => s.name.toLowerCase().includes(q));
+    return songs;
+  },
+
+  _adjustNextFillSongSelect() {
+    const unitSel = this._el('adjustNextUnitSelect');
+    const searchEl = this._el('adjustNextSongSearch');
+    const sel = this._el('adjustNextSongSelect');
+    const countEl = this._el('adjustNextSongCount');
+    if (!sel || typeof SongKiso === 'undefined') return;
+
+    const unit = unitSel?.value ?? '';
+    const current = sel.value;
+
+    if (searchEl) searchEl.disabled = false;
+    sel.disabled = false;
+
+    const allInScope = unit
+      ? SongKiso.getAllSongs().filter((s) => s.unit === unit)
+      : SongKiso.getAllSongs();
+    const songs = this._adjustNextSongsForPicker();
+
+    if (songs.length === 0) {
+      sel.innerHTML = '<option value="">— 該当する楽曲がありません —</option>';
+    } else {
+      sel.innerHTML = '<option value="">— 楽曲を選択 —</option>' + songs.map((s) =>
+        `<option value="${this._adjustNextEsc(s.name)}">${this._adjustNextEsc(s.name)}（基礎点 ${s.kiso}）</option>`,
+      ).join('');
+      if (current && songs.some((s) => s.name === current)) sel.value = current;
+    }
+
+    if (countEl) {
+      const q = this._el('adjustNextSongSearch')?.value?.trim();
+      const scopeLabel = unit ? this._adjustNextUnitLabel(unit) : '全楽曲';
+      countEl.textContent = q
+        ? `${songs.length} 件（${scopeLabel} 全 ${allInScope.length} 曲中）`
+        : `全 ${allInScope.length} 曲（${scopeLabel}）— 絞り込みには上の検索を使えます`;
+    }
+
+    if (!sel.value) this._adjustNextOnSongSelectChange();
+  },
+
+  _adjustNextOnSongSelectChange() {
+    const sel = this._el('adjustNextSongSelect');
+    const hint = this._el('adjustNextKisoHint');
+    const hidden = this._el('adjustNextKiso');
+    const name = sel?.value?.trim() || '';
+    if (!name || typeof SongKiso === 'undefined') {
+      if (hint) hint.textContent = '基礎点: —';
+      if (hidden) hidden.value = '';
+      return;
+    }
+    const song = SongKiso.findByName(name);
+    if (!song) {
+      if (hint) hint.textContent = '基礎点: —';
+      if (hidden) hidden.value = '';
+      return;
+    }
+    if (hidden) hidden.value = String(song.kiso);
+    if (hint) {
+      hint.textContent = song.unit
+        ? `基礎点: ${song.kiso}（${this._adjustNextUnitLabel(song.unit)}）`
+        : `基礎点: ${song.kiso}`;
+    }
+  },
+
+  async initAdjustNext() {
+    const chips = this._el('adjustNextTakiChips');
+    if (chips) {
+      chips.innerHTML = Object.keys(PjskEngine.LB_EVENT_PT_MULTIPLIERS).map((t) => {
+        const n = parseInt(t, 10);
+        const checked = n === 0 ? ' checked' : '';
+        return `
+        <label class="taki-chip">
+          <input type="checkbox" data-taki="${n}"${checked}>
+          <span>${n}</span>
+        </label>
+      `;
+      }).join('');
+    }
+
+    const loadErr = this._el('adjustNextSongLoadErr');
+    if (typeof SongKiso !== 'undefined') {
+      const ok = await SongKiso.load();
+      if (!ok && loadErr) {
+        loadErr.hidden = false;
+        loadErr.textContent = '楽曲一覧を読み込めませんでした。js/song-kiso-data.js を確認してください。';
+      } else if (loadErr) {
+        loadErr.hidden = true;
+        this._adjustNextFillUnitSelect();
+        this._adjustNextFillSongSelect();
+      }
+    }
+
+    this._el('adjustNextUnitSelect')?.addEventListener('change', () => {
+      const search = this._el('adjustNextSongSearch');
+      if (search) search.value = '';
+      this._adjustNextFillSongSelect();
+    });
+    this._el('adjustNextSongSearch')?.addEventListener('input', () => this._adjustNextFillSongSelect());
+    this._el('adjustNextSongSelect')?.addEventListener('change', () => this._adjustNextOnSongSelectChange());
+
+    const onEnter = (e) => {
+      if (e.key === 'Enter') this._runCalc('calcAdjustNext');
+    };
+    this._el('adjustNextTarget')?.addEventListener('keydown', onEnter);
+    this._el('adjustNextBonusMax')?.addEventListener('keydown', onEnter);
+  },
+
+  calcAdjustNext() {
+    const target = parseInt(this._el('adjustNextTarget')?.value, 10);
+    const songName = this._el('adjustNextSongSelect')?.value?.trim() || '';
+    const kiso = parseInt(this._el('adjustNextKiso')?.value, 10);
+    const errEl = this._el('adjustNextError');
+    const listEl = this._el('adjustNextMatches');
+    const countEl = this._el('adjustNextCount');
+
+    if (!errEl || !listEl || !countEl) return;
+
+    errEl.textContent = '';
+    listEl.innerHTML = '';
+
+    if (!target || target <= 0) {
+      errEl.textContent = '獲得したいポイントに正の整数を入力してください';
+      this._hide('adjustNextResult');
+      return;
+    }
+
+    if (!songName) {
+      errEl.textContent = '楽曲を選択してください';
+      this._hide('adjustNextResult');
+      return;
+    }
+    if (!kiso || kiso < 1 || kiso > 999) {
+      errEl.textContent = '基礎点を取得できません。楽曲を選び直してください';
+      this._hide('adjustNextResult');
+      return;
+    }
+
+    const filterTaki = new Set();
+    this._app()?.querySelectorAll('#adjustNextTakiChips [data-taki]:checked').forEach((cb) => {
+      filterTaki.add(parseInt(cb.dataset.taki, 10));
+    });
+    if (filterTaki.size === 0) {
+      errEl.textContent = '絞り込みで炊き数を1つ以上選んでください';
+      this._hide('adjustNextResult');
+      return;
+    }
+
+    let maxB = this._int('adjustNextBonusMax', PjskEngine.BONUS_MAX);
+    maxB = Math.max(PjskEngine.BONUS_MIN, Math.min(maxB, PjskEngine.BONUS_MAX));
+
+    const bonusStep = this._el('adjustNextBonusStep5')?.checked ? 5 : 1;
+    const matches = PjskEngine.findExactMatches(
+      target, filterTaki, PjskEngine.BONUS_MIN, maxB, bonusStep, kiso,
+    );
+    countEl.textContent = matches.length;
+
+    if (matches.length === 0) {
+      listEl.innerHTML = '<p class="text-muted text-center" style="padding:2rem;">一致無し</p>';
+    } else {
+      listEl.innerHTML = matches.map((m) => `
+        <div class="match-row">
+          <div class="match-row-head">
+            <strong>合計 ${fmtNum(m.totalPoint)} Pt</strong>
+            <span class="tag">炊き ${m.taki}</span>
+          </div>
+          <div class="match-row-body">
+            ${songName ? `楽曲: ${songName}<br>` : ''}基礎点: ${fmtNum(m.kiso)}<br>
+            スコア帯: ${fmtNum(m.scoreLow)}〜${fmtNum(m.scoreHigh)}<br>
+            炊き前EP: ${fmtNum(m.epBeforeCook)} / ボーナス: +${m.bonusHundred}% / イベントP倍率: ×${m.multiplier}
+          </div>
+        </div>
+      `);
+    }
+
+    this._show('adjustNextResult');
   },
 
   // ========================================

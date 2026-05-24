@@ -6,7 +6,7 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=28">
+  <link rel="stylesheet" href="css/style.css?v=33">
 </head>
 <body>
 
@@ -28,6 +28,7 @@
         <li><a href="#/event" data-link>イベントP</a></li>
         <li><a href="#/exec" data-link>実効値</a></li>
         <li><a href="#/adjust" data-link>Pt調整</a></li>
+        <li><a href="#/adjust-next" data-link>Pt調整N</a></li>
         <li><a href="#/kizuna" data-link>キズナ</a></li>
         <li><a href="#/diagnosis" data-link>イベラン</a></li>
       </ul>
@@ -52,6 +53,10 @@
         <div class="hero-actions">
           <button type="button" class="btn btn-primary hero-cta" id="homeToolsToggle" aria-expanded="false" aria-controls="homeToolsPanel">
             <span class="hero-cta__label">計算機</span>
+            <svg class="hero-cta__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <button type="button" class="btn btn-primary hero-cta hero-cta--iberan" id="homeIberanToggle" aria-expanded="false" aria-controls="homeIberanPanel">
+            <span class="hero-cta__label">イベラン</span>
             <svg class="hero-cta__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
         </div>
@@ -88,15 +93,7 @@
             </div>
             <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
-          <a href="#/adjust" class="tool-card tool-card--yellow" data-link data-category="エンヴィー" style="--card-delay: 180ms">
-            <div class="tool-card-content">
-              <div class="tool-card-icon yellow">🦐</div>
-              <h3>ポイント調整</h3>
-              <p>目標Ptに一致するスコア・ボーナス・炊き数を検索</p>
-            </div>
-            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-          </a>
-          <a href="#/kizuna" class="tool-card tool-card--green" data-link data-category="キズナ" style="--card-delay: 240ms">
+          <a href="#/kizuna" class="tool-card tool-card--green" data-link data-category="キズナ" style="--card-delay: 180ms">
             <div class="tool-card-content">
               <div class="tool-card-icon green">💕</div>
               <h3>キズナ計算</h3>
@@ -104,11 +101,38 @@
             </div>
             <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
-          <a href="#/diagnosis" class="tool-card tool-card--blue" data-link data-category="診断" style="--card-delay: 300ms">
+        </div>
+      </section>
+      </div>
+
+      <div class="home-tools-panel" id="homeIberanPanel" hidden>
+      <section class="home-tools" aria-labelledby="homeIberanHeading">
+        <div class="section-heading">
+          <h2 id="homeIberanHeading">📈 イベラン</h2>
+          <p>ボーダー・エンヴィー向けのツール</p>
+        </div>
+        <div class="card-grid card-grid--iberan">
+          <a href="#/diagnosis" class="tool-card tool-card--blue" data-link data-category="診断" style="--card-delay: 0ms">
             <div class="tool-card-content">
               <div class="tool-card-icon blue">📈</div>
               <h3>イベラン診断</h3>
               <p>ボーダー参考データから推定Ptを算出し、達成度をS〜Dで診断</p>
+            </div>
+            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          </a>
+          <a href="#/adjust" class="tool-card tool-card--yellow" data-link data-category="ポ調" style="--card-delay: 60ms">
+            <div class="tool-card-content">
+              <div class="tool-card-icon yellow">🦐</div>
+              <h3>ポイント調整</h3>
+              <p>目標Ptに一致するスコア・ボーナス・炊き数を検索（基礎点100固定）</p>
+            </div>
+            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          </a>
+          <a href="#/adjust-next" class="tool-card tool-card--yellow tool-card--adjust-next" data-link data-category="ポ調" style="--card-delay: 120ms">
+            <div class="tool-card-content">
+              <div class="tool-card-icon yellow">⭐️</div>
+              <h3>ポイント調整NEXT</h3>
+              <p>楽曲ごとの基礎点で目標Ptに合う組み合わせを検索（基礎点表対応）</p>
             </div>
             <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
@@ -293,6 +317,70 @@
     </div>
   </template>
 
+  <template id="tmpl-adjust-next">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>🦐 ポイント調整NEXT</h1>
+              <p>楽曲リストから基礎点を設定して検索（通常版は基礎点100固定）</p>
+        </div>
+        <div class="calc-form">
+          <fieldset class="song-select-flow">
+            <legend class="song-select-flow__legend">楽曲を設定</legend>
+            <div class="form-group">
+              <label for="adjustNextUnitSelect">1. ユニット</label>
+              <select class="form-input" id="adjustNextUnitSelect">
+                <option value="">全て（全楽曲）</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="adjustNextSongSearch">2. 曲名で絞り込み（任意）</label>
+              <input type="search" class="form-input" id="adjustNextSongSearch" placeholder="例: メルト" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="form-group">
+              <label for="adjustNextSongSelect">3. 楽曲</label>
+              <select class="form-input" id="adjustNextSongSelect">
+                <option value="">— 楽曲を選択 —</option>
+              </select>
+              <p class="song-select-count text-muted" id="adjustNextSongCount"></p>
+            </div>
+            <p class="song-select-hint text-muted" id="adjustNextKisoHint" aria-live="polite">基礎点: —</p>
+            <input type="hidden" id="adjustNextKiso" value="">
+            <p id="adjustNextSongLoadErr" class="adjust-error" hidden></p>
+          </fieldset>
+
+          <div class="form-group mt-2">
+            <label for="adjustNextTarget">獲得したいポイント</label>
+            <input type="number" class="form-input" id="adjustNextTarget" inputmode="numeric" autocomplete="off" placeholder="例: 29800" min="1">
+          </div>
+          <div class="form-group">
+            <label for="adjustNextBonusMax">ボーナス最大値（%）</label>
+            <input type="number" class="form-input" id="adjustNextBonusMax" inputmode="numeric" autocomplete="off" placeholder="例: 500" min="0" max="1040" step="1">
+          </div>
+          <div class="adjust-filters">
+            <p class="adjust-filters__title">絞り込み</p>
+            <p class="text-muted mb-1" style="font-size:0.85rem;">炊き数</p>
+            <div class="taki-chips" id="adjustNextTakiChips"></div>
+            <div class="form-group mt-2">
+              <label class="form-toggle">
+                <input type="checkbox" id="adjustNextBonusStep5" checked>
+                <span class="toggle-track"></span>
+                <span class="toggle-label">ボーナスを5%区切りで探索</span>
+              </label>
+            </div>
+          </div>
+          <p id="adjustNextError" class="adjust-error"></p>
+          <button type="button" class="btn btn-primary btn-block mt-2" id="adjustNextCalcBtn" data-calc="adjust-next">計算</button>
+        </div>
+        <div class="result-panel" id="adjustNextResult">
+          <div class="result-title">検索結果 <span id="adjustNextCount">0</span> 件</div>
+          <div class="match-list" id="adjustNextMatches"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <template id="tmpl-kizuna">
     <div class="page-content page-enter">
       <div class="calc-page">
@@ -400,8 +488,10 @@
 
   <script src="js/router.js?v=14"></script>
   <script src="js/border-rankings-data.js?v=1"></script>
-  <script src="js/pjsk-engine.js?v=30"></script>
-  <script src="js/calculators.js?v=49"></script>
-  <script src="js/app.js?v=14"></script>
+  <script src="js/song-kiso-data.js?v=1"></script>
+  <script src="js/song-kiso.js?v=3"></script>
+  <script src="js/pjsk-engine.js?v=32"></script>
+  <script src="js/calculators.js?v=55"></script>
+  <script src="js/app.js?v=16"></script>
 </body>
 </html>
