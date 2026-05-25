@@ -36,7 +36,7 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=33">
+  <link rel="stylesheet" href="css/style.css?v=34">
 </head>
 <body>
 
@@ -506,6 +506,74 @@
     </div>
   </template>
 
+  <template id="tmpl-admin">
+    <div class="page-content page-enter admin-page">
+      <div class="calc-page admin-page__inner">
+        <h1 class="admin-page__title">📊 管理者</h1>
+        <p class="text-muted admin-page__lead">アクセス数・計算機の利用回数（Supabase 連携）</p>
+
+        <div id="adminSetup" class="info-box admin-setup" hidden>
+          <p><strong>アナリティクスが未設定です。</strong></p>
+          <p class="mt-1">手順は <code>data/管理者・アナリティクス設定.txt</code> を参照し、Supabase 作成後に <code>js/analytics-config.js</code> で <code>enabled: true</code> にしてください。</p>
+        </div>
+
+        <div id="adminLogin" class="card admin-card" hidden>
+          <h2 class="admin-card__heading">ログイン</h2>
+          <form id="adminLoginForm" class="admin-login-form">
+            <label class="form-label" for="adminEmail">メール</label>
+            <input type="email" id="adminEmail" class="form-input" autocomplete="username" required>
+            <label class="form-label mt-2" for="adminPassword">パスワード</label>
+            <input type="password" id="adminPassword" class="form-input" autocomplete="current-password" required>
+            <p id="adminLoginError" class="form-error mt-2" hidden></p>
+            <button type="submit" class="btn btn-primary btn-block mt-3">ログイン</button>
+          </form>
+        </div>
+
+        <div id="adminDashboard" class="admin-dashboard" hidden>
+          <div class="admin-dashboard__toolbar">
+            <button type="button" class="btn btn-secondary btn-sm" id="adminRefreshBtn">再読み込み</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="adminLogoutBtn">ログアウト</button>
+          </div>
+          <p id="adminError" class="form-error mt-2" hidden></p>
+
+          <h2 class="admin-section-title">ページビュー</h2>
+          <div class="admin-stat-grid">
+            <div class="admin-stat-card"><span class="admin-stat-label">今日</span><span class="admin-stat-value" id="statPvToday">—</span></div>
+            <div class="admin-stat-card"><span class="admin-stat-label">7日間</span><span class="admin-stat-value" id="statPv7">—</span></div>
+            <div class="admin-stat-card"><span class="admin-stat-label">30日間</span><span class="admin-stat-value" id="statPv30">—</span></div>
+            <div class="admin-stat-card"><span class="admin-stat-label">累計</span><span class="admin-stat-value" id="statPvAll">—</span></div>
+          </div>
+
+          <h2 class="admin-section-title">ツール利用（計算実行）</h2>
+          <div class="admin-stat-grid admin-stat-grid--3">
+            <div class="admin-stat-card"><span class="admin-stat-label">今日</span><span class="admin-stat-value" id="statToolToday">—</span></div>
+            <div class="admin-stat-card"><span class="admin-stat-label">7日間</span><span class="admin-stat-value" id="statTool7">—</span></div>
+            <div class="admin-stat-card"><span class="admin-stat-label">累計</span><span class="admin-stat-value" id="statToolAll">—</span></div>
+          </div>
+          <p class="form-hint">7日間ユニーク訪問者（目安）: <strong id="statUv7">—</strong></p>
+
+          <h2 class="admin-section-title">ページ別（7日間）</h2>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>ページ</th><th>回数</th></tr></thead>
+              <tbody id="adminPagesBody"></tbody>
+            </table>
+          </div>
+
+          <h2 class="admin-section-title">ツール別（7日間）</h2>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>ツール</th><th>利用回数</th></tr></thead>
+              <tbody id="adminToolsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <a href="#/" class="btn btn-secondary mt-4" data-link>ホームに戻る</a>
+      </div>
+    </div>
+  </template>
+
   <template id="tmpl-404">
     <div class="page-content page-enter">
       <div class="calc-page text-center" style="padding-top: 6rem;">
@@ -516,12 +584,15 @@
     </div>
   </template>
 
+  <script src="js/analytics-config.js?v=1"></script>
+  <script src="js/analytics.js?v=1"></script>
+  <script src="js/admin.js?v=1"></script>
   <script src="js/router.js?v=14"></script>
   <script src="js/border-rankings-data.js?v=1"></script>
   <script src="js/song-kiso-data.js?v=1"></script>
   <script src="js/song-kiso.js?v=3"></script>
   <script src="js/pjsk-engine.js?v=32"></script>
-  <script src="js/calculators.js?v=55"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="js/calculators.js?v=56"></script>
+  <script src="js/app.js?v=17"></script>
 </body>
 </html>

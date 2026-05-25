@@ -1,0 +1,40 @@
+未来喫茶 — 管理者ページ・アクセス集計の設定
+========================================
+
+■ 概要
+  静的サイト（GitHub Pages）のため、集計データは Supabase（無料枠）に保存します。
+  管理者ページ: https://（あなたのサイトURL）/#/admin
+  ※ナビには載せません。URLを知っている人だけが開けます。
+
+■ 自動セットアップ（推奨・Cursor / ターミナル）
+  1. https://supabase.com で無料アカウント作成（ブラウザのみ）
+  2. Account → Access Tokens → Generate → トークンをコピー
+  3. .env.analytics.local.example を .env.analytics.local にコピーし、
+     SUPABASE_ACCESS_TOKEN / ADMIN_EMAIL / ADMIN_PASSWORD を記入
+  4. プロジェクト直下で実行:
+       node tools/setup-mirai-analytics.mjs
+  5. js/analytics-config.js が自動更新される → git push
+
+■ 手動セットアップ
+  1. Supabase で New project
+  2. SQL Editor で data/analytics-supabase.sql を Run
+  3. Settings → API の URL / anon key を js/analytics-config.js に記入
+  4. Authentication → Users で管理者を追加
+  5. enabled: true にして git push
+
+  ※ anon key は公開されても「書き込みのみ」許可（RLS）のため問題ありません。
+     読み取りはログインした管理者だけです。
+
+■ 記録される内容
+  - page_view … ページ表示（/#/event など）
+  - tool_use   … 各計算機の「計算」ボタン押下
+  - visitor_id … ブラウザごとの匿名ID（localStorage、個人特定なし）
+
+■ 管理者ページで見られる数値
+  - 今日 / 7日 / 30日 / 累計のページビュー
+  - ツール利用回数（計算実行）
+  - 7日間のユニーク訪問者数（目安）
+  - ページ別・ツール別の内訳（直近データから集計）
+
+■ オフライン・未設定時
+  enabled: false のときは送信せず、#/admin には設定手順を表示します。

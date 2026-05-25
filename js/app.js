@@ -130,9 +130,11 @@
       .add('/adjust-next', 'tmpl-adjust-next', () => Calculators.initAdjustNext())
       .add('/kizuna',   'tmpl-kizuna',    () => Calculators.initKizuna())
       .add('/diagnosis','tmpl-diagnosis', () => Calculators.initDiagnosis())
+      .add('/admin',    'tmpl-admin',     () => AdminPage.init())
       .add('404',       'tmpl-404',       null);
 
     router.onRouteChange = (hash) => {
+      if (typeof MiraiAnalytics !== 'undefined') MiraiAnalytics.trackPageView(hash);
       const titles = {
         '/':          '未来喫茶 — プロセカ計算機ツール集',
         '/amatsuyu':  'あまつゆ計算機 — 未来喫茶',
@@ -142,6 +144,7 @@
         '/adjust-next': 'ポイント調整NEXT — 未来喫茶',
         '/kizuna':    'キズナ計算 — 未来喫茶',
         '/diagnosis': 'イベラン診断 — 未来喫茶',
+        '/admin':     '管理者 — 未来喫茶',
       };
       document.title = titles[hash] || '未来喫茶';
     };

@@ -32,6 +32,7 @@ const Calculators = {
       btn.type = 'button';
       btn.onclick = (e) => {
         e.preventDefault();
+        if (typeof MiraiAnalytics !== 'undefined') MiraiAnalytics.trackToolUse(action);
         this._runCalc(method);
         const panel = app.querySelector('.result-panel');
         panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
