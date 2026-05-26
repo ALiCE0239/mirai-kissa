@@ -20,8 +20,8 @@ jobs:
           VERSION="${GITHUB_SHA:0:7}"
           BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           mkdir -p _site
-          cp index.html _site/
-          cp -r css js data img _site/
+          cp index.html admin.html 管理者ページ.html _site/
+          cp -r css js data img 管理者 _site/
           touch _site/.nojekyll
           sed -i 's/content="dev"/content="'"${VERSION}"'"/' _site/index.html
           printf '{"version":"%s","builtAt":"%s"}\n' "$VERSION" "$BUILT_AT" > _site/version.json

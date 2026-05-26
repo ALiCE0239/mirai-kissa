@@ -3,8 +3,13 @@
 
 ■ 概要
   静的サイト（GitHub Pages）のため、集計データは Supabase（無料枠）に保存します。
-  管理者ページ: https://（あなたのサイトURL）/#/admin
+  管理者ページ: https://alice0239.github.io/mirai-kissa/#/admin
   ※ナビには載せません。URLを知っている人だけが開けます。
+
+  フォルダから開く（ダブルクリック用）:
+    管理者ページ.html  または  admin.html
+    管理者/index.html
+  いずれも同じ管理者画面へ移動します。
 
 ■ 自動セットアップ（推奨・Cursor / ターミナル）
   1. https://supabase.com で無料アカウント作成（ブラウザのみ）
