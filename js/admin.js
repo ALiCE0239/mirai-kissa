@@ -30,8 +30,29 @@ const AdminPage = (function () {
   }
 
   function formatNum(n) {
-    if (typeof window.fmtNum === 'function') return window.formatNum(n);
+    if (typeof window.fmtNum === 'function') return window.fmtNum(n);
     return Number(n).toLocaleString('ja-JP');
+  }
+
+  function authHeaders() {
+    const key = anonKey();
+    return {
+      apikey: key,
+      Authorization: 'Bearer ' + key,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  function loginErrorMessage(data, status) {
+    const code = data.error_code || data.code || '';
+    const msg = data.error_description || data.msg || data.message || '';
+    if (code === 'invalid_credentials' || /invalid login/i.test(msg)) {
+      return 'メールまたはパスワードが違います。Supabase の Users にユーザーがあるか確認してください。';
+    }
+    if (status === 0 || /failed to fetch|network/i.test(String(msg))) {
+      return '通信できません。公開サイト（https://alice0239.github.io/mirai-kissa/#/admin）から開いてください。ローカルファイル（file://）ではログインできません。';
+    }
+    return msg || 'ログインに失敗しました（' + status + '）';
   }
 
   function startOfTodayIso() {
@@ -63,14 +84,19 @@ const AdminPage = (function () {
 
   async function signIn(email, password) {
     const url = baseUrl() + '/auth/v1/token?grant_type=password';
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { apikey: anonKey(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ email, password }),
+      });
+    } catch (e) {
+      throw new Error(loginErrorMessage({}, 0));
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error_description || data.msg || data.message || 'ログインに失敗しました');
+      throw new Error(loginErrorMessage(data, res.status));
     }
     setToken(data.access_token);
     return data.access_token;

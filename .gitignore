@@ -4,3 +4,4 @@
 scripts/
 .cursor/
 .env.analytics.local
+data/管理者ログイン情報.local.txt
