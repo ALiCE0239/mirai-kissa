@@ -45,6 +45,7 @@ async function mgmt(token, path, options = {}) {
     headers: {
       Authorization: 'Bearer ' + token,
       'Content-Type': 'application/json',
+      'User-Agent': 'mirai-kissa-setup/1.0',
       ...(options.headers || {}),
     },
   });
@@ -87,16 +88,15 @@ function pickKeys(apiKeys) {
 }
 
 async function runSql(token, ref, sql) {
-  const chunks = sql
-    .split(';')
-    .map((s) => s.trim())
-    .filter((s) => s && !s.startsWith('--'));
-  for (const q of chunks) {
-    await mgmt(token, `/projects/${ref}/database/query`, {
-      method: 'POST',
-      body: JSON.stringify({ query: q + ';' }),
-    });
-  }
+  const query = sql
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n')
+    .trim();
+  await mgmt(token, `/projects/${ref}/database/query`, {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  });
 }
 
 async function createAdminUser(projectUrl, serviceKey, email, password) {
@@ -132,12 +132,13 @@ window.MIRAI_ANALYTICS_CONFIG = {
 async function main() {
   const env = loadEnv();
   const token = env.SUPABASE_ACCESS_TOKEN;
-  const adminEmail = env.ADMIN_EMAIL;
-  const adminPassword = env.ADMIN_PASSWORD;
-  if (!token || !adminEmail || !adminPassword) {
-    console.error('❌ SUPABASE_ACCESS_TOKEN, ADMIN_EMAIL, ADMIN_PASSWORD が必要です');
+  const adminEmail = env.ADMIN_EMAIL || '';
+  const adminPassword = env.ADMIN_PASSWORD || '';
+  if (!token) {
+    console.error('❌ SUPABASE_ACCESS_TOKEN が必要です');
     process.exit(1);
   }
+  const createAdmin = !!(adminEmail && adminPassword);
 
   let ref = env.SUPABASE_PROJECT_REF || '';
   let projectUrl = env.SUPABASE_URL || '';
@@ -157,7 +158,7 @@ async function main() {
         name: projectName,
         organization_slug: orgSlug,
         db_pass: dbPass,
-        region_selection: { type: 'smartGroup', code: env.REGION || 'asia' },
+        region_selection: { type: 'smartGroup', code: env.REGION || 'apac' },
       }),
     });
     ref = created.id || created.ref;
@@ -183,8 +184,12 @@ async function main() {
   const sql = readFileSync(SQL_PATH, 'utf8');
   await runSql(token, ref, sql);
 
-  console.log('👤 管理者ユーザー作成…');
-  await createAdminUser(projectUrl, service, adminEmail, adminPassword);
+  if (createAdmin) {
+    console.log('👤 管理者ユーザー作成…');
+    await createAdminUser(projectUrl, service, adminEmail, adminPassword);
+  } else {
+    console.log('⏭️ ADMIN_EMAIL / ADMIN_PASSWORD 未設定 → 管理者はダッシュボードで追加してください');
+  }
 
   writeConfig(projectUrl, anon);
 
@@ -192,7 +197,11 @@ async function main() {
   console.log('  セットアップ完了');
   console.log('========================================');
   console.log('管理者ページ: （公開URL）/#/admin');
-  console.log('ログイン:', adminEmail);
+  if (createAdmin) console.log('ログイン:', adminEmail);
+  else {
+    console.log('ログイン: Supabase → Authentication → Users → Add user');
+    console.log('  （メール・パスワードを設定し #/admin でログイン）');
+  }
   console.log('\n次: git add js/analytics-config.js && git commit && git push');
 }
 

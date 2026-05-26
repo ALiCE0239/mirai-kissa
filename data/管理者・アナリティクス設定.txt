@@ -8,7 +8,9 @@
 
 ■ 自動セットアップ（推奨・Cursor / ターミナル）
   1. https://supabase.com で無料アカウント作成（ブラウザのみ）
-  2. Account → Access Tokens → Generate → トークンをコピー
+  2. トークン発行（UI が見つからない場合は直接開く）
+     https://supabase.com/dashboard/account/tokens
+     「Generate new token」→ コピー（sbp_ で始まる）
   3. .env.analytics.local.example を .env.analytics.local にコピーし、
      SUPABASE_ACCESS_TOKEN / ADMIN_EMAIL / ADMIN_PASSWORD を記入
   4. プロジェクト直下で実行:
