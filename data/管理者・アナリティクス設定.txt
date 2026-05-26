@@ -12,9 +12,9 @@
   いずれも公開サイトの #/admin へ移動します（ローカル file:// ではログイン不可）。
 
 ■ ログイン
-  初回セットアップ済みの場合: data/管理者ログイン情報.local.txt を参照
-  自分で作る場合: Supabase → Authentication → Users → Add user
-    （Auto Confirm User にチェック）→ #/admin でログイン
+  #/admin ではパスワードのみ入力（メール欄なし）
+  パスワードの控え: data/管理者ログイン情報.local.txt
+  変更する場合: Supabase → Authentication → Users → 該当ユーザーのパスワード更新
 
 ■ 自動セットアップ（推奨・Cursor / ターミナル）
   1. https://supabase.com で無料アカウント作成（ブラウザのみ）

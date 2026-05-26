@@ -5,6 +5,8 @@ const AdminPage = (function () {
   'use strict';
 
   const TOKEN_KEY = 'miraiKissaAdminToken';
+  /** Supabase 側の管理者メール（画面には出さない） */
+  const ADMIN_EMAIL = 'admin@mirai-kissa.local';
 
   const PATH_LABELS = {
     '/': 'ホーム',
@@ -47,7 +49,7 @@ const AdminPage = (function () {
     const code = data.error_code || data.code || '';
     const msg = data.error_description || data.msg || data.message || '';
     if (code === 'invalid_credentials' || /invalid login/i.test(msg)) {
-      return 'メールまたはパスワードが違います。Supabase の Users にユーザーがあるか確認してください。';
+      return 'パスワードが違います。';
     }
     if (status === 0 || /failed to fetch|network/i.test(String(msg))) {
       return '通信できません。公開サイト（https://alice0239.github.io/mirai-kissa/#/admin）から開いてください。ローカルファイル（file://）ではログインできません。';
@@ -263,10 +265,9 @@ const AdminPage = (function () {
         e.preventDefault();
         const errEl = root.querySelector('#adminLoginError');
         errEl.hidden = true;
-        const email = root.querySelector('#adminEmail').value.trim();
         const password = root.querySelector('#adminPassword').value;
         try {
-          await signIn(email, password);
+          await signIn(ADMIN_EMAIL, password);
           showDashboard(root);
         } catch (err) {
           errEl.textContent = err.message;
