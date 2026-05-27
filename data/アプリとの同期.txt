@@ -1,0 +1,45 @@
+未来喫茶 — プロセカアプリ（iOS）との同期
+========================================
+
+■ アプリの場所
+  /Users/alice/Desktop/プロセカアプリのコピー/プロセカアプリ
+  （Xcode プロジェクト・Swift）
+
+■ 役割分担
+  - Web（未来喫茶）… GitHub Pages、管理者ページ、手軽な計算機
+  - アプリ … 便利機能を多く搭載（プロフィール、Firebase 楽曲マスタ、SNS 等）
+
+■ 自動でコピーするもの（python3 tools/sync-with-app.py）
+  | Web | アプリ側 |
+  |-----|----------|
+  | data/炊き数倍率.txt | プロセカアプリ/炊き数倍率.txt |
+  | data/計算式.txt | docs/計算式-Web同期.txt |
+  | data/楽曲基礎点.txt | docs/楽曲基礎点-Web同期.txt |
+  | data/楽曲基礎点.json | docs/楽曲基礎点-Web同期.json |
+
+■ 手動で揃えるもの（言語・形式が違う）
+  | Web | アプリ |
+  |-----|--------|
+  | js/pjsk-engine.js | プロセカアプリ/PjskEngine.swift |
+  | js/border-rankings-data.js | プロセカアプリ/border-rankings.json |
+  | js/song-kiso-data.js | Firebase Remote Config（SongMaster） |
+
+  計算式を変えたときは data/計算式.txt を正とし、
+  Web の pjsk-engine.js とアプリの PjskEngine.swift の両方を更新してください。
+
+■ コマンド（未来喫茶フォルダで）
+  cp sync/sync-config.example.json sync/sync-config.local.json
+  （初回のみ。local は appProjectPath 済みなら不要）
+
+  Web → アプリ:
+    python3 tools/sync-with-app.py push
+
+  アプリ側 docs を Web に取り込み:
+    python3 tools/sync-with-app.py pull
+
+  差分確認:
+    python3 tools/sync-with-app.py diff
+
+■ 設定ファイル
+  sync/sync-config.local.json … パス設定（git 非公開）
+  sync/manifest.json … 共有ファイル一覧
