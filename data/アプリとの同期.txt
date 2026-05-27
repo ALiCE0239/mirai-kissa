@@ -1,46 +1,45 @@
-未来喫茶 — プロセカアプリ（別 Cursor プロジェクト）との同期
-============================================================
+未来喫茶 — プロセカアプリ（iOS）との同期
+========================================
 
-■ 考え方
-  - 計算ロジック・マスターデータは「1か所を正」にして、もう一方へコピーする
-  - 未来喫茶（このフォルダ）… GitHub Pages 用 Web
-  - プロセカアプリ … 別 Cursor ワークスペース（Flutter / Web など）
+■ アプリの場所
+  /Users/alice/Desktop/プロセカアプリのコピー/プロセカアプリ
+  （Xcode プロジェクト・Swift）
 
-■ 共有するファイル（sync/manifest.json）
-  - js/pjsk-engine.js      … 計算エンジン
-  - data/計算式.txt        … 式の仕様メモ
-  - data/炊き数倍率.txt
-  - data/楽曲基礎点.txt
-  - data/楽曲基礎点.json
+■ 役割分担
+  - Web（未来喫茶）… GitHub Pages、管理者ページ、手軽な計算機
+  - アプリ … 便利機能を多く搭載（プロフィール、Firebase 楽曲マスタ、SNS 等）
 
-  Web 専用（同期しない）:
-  - index.html, css/, 管理者, アナリティクス, admin.html など
+■ 自動でコピーするもの（python3 tools/sync-with-app.py）
+  | Web | アプリ側 |
+  |-----|----------|
+  | data/炊き数倍率.txt | プロセカアプリ/炊き数倍率.txt |
+  | data/計算式.txt | docs/計算式-Web同期.txt |
+  | data/楽曲基礎点.txt | docs/楽曲基礎点-Web同期.txt |
+  | data/楽曲基礎点.json | docs/楽曲基礎点-Web同期.json |
 
-■ 初回セットアップ
-  1. cp sync/sync-config.example.json sync/sync-config.local.json
-  2. sync-config.local.json の appProjectPath を
-     プロセカアプリのフォルダの絶対パスに変更
-  3. pathMap … アプリ側でパスが違うときだけ書き換え（同じならそのまま）
+■ 手動で揃えるもの（言語・形式が違う）
+  | Web | アプリ |
+  |-----|--------|
+  | js/pjsk-engine.js | プロセカアプリ/PjskEngine.swift |
+  | js/border-rankings-data.js | プロセカアプリ/border-rankings.json |
+  | js/song-kiso-data.js | Firebase Remote Config（SongMaster） |
 
-■ 日常の使い方（未来喫茶フォルダで）
+  計算式を変えたときは data/計算式.txt を正とし、
+  Web の pjsk-engine.js とアプリの PjskEngine.swift の両方を更新してください。
 
-  Web で式やデータを直した → アプリへ:
+■ コマンド（未来喫茶フォルダで）
+  cp sync/sync-config.example.json sync/sync-config.local.json
+  （初回のみ。local は appProjectPath 済みなら不要）
+
+  Web → アプリ:
     python3 tools/sync-with-app.py push
 
-  アプリ側で直した → Web へ:
+  アプリ側 docs を Web に取り込み:
     python3 tools/sync-with-app.py pull
-    python3 tools/build-song-kiso-data.py   # 楽曲基礎点.txt を変えたとき
-    git add … && git push                   # 公開する場合
 
-  どちらが新しいか確認:
+  差分確認:
     python3 tools/sync-with-app.py diff
 
-  試しにコピーせず一覧だけ:
-    python3 tools/sync-with-app.py push --dry-run
-
-■ おすすめの運用
-  - 計算式を変えるときは、まず data/計算式.txt に書く
-  - js/pjsk-engine.js を片方で直したら、すぐ push または pull
-  - 公開サイトを更新するときは、同期後に未来喫茶で git push
-
-■ sync-config.local.json は git に含めません（パスが PC ごとに違うため）
+■ 設定ファイル
+  sync/sync-config.local.json … パス設定（git 非公開）
+  sync/manifest.json … 共有ファイル一覧

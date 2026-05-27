@@ -1,17 +1,29 @@
 {
-  "description": "未来喫茶（Web）とプロセカアプリで共有するファイル一覧",
+  "description": "未来喫茶（Web）→ プロセカアプリ（iOS）同期",
   "files": [
-    "js/pjsk-engine.js",
-    "data/計算式.txt",
     "data/炊き数倍率.txt",
+    "data/計算式.txt",
     "data/楽曲基礎点.txt",
     "data/楽曲基礎点.json"
   ],
+  "manualPort": [
+    {
+      "web": "js/pjsk-engine.js",
+      "app": "プロセカアプリ/PjskEngine.swift",
+      "spec": "data/計算式.txt"
+    }
+  ],
   "webOnlyAfterPull": [
     {
-      "note": "楽曲基礎点.txt を更新したあと Web 側で実行",
+      "when": "data/楽曲基礎点.txt",
       "command": "python3 tools/build-song-kiso-data.py",
-      "when": "data/楽曲基礎点.txt"
+      "note": "Web の js/song-kiso-data.js を再生成"
+    }
+  ],
+  "appOnlyAfterPull": [
+    {
+      "when": "docs/楽曲基礎点-Web同期.txt",
+      "note": "Firebase Remote Config の song_data_payload 更新が必要な場合あり"
     }
   ]
 }
