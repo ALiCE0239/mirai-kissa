@@ -6,11 +6,34 @@
     "data/楽曲基礎点.txt",
     "data/楽曲基礎点.json"
   ],
+  "syncDirs": [
+    {
+      "web": "sync",
+      "app": "docs/Web同期",
+      "exclude": ["sync-config.local.json"]
+    }
+  ],
   "manualPort": [
     {
       "web": "js/pjsk-engine.js",
       "app": "プロセカアプリ/PjskEngine.swift",
       "spec": "data/計算式.txt"
+    },
+    {
+      "web": "js/calculators.js",
+      "app": "プロセカアプリ/Fmt.swift",
+      "spec": "sync/機能対応表.json",
+      "note": "画面ごとに分割実装。丸ごとコピー不可"
+    },
+    {
+      "web": "css/style.css",
+      "app": "プロセカアプリ/MiraiKissaTheme.swift",
+      "spec": "sync/UIデザイン仕様.md"
+    },
+    {
+      "web": "index.html",
+      "app": "プロセカアプリ/MiraiAppUI.swift",
+      "note": "テンプレート構造の参照用"
     }
   ],
   "webOnlyAfterPull": [

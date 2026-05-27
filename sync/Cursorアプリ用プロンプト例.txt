@@ -1,0 +1,18 @@
+【アプリ版 Cursor に貼る依頼文の例】
+
+docs/Web同期/ フォルダを読んでから作業してください。
+
+1. 開発メモ.md … いま反映してほしい変更
+2. 機能対応表.json … Web とアプリの対応・未実装
+3. UIデザイン仕様.md … 色・コンポーネントの統一
+4. 反映チェックリスト.md … 手順
+5. 計算式-Web同期.txt … 計算の正
+
+ルール:
+- UI は MiraiKissaTheme.swift / MiraiAppUI.swift の既存パターンに合わせる
+- 計算は PjskEngine.swift（Web の pjsk-engine.js と同仕様）
+- 新しい計算機は CalculatorTool enum に追加
+- 実装後、開発メモの「反映済み」に移動するよう提案してください
+
+今回のタスク:
+（ここに具体的な依頼を書く）

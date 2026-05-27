@@ -3,43 +3,51 @@
 
 ■ アプリの場所
   /Users/alice/Desktop/プロセカアプリのコピー/プロセカアプリ
-  （Xcode プロジェクト・Swift）
 
-■ 役割分担
-  - Web（未来喫茶）… GitHub Pages、管理者ページ、手軽な計算機
-  - アプリ … 便利機能を多く搭載（プロフィール、Firebase 楽曲マスタ、SNS 等）
+■ 方針
+  Web の UI・機能をアプリでも統一していく。
+  アプリ独自機能（プロフィール・リザルト・Firebase 等）はそのまま拡張。
 
-■ 自動でコピーするもの（python3 tools/sync-with-app.py）
-  | Web | アプリ側 |
-  |-----|----------|
-  | data/炊き数倍率.txt | プロセカアプリ/炊き数倍率.txt |
-  | data/計算式.txt | docs/計算式-Web同期.txt |
-  | data/楽曲基礎点.txt | docs/楽曲基礎点-Web同期.txt |
-  | data/楽曲基礎点.json | docs/楽曲基礎点-Web同期.json |
+■ いちばん大事な3ステップ
 
-■ 手動で揃えるもの（言語・形式が違う）
-  | Web | アプリ |
-  |-----|--------|
-  | js/pjsk-engine.js | プロセカアプリ/PjskEngine.swift |
-  | js/border-rankings-data.js | プロセカアプリ/border-rankings.json |
-  | js/song-kiso-data.js | Firebase Remote Config（SongMaster） |
+  1. Web で直した内容を sync/開発メモ.md に書く
+  2. python3 tools/sync-with-app.py push
+  3. アプリ版 Cursor で docs/Web同期/ を読んで実装
 
-  計算式を変えたときは data/計算式.txt を正とし、
-  Web の pjsk-engine.js とアプリの PjskEngine.swift の両方を更新してください。
+■ コマンド（未来喫茶フォルダ）
 
-■ コマンド（未来喫茶フォルダで）
-  cp sync/sync-config.example.json sync/sync-config.local.json
-  （初回のみ。local は appProjectPath 済みなら不要）
+  python3 tools/sync-with-app.py push     … データ + sync/メモ一式 → アプリ
+  python3 tools/sync-with-app.py pull      … 逆方向
+  python3 tools/sync-with-app.py diff      … 差分
+  python3 tools/sync-with-app.py status    … 機能の対応状況一覧
 
-  Web → アプリ:
-    python3 tools/sync-with-app.py push
+■ アプリにコピーされるもの
 
-  アプリ側 docs を Web に取り込み:
-    python3 tools/sync-with-app.py pull
+  データ:
+    data/炊き数倍率.txt → プロセカアプリ/炊き数倍率.txt
+    data/計算式.txt     → docs/計算式-Web同期.txt
+    data/楽曲基礎点.*   → docs/楽曲基礎点-Web同期.*
 
-  差分確認:
-    python3 tools/sync-with-app.py diff
+  メモ・仕様（sync/ フォルダ丸ごと）:
+    → docs/Web同期/
+      開発メモ.md
+      機能対応表.json
+      UIデザイン仕様.md
+      反映チェックリスト.md
+      Cursorアプリ用プロンプト例.txt
 
-■ 設定ファイル
-  sync/sync-config.local.json … パス設定（git 非公開）
-  sync/manifest.json … 共有ファイル一覧
+■ 手動で揃えるもの
+
+  js/pjsk-engine.js     ↔ PjskEngine.swift
+  js/calculators.js     ↔ Fmt.swift（画面ごと）
+  css/style.css         ↔ MiraiKissaTheme.swift（UIデザイン仕様.md 参照）
+  index.html の tmpl    ↔ MiraiAppUI.swift
+
+■ アプリ Cursor への依頼
+
+  docs/Web同期/Cursorアプリ用プロンプト例.txt をコピーして使う。
+
+■ 設定
+
+  sync/sync-config.local.json（git 非公開・パス設定済み）
+  sync/機能対応表.json … 機能ごとの Web/App 対応

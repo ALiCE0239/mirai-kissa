@@ -1,0 +1,93 @@
+{
+  "updated": "2026-05-26",
+  "webRoot": "未来喫茶（GitHub Pages）",
+  "appRoot": "プロセカアプリ（iOS / Swift）",
+  "statusLegend": {
+    "synced": "Web・アプリで同等（要: 同期スクリプト・式の確認）",
+    "web_only": "Web のみ（アプリ未実装）",
+    "app_only": "アプリのみ（Web にない拡張）",
+    "partial": "一部のみ対応"
+  },
+  "features": [
+    {
+      "id": "home",
+      "name": "ホーム",
+      "web": { "route": "#/", "files": ["index.html", "js/app.js", "css/style.css"] },
+      "app": { "screen": "HomeView / CalculatorsHubView", "files": ["プロセカアプリ/Fmt.swift", "プロセカアプリ/MiraiAppUI.swift"] },
+      "status": "partial",
+      "notes": "アプリはタブ構成＋独自機能（プロフィール・イベラン記録等）"
+    },
+    {
+      "id": "amatsuyu",
+      "name": "あまつゆ計算機",
+      "web": { "route": "#/amatsuyu", "files": ["js/calculators.js", "js/pjsk-engine.js"] },
+      "app": { "screen": "AmatsuyuCalculatorView", "files": ["プロセカアプリ/Fmt.swift"] },
+      "status": "synced"
+    },
+    {
+      "id": "event",
+      "name": "イベントPt計算",
+      "web": { "route": "#/event", "files": ["js/calculators.js"] },
+      "app": { "screen": "EventPointCalculatorView", "files": ["プロセカアプリ/Fmt.swift"] },
+      "status": "synced"
+    },
+    {
+      "id": "exec",
+      "name": "実効値計算",
+      "web": { "route": "#/exec", "files": ["js/calculators.js"] },
+      "app": { "screen": "ExecValueCalculatorView", "files": ["プロセカアプリ/Fmt.swift"] },
+      "status": "synced"
+    },
+    {
+      "id": "adjust",
+      "name": "ポイント調整（基礎点100）",
+      "web": { "route": "#/adjust", "files": ["js/calculators.js", "js/pjsk-engine.js"] },
+      "app": { "screen": "PointAdjustView", "files": ["プロセカアプリ/Fmt.swift", "プロセカアプリ/PjskEngine.swift"] },
+      "status": "synced"
+    },
+    {
+      "id": "adjust-next",
+      "name": "ポイント調整NEXT（楽曲基礎点）",
+      "web": { "route": "#/adjust-next", "files": ["js/calculators.js", "js/song-kiso-data.js", "js/song-kiso.js"] },
+      "app": { "screen": "（未）", "files": [] },
+      "status": "web_only",
+      "notes": "アプリ実装時: SongMaster + PjskEngine.findExactMatches(kiso:)"
+    },
+    {
+      "id": "kizuna",
+      "name": "キズナ計算",
+      "web": { "route": "#/kizuna", "files": ["js/calculators.js"] },
+      "app": { "screen": "KizunaCalculatorView", "files": ["プロセカアプリ/Fmt.swift"] },
+      "status": "synced"
+    },
+    {
+      "id": "diagnosis",
+      "name": "イベラン診断",
+      "web": { "route": "#/diagnosis", "files": ["js/calculators.js", "js/border-rankings-data.js"] },
+      "app": { "screen": "EventRunDiagnosis", "files": ["プロセカアプリ/EventRunDiagnosis.swift", "プロセカアプリ/border-rankings.json"] },
+      "status": "synced"
+    },
+    {
+      "id": "admin",
+      "name": "管理者・アナリティクス",
+      "web": { "route": "#/admin", "files": ["js/admin.js", "js/analytics.js"] },
+      "app": { "screen": "—", "files": [] },
+      "status": "web_only"
+    }
+  ],
+  "sharedData": [
+    { "name": "炊き数倍率", "web": "data/炊き数倍率.txt", "app": "プロセカアプリ/炊き数倍率.txt", "autoSync": true },
+    { "name": "計算式仕様", "web": "data/計算式.txt", "app": "docs/計算式-Web同期.txt", "autoSync": true },
+    { "name": "楽曲基礎点", "web": "data/楽曲基礎点.txt", "app": "docs/楽曲基礎点-Web同期.txt", "autoSync": true },
+    { "name": "計算エンジン", "web": "js/pjsk-engine.js", "app": "プロセカアプリ/PjskEngine.swift", "autoSync": false },
+    { "name": "UIテーマ", "web": "css/style.css", "app": "プロセカアプリ/MiraiKissaTheme.swift", "autoSync": false, "spec": "sync/UIデザイン仕様.md" }
+  ],
+  "appOnlyFeatures": [
+    "プロフィール・カード画像",
+    "リザルト記録・グラフ",
+    "イベラン記録・支援リマインド",
+    "SNS・Firebase 同期",
+    "楽曲マスタ Remote Config",
+    "ボーダー追跡（Web未搭載）"
+  ]
+}
