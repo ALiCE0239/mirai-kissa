@@ -1,0 +1,10 @@
+{
+  "appProjectPath": "/Users/alice/あなたのプロセカアプリのフォルダ",
+  "pathMap": {
+    "js/pjsk-engine.js": "js/pjsk-engine.js",
+    "data/計算式.txt": "data/計算式.txt",
+    "data/炊き数倍率.txt": "data/炊き数倍率.txt",
+    "data/楽曲基礎点.txt": "data/楽曲基礎点.txt",
+    "data/楽曲基礎点.json": "data/楽曲基礎点.json"
+  }
+}

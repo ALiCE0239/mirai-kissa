@@ -1,0 +1,17 @@
+{
+  "description": "未来喫茶（Web）とプロセカアプリで共有するファイル一覧",
+  "files": [
+    "js/pjsk-engine.js",
+    "data/計算式.txt",
+    "data/炊き数倍率.txt",
+    "data/楽曲基礎点.txt",
+    "data/楽曲基礎点.json"
+  ],
+  "webOnlyAfterPull": [
+    {
+      "note": "楽曲基礎点.txt を更新したあと Web 側で実行",
+      "command": "python3 tools/build-song-kiso-data.py",
+      "when": "data/楽曲基礎点.txt"
+    }
+  ]
+}
