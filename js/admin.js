@@ -52,7 +52,7 @@ const AdminPage = (function () {
       return 'パスワードが違います。';
     }
     if (status === 0 || /failed to fetch|network/i.test(String(msg))) {
-      return '通信できません。公開サイト（https://fictionscale.jp/#/admin）から開いてください。ローカルファイル（file://）ではログインできません。';
+      return '通信できません。公開サイト（https://39cafe.fictionscale.jp/#/admin）から開いてください。ローカルファイル（file://）ではログインできません。';
     }
     return msg || 'ログインに失敗しました（' + status + '）';
   }

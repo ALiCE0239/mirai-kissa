@@ -34,4 +34,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site
           publish_branch: gh-pages
-          cname: fictionscale.jp
+          cname: 39cafe.fictionscale.jp
