@@ -183,6 +183,7 @@
       .add('/sekainote/read', 'tmpl-sekainote-read', () => MiraiMyPage.initSekaiNoteRead())
       .add('/p/:id',    'tmpl-public',    (params) => MiraiMyPage.initPublic(params))
       .add('/board/event',       'tmpl-board-event',       () => MiraiBoard.initEventList())
+      .add('/board/event/:uid',  'tmpl-board-event-detail', (params) => MiraiBoard.initEventDetail(params))
       .add('/board/event/edit',  'tmpl-board-event-edit',  () => guardCommunity(() => MiraiBoard.initEventEdit())())
       .add('/board/mysekai',     'tmpl-board-mysekai',     () => MiraiBoard.initMysekaiList())
       .add('/board/mysekai/edit','tmpl-board-mysekai-edit',() => guardCommunity(() => MiraiBoard.initMysekaiEdit())())
@@ -218,18 +219,20 @@
     router.start();
   }
 
-  document.addEventListener('DOMContentLoaded', async () => {
+  document.addEventListener('DOMContentLoaded', () => {
     createParticles();
     initNavScroll();
     initMobileMenu();
+    initRouter();
     if (typeof PjskEngine !== 'undefined') {
-      if (PjskEngine.loadMultiplierData) await PjskEngine.loadMultiplierData();
+      if (PjskEngine.loadMultiplierData) {
+        PjskEngine.loadMultiplierData().catch(() => {});
+      }
       if (PjskEngine.initBorderData) PjskEngine.initBorderData();
     }
     if (typeof MiraiAuth !== 'undefined') {
       MiraiAuth.init().catch((err) => console.error('[未来喫茶] 認証初期化エラー:', err));
     }
     if (typeof MiraiAds !== 'undefined') MiraiAds.init();
-    initRouter();
   });
 })();

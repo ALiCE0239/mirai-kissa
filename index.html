@@ -8,7 +8,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="mirai-kissa-build" content="bec50a6">
+  <meta name="mirai-kissa-build" content="a80a6f5">
   <script>
   (function () {
     'use strict';
@@ -23,6 +23,7 @@
         var build = meta && meta.getAttribute('content');
         if (build === remote.version) {
           try { localStorage.setItem(KEY, remote.version); } catch (e) {}
+          try { sessionStorage.removeItem('mkUpdating'); } catch (e) {}
           return;
         }
         if (sessionStorage.getItem('mkUpdating')) return;
@@ -38,9 +39,9 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=bec50a6">
-  <link rel="stylesheet" href="css/community.css?v=bec50a6">
-  <link rel="stylesheet" href="css/ads.css?v=bec50a6">
+  <link rel="stylesheet" href="css/style.css?v=a80a6f5">
+  <link rel="stylesheet" href="css/community.css?v=a80a6f5">
+  <link rel="stylesheet" href="css/ads.css?v=a80a6f5">
 </head>
 <body>
 
@@ -651,7 +652,7 @@
         <div class="calc-header">
           <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
           <h1>💳 プロフィールカード</h1>
-          <p>名刺サイズ（91×55mm）で作成できます</p>
+          <p>名刺サイズ（91×55mm）のメンバーズカードを画像保存できます</p>
         </div>
         <div id="profileCardRoot"></div>
       </div>
@@ -709,6 +710,18 @@
     </div>
   </template>
 
+  <template id="tmpl-board-event-detail">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide board-detail-layout">
+        <div class="calc-header">
+          <a href="#/board/event" class="back-link" data-link>← 一覧に戻る</a>
+          <h1>📣 イベラン広告</h1>
+        </div>
+        <div id="boardEventDetailRoot"></div>
+      </div>
+    </div>
+  </template>
+
   <!-- ==================== 掲示板: マイセカイ宣伝 ==================== -->
   <template id="tmpl-board-mysekai">
     <div class="page-content page-enter">
@@ -760,26 +773,26 @@
     </div>
   </template>
 
-  <script src="js/analytics-config.js?v=bec50a6"></script>
-  <script src="js/analytics.js?v=bec50a6"></script>
-  <script src="js/ads-config.js?v=bec50a6"></script>
-  <script src="js/ads.js?v=bec50a6"></script>
-  <script src="js/admin.js?v=bec50a6"></script>
-  <script src="js/firebase-config.js?v=bec50a6"></script>
-  <script type="module" src="js/firebase.js?v=bec50a6"></script>
-  <script src="js/auth.js?v=bec50a6"></script>
+  <script src="js/analytics-config.js?v=a80a6f5"></script>
+  <script src="js/analytics.js?v=a80a6f5"></script>
+  <script src="js/ads-config.js?v=a80a6f5"></script>
+  <script src="js/ads.js?v=a80a6f5"></script>
+  <script src="js/admin.js?v=a80a6f5"></script>
+  <script src="js/firebase-config.js?v=a80a6f5"></script>
+  <script type="module" src="js/firebase.js?v=a80a6f5"></script>
+  <script src="js/auth.js?v=a80a6f5"></script>
   <script src="js/qrcode.min.js"></script>
-  <script src="js/qr-utils.js?v=bec50a6"></script>
-  <script src="js/friends.js?v=bec50a6"></script>
-  <script src="js/mypage.js?v=bec50a6"></script>
-  <script src="js/board.js?v=bec50a6"></script>
-  <script src="js/guides.js?v=bec50a6"></script>
-  <script src="js/router.js?v=bec50a6"></script>
-  <script src="js/border-rankings-data.js?v=bec50a6"></script>
-  <script src="js/song-kiso-data.js?v=bec50a6"></script>
-  <script src="js/song-kiso.js?v=bec50a6"></script>
-  <script src="js/pjsk-engine.js?v=bec50a6"></script>
-  <script src="js/calculators.js?v=bec50a6"></script>
-  <script src="js/app.js?v=bec50a6"></script>
+  <script src="js/qr-utils.js?v=a80a6f5"></script>
+  <script src="js/friends.js?v=a80a6f5"></script>
+  <script src="js/mypage.js?v=a80a6f5"></script>
+  <script src="js/board.js?v=a80a6f5"></script>
+  <script src="js/guides.js?v=a80a6f5"></script>
+  <script src="js/router.js?v=a80a6f5"></script>
+  <script src="js/border-rankings-data.js?v=a80a6f5"></script>
+  <script src="js/song-kiso-data.js?v=a80a6f5"></script>
+  <script src="js/song-kiso.js?v=a80a6f5"></script>
+  <script src="js/pjsk-engine.js?v=a80a6f5"></script>
+  <script src="js/calculators.js?v=a80a6f5"></script>
+  <script src="js/app.js?v=a80a6f5"></script>
 </body>
 </html>

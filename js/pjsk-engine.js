@@ -23,8 +23,11 @@ const PjskEngine = {
 
   async loadMultiplierData(url) {
     const path = url || this.MULTIPLIER_DATA_URL;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
     try {
-      const res = await fetch(`${path}?v=${Date.now()}`);
+      const res = await fetch(`${path}?v=${Date.now()}`, controller ? { signal: controller.signal } : {});
+      if (timer) clearTimeout(timer);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       this.applyMultiplierText(await res.text());
       this.dataLoaded = true;
@@ -32,6 +35,7 @@ const PjskEngine = {
       console.info('[未来喫茶] 倍率データを読み込みました:', path);
       return true;
     } catch (err) {
+      if (timer) clearTimeout(timer);
       this.dataLoaded = false;
       this.dataLoadError = err.message;
       console.warn('[未来喫茶] 倍率データの読み込みに失敗。内蔵値を使用します:', err.message);
