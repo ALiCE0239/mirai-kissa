@@ -3,7 +3,7 @@
 
 ■ 概要
   静的サイト（GitHub Pages）のため、集計データは Supabase（無料枠）に保存します。
-  管理者ページ: https://alice0239.github.io/mirai-kissa/#/admin
+  管理者ページ: https://fictionscale.jp/#/admin
   ※ナビには載せません。URLを知っている人だけが開けます。
 
   フォルダから開く（ダブルクリック用）:
