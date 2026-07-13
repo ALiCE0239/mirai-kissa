@@ -3,7 +3,7 @@
  *
  * window.MiraiAuth として公開。
  * - Xログイン（Firebase の Twitter プロバイダ）
- * - ログイン状態に応じてナビの「ログイン / マイページ」を切り替え
+ * - ログイン状態に応じてナビ右上（☰ の左）の「ホーム / ログイン / マイページへ」を表示
  * - ログイン直後に X の @ID を取得して users/{uid}/sns に控えておく
  */
 const MiraiAuth = (function () {
@@ -15,6 +15,7 @@ const MiraiAuth = (function () {
   const listeners = new Set();
 
   const XHANDLE_KEY = 'miraiKissaXHandle';
+  const LOGIN_RETURN_KEY = 'miraiLoginReturn';
 
   function notify() {
     listeners.forEach((cb) => {
@@ -24,19 +25,71 @@ const MiraiAuth = (function () {
   }
 
   function updateNav() {
-    const slot = document.getElementById('navAuth');
-    if (!slot) return;
+    const board = document.getElementById('navBoard');
+    if (board) board.hidden = false;
+    updateNavAuth();
+  }
 
-    if (!fb || !fb.configured) {
-      slot.innerHTML = '<a href="#/login" data-link>ログイン</a>';
-      return;
-    }
+  function updateNavAuth() {
+    const btn = document.getElementById('navAuthBtn');
+    if (!btn) return;
     if (currentUser) {
-      slot.innerHTML =
-        '<a href="#/mypage" data-link>マイページ</a>';
+      btn.href = '#/mypage';
+      btn.textContent = 'マイページへ';
+      btn.className = 'nav-auth-btn nav-auth-btn--mypage';
     } else {
-      slot.innerHTML = '<a href="#/login" data-link>ログイン</a>';
+      btn.href = '#/login';
+      btn.textContent = 'ログイン';
+      btn.className = 'nav-auth-btn nav-auth-btn--login';
     }
+  }
+
+  function redirectToLogin(returnTo) {
+    try {
+      const dest = returnTo || location.hash || '#/';
+      if (dest !== '#/login') sessionStorage.setItem(LOGIN_RETURN_KEY, dest);
+    } catch (e) {}
+    location.hash = '#/login';
+  }
+
+  function consumeLoginReturn(fallback) {
+    const fbDefault = '#/mypage';
+    try {
+      const ret = sessionStorage.getItem(LOGIN_RETURN_KEY);
+      sessionStorage.removeItem(LOGIN_RETURN_KEY);
+      if (ret && ret !== '#/login') return ret;
+    } catch (e) {}
+    return fallback || fbDefault;
+  }
+
+  async function waitForUser(timeoutMs) {
+    if (currentUser) return currentUser;
+    if (!ready && window.MiraiFirebaseReady) await window.MiraiFirebaseReady;
+    if (currentUser) return currentUser;
+    return new Promise((resolve) => {
+      let done = false;
+      const cb = (u) => {
+        if (done) return;
+        done = true;
+        listeners.delete(cb);
+        resolve(u);
+      };
+      listeners.add(cb);
+      setTimeout(() => {
+        if (!done) {
+          done = true;
+          listeners.delete(cb);
+          resolve(currentUser);
+        }
+      }, timeoutMs || 2500);
+    });
+  }
+
+  async function requireUser(returnTo) {
+    const user = await waitForUser();
+    if (user) return user;
+    redirectToLogin(returnTo || location.hash);
+    return null;
   }
 
   async function init() {
@@ -128,6 +181,10 @@ const MiraiAuth = (function () {
     isReady: () => ready,
     isConfigured: () => !!(fb && fb.configured),
     getUser: () => currentUser,
+    redirectToLogin,
+    consumeLoginReturn,
+    waitForUser,
+    requireUser,
     getFirebase: () => fb,
     getStoredXHandle: () => {
       try { return localStorage.getItem(XHANDLE_KEY) || ''; } catch (e) { return ''; }

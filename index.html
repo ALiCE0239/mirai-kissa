@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="mirai-kissa-build" content="0044a88">
+  <meta name="mirai-kissa-build" content="1356a91">
   <script>
   (function () {
     'use strict';
@@ -36,9 +36,9 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=0044a88">
-  <link rel="stylesheet" href="css/community.css?v=0044a88">
-  <link rel="stylesheet" href="css/ads.css?v=0044a88">
+  <link rel="stylesheet" href="css/style.css?v=1356a91">
+  <link rel="stylesheet" href="css/community.css?v=1356a91">
+  <link rel="stylesheet" href="css/ads.css?v=1356a91">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3749566622644230"
     crossorigin="anonymous"></script>
 </head>
@@ -53,9 +53,6 @@
         <span class="nav-logo-icon"><img src="img/icon.png" alt="" width="30" height="30" decoding="async"></span>
         <span>未来喫茶</span>
       </a>
-      <button class="nav-toggle" id="navToggle" aria-label="メニュー">
-        <span></span><span></span><span></span>
-      </button>
       <ul class="nav-links" id="navLinks">
         <li><a href="#/" data-link class="active">ホーム</a></li>
         <li><a href="#/amatsuyu" data-link>あまつゆ</a></li>
@@ -65,9 +62,15 @@
         <li><a href="#/adjust-next" data-link>Pt調整N</a></li>
         <li><a href="#/kizuna" data-link>キズナ</a></li>
         <li><a href="#/diagnosis" data-link>イベラン</a></li>
-        <li><a href="#/board/event" data-link>掲示板</a></li>
-        <li id="navAuth"><a href="#/login" data-link>ログイン</a></li>
+        <li id="navBoard"><a href="#/board/event" data-link>掲示板</a></li>
       </ul>
+      <div class="nav-actions">
+        <a id="navHomeBtn" href="#/" class="nav-auth-btn nav-auth-btn--home" data-link>ホーム</a>
+        <a id="navAuthBtn" href="#/login" class="nav-auth-btn nav-auth-btn--login" data-link>ログイン</a>
+        <button class="nav-toggle" id="navToggle" aria-label="メニュー">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
     </div>
   </nav>
 
@@ -97,6 +100,13 @@
             <span class="hero-cta__label">イベラン</span>
             <svg class="hero-cta__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
+          <button type="button" class="btn btn-primary hero-cta hero-cta--community" id="homeCommunityToggle" aria-expanded="false" aria-controls="homeCommunityPanel">
+            <span class="hero-cta__label">コミュニティ</span>
+            <svg class="hero-cta__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <a href="#/guides" class="btn btn-primary hero-cta hero-cta--guides" data-link>
+            <span class="hero-cta__label">攻略図書館</span>
+          </a>
         </div>
       </section>
 
@@ -178,11 +188,24 @@
       </section>
       </div>
 
+      <div class="home-tools-panel" id="homeCommunityPanel" hidden>
+      <section class="home-tools" aria-labelledby="homeCommunityHeading">
+        <div class="section-heading">
+          <h2 id="homeCommunityHeading">☕ コミュニティ</h2>
+          <p id="homeCommunityLead">掲示板はログインなしで閲覧できます。セカイノートはIDで読み取れます</p>
+        </div>
+        <div id="homeCommunityContent"></div>
+      </section>
+      </div>
+
       <div class="divider home-animate"></div>
 
       <section class="home-news">
         <div class="section-heading"><h2>📢 お知らせ</h2></div>
         <div class="info-box home-animate">
+          <strong>2026.07.13</strong> — ログイン・マイページ・掲示板（イベラン広告 / マイセカイ宣伝）を追加しました。コミュニティ機能はログイン後にご利用ください。攻略図書館も順次追加予定です。
+        </div>
+        <div class="info-box home-animate mt-2">
           <strong>2026.05.15</strong> — プロセカアプリ（未来喫茶）準拠の6種計算機を実装しました。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。
         </div>
       </section>
@@ -599,10 +622,52 @@
       <div class="calc-page calc-page--wide">
         <div class="calc-header">
           <a href="#/" class="back-link" data-link>← ホームに戻る</a>
-          <h1>🔗 マイページ</h1>
-          <p>リンクをまとめて公開できます（リトリン風）</p>
+          <h1>👤 マイページ</h1>
+          <p>プロフィール・セカイノート・掲示板投稿を管理できます</p>
         </div>
         <div id="myPageRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== セカイノート読み取り ==================== -->
+  <template id="tmpl-sekainote-read">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>📓 セカイノートを読み取る</h1>
+          <p>IDを入力してセカイノートを開けます</p>
+        </div>
+        <div id="sekaiNoteReadRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== プロフィールカード ==================== -->
+  <template id="tmpl-profile-card">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
+          <h1>💳 プロフィールカード</h1>
+          <p>名刺サイズ（91×55mm）で作成できます</p>
+        </div>
+        <div id="profileCardRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== セカイノート編集 ==================== -->
+  <template id="tmpl-mypage-sekainote">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
+          <h1>📓 セカイノート</h1>
+          <p>テーマカラー・リンク・記事を設定して公開ページを作れます</p>
+        </div>
+        <div id="sekaiNoteEditRoot"></div>
       </div>
     </div>
   </template>
@@ -635,9 +700,9 @@
     <div class="page-content page-enter">
       <div class="calc-page community-narrow">
         <div class="calc-header">
-          <a href="#/board/event" class="back-link" data-link>← 一覧に戻る</a>
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
           <h1>📣 イベラン広告を編集</h1>
-          <p>1アカウント1件まで。いつでも書き換えできます</p>
+          <p>1アカウント1件まで。保存すると既存の内容を上書き更新します</p>
         </div>
         <div id="boardEventEditRoot"></div>
       </div>
@@ -662,11 +727,25 @@
     <div class="page-content page-enter">
       <div class="calc-page community-narrow">
         <div class="calc-header">
-          <a href="#/board/mysekai" class="back-link" data-link>← 一覧に戻る</a>
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
           <h1>🌿 マイセカイ宣伝を編集</h1>
-          <p>1アカウント1件まで</p>
+          <p>1アカウント1件まで。保存すると既存の内容を上書き更新します</p>
         </div>
         <div id="boardMysekaiEditRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== 攻略図書館 ==================== -->
+  <template id="tmpl-guides">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>📚 攻略図書館</h1>
+          <p>プロジェクトセカイの攻略情報を集めています</p>
+        </div>
+        <div id="guidesRoot" class="guides-library"></div>
       </div>
     </div>
   </template>
@@ -681,22 +760,26 @@
     </div>
   </template>
 
-  <script src="js/analytics-config.js?v=0044a88"></script>
-  <script src="js/analytics.js?v=0044a88"></script>
-  <script src="js/ads-config.js?v=0044a88"></script>
-  <script src="js/ads.js?v=0044a88"></script>
-  <script src="js/admin.js?v=0044a88"></script>
-  <script src="js/firebase-config.js?v=0044a88"></script>
-  <script type="module" src="js/firebase.js?v=0044a88"></script>
-  <script src="js/auth.js?v=0044a88"></script>
-  <script src="js/mypage.js?v=0044a88"></script>
-  <script src="js/board.js?v=0044a88"></script>
-  <script src="js/router.js?v=0044a88"></script>
-  <script src="js/border-rankings-data.js?v=0044a88"></script>
-  <script src="js/song-kiso-data.js?v=0044a88"></script>
-  <script src="js/song-kiso.js?v=0044a88"></script>
-  <script src="js/pjsk-engine.js?v=0044a88"></script>
-  <script src="js/calculators.js?v=0044a88"></script>
-  <script src="js/app.js?v=0044a88"></script>
+  <script src="js/analytics-config.js?v=1356a91"></script>
+  <script src="js/analytics.js?v=1356a91"></script>
+  <script src="js/ads-config.js?v=1356a91"></script>
+  <script src="js/ads.js?v=1356a91"></script>
+  <script src="js/admin.js?v=1356a91"></script>
+  <script src="js/firebase-config.js?v=1356a91"></script>
+  <script type="module" src="js/firebase.js?v=1356a91"></script>
+  <script src="js/auth.js?v=1356a91"></script>
+  <script src="js/qrcode.min.js"></script>
+  <script src="js/qr-utils.js?v=1356a91"></script>
+  <script src="js/friends.js?v=1356a91"></script>
+  <script src="js/mypage.js?v=1356a91"></script>
+  <script src="js/board.js?v=1356a91"></script>
+  <script src="js/guides.js?v=1356a91"></script>
+  <script src="js/router.js?v=1356a91"></script>
+  <script src="js/border-rankings-data.js?v=1356a91"></script>
+  <script src="js/song-kiso-data.js?v=1356a91"></script>
+  <script src="js/song-kiso.js?v=1356a91"></script>
+  <script src="js/pjsk-engine.js?v=1356a91"></script>
+  <script src="js/calculators.js?v=1356a91"></script>
+  <script src="js/app.js?v=1356a91"></script>
 </body>
 </html>

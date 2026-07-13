@@ -1,0 +1,55 @@
+未来喫茶 Web — Firebase ログイン設定
+======================================
+
+■ いちばん簡単な方法（推奨）
+  1. Firebase Console を開く:
+     https://console.firebase.google.com/project/cafe-9d3b7
+  2. 画面右下（またはヘルパー）の「Gemini」を開く
+  3. 次のファイルの中身をすべてコピーして Gemini に貼り付け:
+     data/Firebase-Gemini用プロンプト.txt
+  4. Gemini の指示どおりに設定する（Firestore / Storage / Auth）
+
+■ ルール・インデックス（手動で貼る場合）
+  - Firestore ルール: data/firestore.rules
+  - Storage ルール:   data/storage.rules
+  - Firestore インデックス: data/firestore.indexes.json
+
+■ Web側の設定値（反映済み・変更不要）
+  js/firebase-config.js
+
+■ Google ログイン（Firebase Console で行う）
+  1. Firebase Console を開く:
+     https://console.firebase.google.com/project/cafe-9d3b7/authentication/providers
+  2. 「Sign-in method（ログイン方法）」タブ
+  3. 「Google」をクリック → 「有効にする」を ON
+  4. 「プロジェクトのサポートメール」を選ぶ（必須）→ 保存
+     ※ Google Cloud の OAuth 設定は Firebase が自動で作ってくれる（追加作業不要）
+
+  5. 同じ画面の「Settings（設定）」→「Authorized domains（承認済みドメイン）」
+     以下が入っているか確認（なければ「ドメインを追加」）:
+       - localhost
+       - 39cafe.fictionscale.jp
+       - cafe-9d3b7.firebaseapp.com（通常は最初から入っている）
+
+  6. 動作確認:
+     ローカル: http://localhost:8000/#/login
+     本番:     https://39cafe.fictionscale.jp/#/login
+     →「Google でログイン」を押す → アカウント選択 → マイページへ
+
+■ Google ログインでよく出るエラー
+  「このログイン方法はまだ有効化されていません」
+    → 手順 3 の Google が OFF のまま。有効にして保存。
+
+  「このドメインは許可されていません」
+    → 承認済みドメインに localhost または 39cafe.fictionscale.jp が未登録。
+
+  「ポップアップがブロックされました」
+    → ブラウザのポップアップを許可。スマホでは自動でリダイレクト方式に切り替わる。
+
+■ Xログインだけ別作業
+  X開発者ポータルで Callback URL を登録:
+    https://cafe-9d3b7.firebaseapp.com/__/auth/handler
+  API Key / Secret を Firebase の Twitter 設定に貼る
+
+■ 動作確認
+  https://39cafe.fictionscale.jp/#/login

@@ -80,7 +80,479 @@
   display: flex; align-items: center; justify-content: center;
   font-size: 2rem; font-weight: 800;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
 }
+.linkhub-avatar--sm {
+  width: 56px; height: 56px; margin: 0;
+  font-size: 1.35rem;
+}
+.linkhub-avatar--img {
+  padding: 0;
+  background: rgba(255, 255, 255, 0.85);
+}
+.linkhub-avatar--img img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+
+/* ---------- マイページ プロフィール編集 ---------- */
+.mp-profile-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-md);
+  background: rgba(var(--rgb-green), 0.05);
+  border: 1px solid rgba(var(--rgb-teal), 0.14);
+}
+.mp-profile-summary__main {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.mp-profile-summary__name {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.mp-profile-summary__headline {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0.15rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-profile-panel {
+  padding: 0 0 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.mp-board-block { margin-top: 0.25rem; }
+.mp-board-summary { margin: 0.35rem 0 0.25rem; font-size: 0.9rem; }
+.mp-board-panel {
+  padding: 0.75rem 0 0;
+  margin-top: 0.5rem;
+}
+.mp-board-editor { margin-top: 0.5rem; }
+.mp-board-hint { margin: 0 0 0.75rem; }
+.board-toolbar--view {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+/* ---------- マイページ / セカイノート ---------- */
+.mp-page { max-width: 720px; margin: 0 auto; }
+.mp-sekai-page { max-width: 960px; margin: 0 auto; }
+.mp-sekai-entry { margin: 0.25rem 0; }
+.mp-sekai-entry__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.mp-sekai-entry__head .btn-primary { flex-shrink: 0; }
+.mp-sekai-panel {
+  margin-top: 1rem;
+  padding-top: 0.25rem;
+}
+.mp-sekai-lead { margin: 0 0 1rem; }
+.mp-sekai-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+@media (min-width: 900px) {
+  .mp-sekai-grid { grid-template-columns: 1.05fr 0.95fr; align-items: start; }
+}
+.mp-sekai-preview-wrap { position: sticky; top: 90px; }
+@media (max-width: 560px) {
+  .mp-sekai-entry__head .btn-primary,
+  .mp-sekai-entry__head .btn-secondary { width: 100%; }
+  .mp-friends-actions .btn { flex: 1; min-width: 140px; }
+}
+
+/* ---------- 個人ID / QR ---------- */
+.mp-id-section { padding: 1rem 1.25rem; background: rgba(var(--rgb-green), 0.04); }
+.mp-id-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+.mp-id-code {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.35rem 0.75rem;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(var(--rgb-teal), 0.35);
+}
+.mp-id-qr-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem;
+  background: #fff;
+  border-radius: var(--radius-md);
+  max-width: 160px;
+  margin: 0 auto;
+}
+.mp-qr img, .mp-qr canvas { display: block; max-width: 100%; height: auto; }
+.mp-id-url { text-align: center; margin-top: 0.75rem; }
+
+/* ---------- セカイノート読み取り ---------- */
+.mp-read-page { max-width: 480px; margin: 0 auto; }
+
+/* ---------- フレンド ---------- */
+.friend-action-bar {
+  max-width: 480px;
+  margin: 0 auto 1rem;
+  padding: 1rem 1.25rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+}
+.friend-action-bar__status {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.mp-friends-section { margin-top: 0.25rem; }
+.mp-friends-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+.mp-friends-btn-wrap {
+  position: relative;
+  display: inline-block;
+}
+.mp-friend-notify-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e53935;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(229, 57, 53, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+.mp-friends-panel { margin-top: 0.75rem; }
+.mp-friends-subtitle { font-size: 0.92rem; margin-bottom: 0.5rem; }
+.mp-friend-badge {
+  font-size: 0.85rem;
+  color: var(--brand-teal);
+  font-weight: 700;
+}
+.mp-friend-requests,
+.mp-friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.mp-friends-empty { font-size: 0.88rem; margin: 0.25rem 0; }
+.mp-friend-request {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1rem;
+}
+.mp-friend-request__main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.mp-friend-request__name {
+  margin: 0;
+  font-weight: 700;
+}
+.mp-friend-request__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.mp-friend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.mp-friend-row:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+.mp-friend-row__text { flex: 1; min-width: 0; }
+.mp-friend-row__name {
+  margin: 0;
+  font-weight: 700;
+}
+.mp-friend-row__arrow {
+  color: var(--brand-teal);
+  font-weight: 700;
+}
+.mp-friend-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(var(--rgb-green), 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.mp-friend-avatar--img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------- セカイノート読み取り (legacy qr area removed) ---------- */
+
+/* ---------- プロフィールカード（名刺 91×55mm） ---------- */
+.profile-card-page { max-width: 520px; margin: 0 auto; }
+.profile-card-page__preview {
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem 0;
+}
+.profile-card-page__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.profile-card-meishi {
+  width: 91mm;
+  height: 55mm;
+  max-width: 100%;
+  aspect-ratio: 91 / 55;
+  background: linear-gradient(135deg, var(--pc-bg), #fff);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 2mm;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.profile-card-meishi__inner {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  height: 100%;
+  padding: 4mm 5mm;
+  box-sizing: border-box;
+  gap: 3mm;
+}
+.profile-card-meishi__main {
+  display: flex;
+  gap: 3mm;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+.profile-card-meishi__avatar.linkhub-avatar {
+  width: 14mm;
+  height: 14mm;
+  min-width: 14mm;
+  margin: 0;
+  font-size: 0.55rem;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+.profile-card-meishi__text { min-width: 0; text-align: left; }
+.profile-card-meishi__name {
+  font-size: 4.2mm;
+  font-weight: 800;
+  margin: 0 0 1mm;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-card-meishi__headline {
+  font-size: 3mm;
+  color: var(--text-secondary);
+  margin: 0 0 1.5mm;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-card-meishi__bio {
+  font-size: 2.6mm;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.profile-card-meishi__qr-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.profile-card-meishi__qr img,
+.profile-card-meishi__qr canvas {
+  display: block;
+  width: 18mm !important;
+  height: 18mm !important;
+}
+.profile-card-meishi__id {
+  font-size: 2.2mm;
+  margin: 1mm 0 0;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+.profile-card-meishi__site {
+  font-size: 2mm;
+  margin: 0.5mm 0 0;
+  color: var(--brand-teal);
+  font-weight: 700;
+}
+
+@media print {
+  body.is-print-profile-card nav,
+  body.is-print-profile-card main > *:not(#app),
+  body.is-print-profile-card .footer,
+  body.is-print-profile-card .calc-header,
+  body.is-print-profile-card .profile-card-page__actions,
+  body.is-print-profile-card .info-box,
+  body.is-print-profile-card .form-hint {
+    display: none !important;
+  }
+  body.is-print-profile-card #app .page-content > *:not(#profileCardRoot),
+  body.is-print-profile-card #profileCardRoot > *:not(.profile-card-page__preview) {
+    display: none !important;
+  }
+  body.is-print-profile-card .profile-card-meishi {
+    box-shadow: none;
+    border: 0.3mm solid #ccc;
+  }
+  @page {
+    size: 91mm 55mm;
+    margin: 0;
+  }
+}
+.mp-avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.mp-avatar-upload__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.mp-avatar-upload__pick {
+  cursor: pointer;
+  margin: 0;
+}
+@media (max-width: 560px) {
+  .mp-profile-summary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mp-profile-summary .btn {
+    width: 100%;
+  }
+}
+
+.mp-editor-lead { margin: -0.25rem 0 1rem; font-size: 0.88rem; }
+.mp-notes-lead { margin: -0.25rem 0 0.75rem; }
+
+/* ---------- セカイノート（記事） ---------- */
+.sekai-notes-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.sekai-notes-empty {
+  padding: 1rem 0;
+  text-align: center;
+  font-size: 0.88rem;
+}
+.sekai-note-row {
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+}
+.sekai-note-row__head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+.sekai-note-row__head .form-input { flex: 1; }
+.sekai-note-row__pub { margin-top: 0.5rem; }
+
+.sekai-notes { margin-top: 1.5rem; text-align: left; }
+.sekai-notes__heading {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+.sekai-notes__list { display: flex; flex-direction: column; gap: 0.75rem; }
+.sekai-note-card {
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.1rem;
+  text-align: left;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+.sekai-note-card--draft { opacity: 0.72; border: 1px dashed rgba(100, 116, 139, 0.45); }
+.sekai-note-card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.sekai-note-card__draft {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.12);
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-sm);
+}
+.sekai-note-card__body {
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .linkhub-name { font-size: 1.4rem; font-weight: 800; color: #1e293b; margin-bottom: 0.25rem; }
 .linkhub-headline { font-size: 0.95rem; color: #334155; margin-bottom: 0.5rem; }
 .linkhub-bio { font-size: 0.9rem; color: #475569; white-space: pre-wrap; margin-bottom: 1.25rem; }
@@ -163,5 +635,58 @@
 .board-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
 .board-edit-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem; }
 
-/* ナビの認証リンクを少し強調 */
-#navAuth a { font-weight: 700; }
+/* ナビ右上 — ログイン / マイページへ（☰ の左） */
+.nav-auth-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  transition: box-shadow var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.nav-auth-btn--home {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid rgba(var(--rgb-teal), 0.18);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+}
+
+.nav-auth-btn--home:hover {
+  color: var(--brand-teal);
+  background: rgba(var(--rgb-green), 0.06);
+  border-color: rgba(var(--rgb-teal), 0.35);
+}
+
+.nav-auth-btn--login {
+  color: var(--brand-teal);
+  background: #fff;
+  border: 1.5px solid rgba(var(--rgb-teal), 0.35);
+  box-shadow: 0 2px 10px rgba(var(--rgb-teal), 0.1);
+}
+
+.nav-auth-btn--login:hover {
+  background: rgba(var(--rgb-green), 0.06);
+  border-color: var(--brand-teal);
+}
+
+.nav-auth-btn--mypage {
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand-teal), var(--brand-green));
+  box-shadow: 0 4px 14px rgba(var(--rgb-teal), 0.28);
+}
+
+.nav-auth-btn--mypage:hover {
+  box-shadow: 0 6px 18px rgba(var(--rgb-teal), 0.35);
+}
+
+@media (max-width: 1100px) {
+  .nav-auth-btn {
+    padding: 0.4rem 0.85rem;
+    font-size: 0.8rem;
+  }
+}
