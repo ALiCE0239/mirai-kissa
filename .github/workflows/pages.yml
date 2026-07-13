@@ -24,6 +24,8 @@ jobs:
           cp -r css js data img 管理者 _site/
           touch _site/.nojekyll
           sed -i 's/content="dev"/content="'"${VERSION}"'"/' _site/index.html
+          # 全 HTML のアセット ?v=... をビルドSHAへ自動置換（手動バンプ不要のキャッシュバスト）
+          find _site -name '*.html' -type f -exec sed -i 's/?v=[0-9A-Za-z._-]*/?v='"${VERSION}"'/g' {} +
           printf '{"version":"%s","builtAt":"%s"}\n' "$VERSION" "$BUILT_AT" > _site/version.json
 
       - name: Deploy to gh-pages branch
@@ -32,3 +34,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site
           publish_branch: gh-pages
+          cname: fictionscale.jp
