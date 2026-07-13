@@ -131,10 +131,18 @@
       .add('/kizuna',   'tmpl-kizuna',    () => Calculators.initKizuna())
       .add('/diagnosis','tmpl-diagnosis', () => Calculators.initDiagnosis())
       .add('/admin',    'tmpl-admin',     () => AdminPage.init())
+      .add('/login',    'tmpl-login',     () => MiraiMyPage.initLogin())
+      .add('/mypage',   'tmpl-mypage',    () => MiraiMyPage.initMyPage())
+      .add('/p/:id',    'tmpl-public',    (params) => MiraiMyPage.initPublic(params))
+      .add('/board/event',       'tmpl-board-event',       () => MiraiBoard.initEventList())
+      .add('/board/event/edit',  'tmpl-board-event-edit',  () => MiraiBoard.initEventEdit())
+      .add('/board/mysekai',     'tmpl-board-mysekai',     () => MiraiBoard.initMysekaiList())
+      .add('/board/mysekai/edit','tmpl-board-mysekai-edit',() => MiraiBoard.initMysekaiEdit())
       .add('404',       'tmpl-404',       null);
 
     router.onRouteChange = (hash) => {
       if (typeof MiraiAnalytics !== 'undefined') MiraiAnalytics.trackPageView(hash);
+      if (typeof MiraiAds !== 'undefined') MiraiAds.onRouteChange(hash);
       const titles = {
         '/':          '未来喫茶 — プロセカ計算機ツール集',
         '/amatsuyu':  'あまつゆ計算機 — 未来喫茶',
@@ -145,6 +153,12 @@
         '/kizuna':    'キズナ計算 — 未来喫茶',
         '/diagnosis': 'イベラン診断 — 未来喫茶',
         '/admin':     '管理者 — 未来喫茶',
+        '/login':     'ログイン — 未来喫茶',
+        '/mypage':    'マイページ — 未来喫茶',
+        '/board/event':        'イベラン広告 — 未来喫茶',
+        '/board/event/edit':   'イベラン広告を編集 — 未来喫茶',
+        '/board/mysekai':      'マイセカイ宣伝 — 未来喫茶',
+        '/board/mysekai/edit': 'マイセカイ宣伝を編集 — 未来喫茶',
       };
       document.title = titles[hash] || '未来喫茶';
     };
@@ -160,6 +174,10 @@
       if (PjskEngine.loadMultiplierData) await PjskEngine.loadMultiplierData();
       if (PjskEngine.initBorderData) PjskEngine.initBorderData();
     }
+    if (typeof MiraiAuth !== 'undefined') {
+      MiraiAuth.init().catch((err) => console.error('[未来喫茶] 認証初期化エラー:', err));
+    }
+    if (typeof MiraiAds !== 'undefined') MiraiAds.init();
     initRouter();
   });
 })();
