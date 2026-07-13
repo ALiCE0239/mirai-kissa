@@ -69,8 +69,23 @@ const MiraiAds = (function () {
 
   function initFooter() {
     const mount = document.getElementById('adFooterMount');
+    if (!mount) return;
     const slot = cfg().slots && cfg().slots.footer;
-    mountSlot(mount, slot);
+    if (slot) {
+      mountSlot(mount, slot);
+      return;
+    }
+    // スロット未設定時: 自動広告用（Console で自動広告を有効にしてください）
+    mount.hidden = false;
+    mount.innerHTML = '';
+    const ins = document.createElement('ins');
+    ins.className = 'adsbygoogle';
+    ins.style.display = 'block';
+    ins.setAttribute('data-ad-client', cfg().client);
+    ins.setAttribute('data-ad-format', 'auto');
+    ins.setAttribute('data-full-width-responsive', 'true');
+    mount.appendChild(wrapAd(ins));
+    pushAd();
   }
 
   function refreshInline(hash) {
@@ -98,7 +113,7 @@ const MiraiAds = (function () {
       document.querySelectorAll('.ad-unit--inline').forEach((el) => el.remove());
       return;
     }
-    if (mount && cfg().slots && cfg().slots.footer) mount.hidden = false;
+    if (mount) mount.hidden = false;
     refreshInline(hash);
   }
 

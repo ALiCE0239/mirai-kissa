@@ -772,13 +772,15 @@ const MiraiMyPage = (function () {
   function eventSummaryText(post) {
     if (!post || !post.eventName) return '未設定 — 編集ボタンから募集内容を登録できます';
     const pub = post.isPublished === false ? '（非公開）' : '';
-    return '「' + post.eventName + '」' + pub;
+    const vis = post.visibility === 'friends' ? '（フレンド限定）' : '';
+    return '「' + post.eventName + '」' + pub + vis;
   }
 
   function mysekaiSummaryText(post) {
     if (!post || !post.title) return '未設定 — 編集ボタンから宣伝内容を登録できます';
     const pub = post.isPublished === false ? '（非公開）' : '';
-    return '「' + post.title + '」' + pub;
+    const vis = post.visibility === 'friends' ? '（フレンド限定）' : '';
+    return '「' + post.title + '」' + pub + vis;
   }
 
   function loadBoardSummaries(box, user) {
