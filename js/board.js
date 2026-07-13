@@ -2,6 +2,7 @@
  * 未来喫茶 — 掲示板（イベラン広告 / マイセカイ宣伝）
  *
  * - #/board/event         イベラン広告 一覧・検索（閲覧のみ）
+ * - #/board/event/:uid    イベラン広告 詳細
  * - #/board/mysekai       マイセカイ宣伝 一覧・いいね（閲覧のみ）
  * - #/board/event/edit    イベラン広告 作成/編集（要ログイン・マイページから遷移）
  * - #/board/mysekai/edit  マイセカイ宣伝 作成/編集（要ログイン・マイページから遷移）
@@ -77,6 +78,79 @@ const MiraiBoard = (function () {
     return !!(friendUids && friendUids.has(p.authorUid));
   }
 
+  function postUpdatedMs(p) {
+    const t = p && p.updatedAt;
+    if (!t) return 0;
+    if (typeof t.toMillis === 'function') return t.toMillis();
+    if (typeof t === 'number') return t;
+    if (typeof t === 'string') return Date.parse(t) || 0;
+    if (t.seconds) return t.seconds * 1000;
+    return 0;
+  }
+
+  function sortPostsByUpdated(posts) {
+    return posts.sort((a, b) => postUpdatedMs(b) - postUpdatedMs(a));
+  }
+
+  function isIndexOrQueryError(err) {
+    const code = err && err.code;
+    return code === 'failed-precondition' || code === 'permission-denied' || code === 'invalid-argument';
+  }
+
+  /** 公開投稿のみ（equality のみで取得し、並び替えはクライアント側 — 複合インデックス不要） */
+  async function fetchPublicBoardPosts(collectionName) {
+    const f = await fb();
+    if (!f || !f.configured) return [];
+    const { collection, query, limit, getDocs, where, orderBy } = f.dbFns;
+    const col = collection(f.db, collectionName);
+    const fetchLimit = PAGE_SIZE * 4;
+    const queries = [
+      () => query(col, where('visibility', '==', 'public'), limit(fetchLimit)),
+      () => query(col, where('visibility', '==', 'public'), where('isPublished', '==', true), limit(fetchLimit)),
+      () => query(col, where('isPublished', '==', true), limit(fetchLimit)),
+      () => query(col, orderBy('updatedAt', 'desc'), limit(fetchLimit)),
+    ];
+
+    let lastErr = null;
+    for (const build of queries) {
+      try {
+        const snap = await getDocs(build());
+        return snap.docs
+          .map((d) => Object.assign({ authorUid: d.id }, d.data()))
+          .filter((p) => p.isPublished !== false && postVisibility(p) === 'public');
+      } catch (e) {
+        lastErr = e;
+        if (!isIndexOrQueryError(e)) throw e;
+        console.warn('[board] public query fallback:', collectionName, e.code || e.message);
+      }
+    }
+    throw lastErr || new Error('掲示板データの取得に失敗しました');
+  }
+
+  /** 公開投稿 + 自分・フレンドの限定投稿 */
+  async function fetchBoardPosts(collectionName) {
+    const f = await fb();
+    if (!f || !f.configured) return [];
+    const { doc, getDoc } = f.dbFns;
+    const { user, friendUids } = await loadViewerContext();
+    const byUid = new Map((await fetchPublicBoardPosts(collectionName)).map((p) => [p.authorUid, p]));
+    const extraUids = new Set();
+    if (user) extraUids.add(user.uid);
+    if (friendUids) friendUids.forEach((uid) => extraUids.add(uid));
+    await Promise.all(Array.from(extraUids).map(async (uid) => {
+      if (byUid.has(uid)) return;
+      try {
+        const snap = await getDoc(doc(f.db, collectionName, uid));
+        if (!snap.exists()) return;
+        const p = Object.assign({ authorUid: uid }, snap.data());
+        if (isPostVisible(p, user && user.uid, friendUids)) byUid.set(uid, p);
+      } catch (e) {
+        console.warn('[board] extra fetch failed:', collectionName, uid, e);
+      }
+    }));
+    return sortPostsByUpdated(Array.from(byUid.values())).slice(0, PAGE_SIZE);
+  }
+
   function aspect16x9Html(url, emptyLabel) {
     if (url) {
       return `<div class="board-aspect-16x9"><img src="${esc(url)}" alt="" loading="lazy"></div>`;
@@ -85,6 +159,54 @@ const MiraiBoard = (function () {
       return `<div class="board-aspect-16x9 board-aspect-16x9--empty">${esc(emptyLabel)}</div>`;
     }
     return '';
+  }
+
+  function authorAvatarHtml(p, className) {
+    const cls = 'board-author-avatar' + (className ? ' ' + className : '');
+    const name = p.authorName || '匿名';
+    if (p.authorAvatarURL) {
+      return `<div class="${cls} board-author-avatar--img"><img src="${esc(p.authorAvatarURL)}" alt="" loading="lazy"></div>`;
+    }
+    return `<div class="${cls}">${esc(name.slice(0, 1))}</div>`;
+  }
+
+  function authorRowHtml(p) {
+    const profileLink = p.authorPublicId
+      ? `<a href="#/p/${esc(p.authorPublicId)}" class="board-card__author-link" data-link>${esc(p.authorName || '匿名')}</a>`
+      : `<span class="board-card__author-name">${esc(p.authorName || '匿名')}</span>`;
+    return `<div class="board-card__author-row">${authorAvatarHtml(p, 'board-author-avatar--sm')}${profileLink}</div>`;
+  }
+
+  function eventHeroHtml(p, opts) {
+    opts = opts || {};
+    const detailCls = opts.detail ? ' board-feed-card__hero--detail' : '';
+    const headCls = opts.detail ? ' board-event-head--detail' : '';
+    const title = esc(p.eventName || '(無題)') + visibilityChipHtml(p);
+    const inner = p.imageURL
+      ? `<img src="${esc(p.imageURL)}" alt="" loading="lazy">`
+      : `<span class="board-aspect-16x9--empty">${esc('画像なし')}</span>`;
+    return `
+      <div class="board-event-head${headCls}">
+        <div class="board-feed-card__hero board-aspect-16x9${detailCls}">${inner}</div>
+        <div class="board-event-head__title"><h3 class="board-card__title">${title}</h3></div>
+      </div>`;
+  }
+
+  async function enrichPostsWithAvatars(posts) {
+    const f = await fb();
+    if (!f) return posts;
+    const { doc, getDoc } = f.dbFns;
+    return Promise.all(posts.map(async (p) => {
+      if (p.authorAvatarURL) return p;
+      if (!p.authorPublicId) return p;
+      try {
+        const snap = await getDoc(doc(f.db, 'linkHubs', p.authorPublicId));
+        if (snap.exists() && snap.data().avatarURL) {
+          return Object.assign({}, p, { authorAvatarURL: snap.data().avatarURL });
+        }
+      } catch (e) { /* ignore */ }
+      return p;
+    }));
   }
 
   function wireBoardFeed(container) {
@@ -171,9 +293,15 @@ const MiraiBoard = (function () {
     const { user: viewer, friendUids } = await loadViewerContext();
     let all = [];
     try {
-      all = await fetchEventAds();
+      all = await enrichPostsWithAvatars(await fetchEventAds());
     } catch (e) {
-      box.querySelector('#boardEventList').innerHTML = '<div class="info-box"><p>読み込みに失敗しました。</p></div>';
+      const hint = (e && e.code === 'permission-denied')
+        ? '<p class="form-hint mt-1">Firestore のルールが未デプロイの可能性があります。<code>data/firestore.rules</code> を Firebase Console に反映してください。</p>'
+        : (e && e.code === 'failed-precondition')
+          ? '<p class="form-hint mt-1">Firestore インデックスの作成が必要な場合があります。<code>data/firestore.indexes.json</code> をデプロイしてください。</p>'
+          : '';
+      box.querySelector('#boardEventList').innerHTML =
+        '<div class="info-box"><p>読み込みに失敗しました。</p>' + hint + '</div>';
       console.error(e);
       return;
     }
@@ -195,7 +323,6 @@ const MiraiBoard = (function () {
         : '<p class="text-muted board-empty">該当する広告はまだありません。</p>';
     }
 
-    wireBoardFeed(listEl);
     searchEl.addEventListener('input', render);
     tagWrap.addEventListener('click', (e) => {
       const b = e.target.closest('.board-tag');
@@ -208,41 +335,87 @@ const MiraiBoard = (function () {
   }
 
   async function fetchEventAds() {
-    const f = await fb();
-    const { collection, query, orderBy, limit, getDocs } = f.dbFns;
-    const snap = await getDocs(query(collection(f.db, 'boardEventAds'), orderBy('updatedAt', 'desc'), limit(PAGE_SIZE)));
-    return snap.docs.map((d) => Object.assign({ authorUid: d.id }, d.data()));
+    return fetchBoardPosts('boardEventAds');
   }
 
   function eventCardHtml(p) {
     const tags = (p.conditionTags || []).map((t) => `<span class="board-chip">${esc(t)}</span>`).join('');
     const rank = p.targetRank ? `<span class="board-meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
     const banner = p.eventBanner ? `<span class="board-meta-item">${esc(p.eventBanner)}</span>` : '';
-    const img = aspect16x9Html(p.imageURL);
-    const hasDetail = !!(p.body || p.discordURL || p.runLocationURL);
+    const detailUrl = `#/board/event/${encodeURIComponent(p.authorUid)}`;
+
+    return `
+      <article class="board-feed-card board-feed-card--event">
+        ${eventHeroHtml(p)}
+        <div class="board-feed-card__body">
+          ${authorRowHtml(p)}
+          <div class="board-meta">${rank}${banner}</div>
+          ${tags ? `<div class="board-chips">${tags}</div>` : ''}
+          <a href="${detailUrl}" class="btn btn-secondary btn-sm btn-block board-detail-link" data-link>詳細を見る</a>
+        </div>
+      </article>
+    `;
+  }
+
+  async function fetchEventAd(authorUid) {
+    const f = await fb();
+    if (!f || !authorUid) return null;
+    const { doc, getDoc } = f.dbFns;
+    const snap = await getDoc(doc(f.db, 'boardEventAds', authorUid));
+    return snap.exists() ? Object.assign({ authorUid }, snap.data()) : null;
+  }
+
+  async function initEventDetail(params) {
+    const box = document.getElementById('app').querySelector('#boardEventDetailRoot');
+    if (!box) return;
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
+
+    const authorUid = params && params.uid;
+    if (!authorUid) {
+      box.innerHTML = '<div class="info-box"><p>広告が見つかりませんでした。</p><p class="mt-2"><a href="#/board/event" class="btn btn-secondary" data-link>一覧に戻る</a></p></div>';
+      return;
+    }
+
+    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
+    const { user: viewer, friendUids } = await loadViewerContext();
+
+    let post;
+    try {
+      post = await fetchEventAd(authorUid);
+    } catch (e) {
+      box.innerHTML = '<div class="info-box"><p>読み込みに失敗しました。</p></div>';
+      console.error(e);
+      return;
+    }
+
+    if (!post || !isPostVisible(post, viewer && viewer.uid, friendUids)) {
+      box.innerHTML = '<div class="info-box"><p>この広告は表示できません。</p><p class="mt-2"><a href="#/board/event" class="btn btn-secondary" data-link>一覧に戻る</a></p></div>';
+      return;
+    }
+
+    const enriched = (await enrichPostsWithAvatars([post]))[0];
+    box.innerHTML = eventDetailHtml(enriched);
+    document.title = (enriched.eventName || 'イベラン広告') + ' — 未来喫茶';
+  }
+
+  function eventDetailHtml(p) {
+    const tags = (p.conditionTags || []).map((t) => `<span class="board-chip">${esc(t)}</span>`).join('');
+    const rank = p.targetRank ? `<span class="board-meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
+    const banner = p.eventBanner ? `<span class="board-meta-item">${esc(p.eventBanner)}</span>` : '';
     const discord = p.discordURL
       ? `<a class="btn btn-secondary btn-sm" href="${esc(normalizeUrl(p.discordURL))}" target="_blank" rel="noopener noreferrer">${esc(p.discordLabel || 'Discord')}</a>` : '';
     const run = p.runLocationURL
       ? `<a class="btn btn-secondary btn-sm" href="${esc(normalizeUrl(p.runLocationURL))}" target="_blank" rel="noopener noreferrer">周回場所</a>` : '';
-    const detailBody = p.body ? `<p class="board-card__text">${esc(p.body)}</p>` : '';
-    const detailActions = (discord || run) ? `<div class="board-card__actions">${discord}${run}</div>` : '';
-    const detailPanel = hasDetail ? `
-      <div class="board-detail-panel" hidden>
-        ${detailBody}
-        ${detailActions}
-      </div>
-      <button type="button" class="board-detail-toggle btn btn-secondary btn-sm btn-block" aria-expanded="false" data-open-label="詳細を見る" data-close-label="詳細を閉じる">詳細を見る</button>
-    ` : (detailActions ? `<div class="board-card__actions">${discord}${run}</div>` : '');
 
     return `
-      <article class="board-feed-card">
-        ${img}
-        <div class="board-feed-card__body">
-          <h3 class="board-card__title">${esc(p.eventName || '(無題)')}${visibilityChipHtml(p)}</h3>
-          <p class="board-card__author">${esc(p.authorName || '匿名')}</p>
+      <article class="board-detail-page">
+        ${eventHeroHtml(p, { detail: true })}
+        <div class="board-detail-page__body">
+          ${authorRowHtml(p)}
           <div class="board-meta">${rank}${banner}</div>
           ${tags ? `<div class="board-chips">${tags}</div>` : ''}
-          ${detailPanel}
+          ${p.body ? `<p class="board-card__text">${esc(p.body)}</p>` : ''}
+          ${(discord || run) ? `<div class="board-card__actions">${discord}${run}</div>` : ''}
         </div>
       </article>
     `;
@@ -278,14 +451,14 @@ const MiraiBoard = (function () {
 
     let authorName = post && post.authorName ? post.authorName : '';
     let authorPublicId = post && post.authorPublicId ? post.authorPublicId : '';
-    if (!authorName) {
-      const hub = await loadOwnHub(user.uid);
-      if (hub) { authorName = hub.displayName || ''; authorPublicId = hub.publicId || ''; }
-    }
+    let authorAvatarURL = post && post.authorAvatarURL ? post.authorAvatarURL : '';
+    const hub = await loadOwnHub(user.uid);
+    if (!authorName && hub) { authorName = hub.displayName || ''; authorPublicId = hub.publicId || ''; }
+    if (!authorAvatarURL && hub && hub.avatarURL) authorAvatarURL = hub.avatarURL;
 
     const hasPost = !!(post && post.eventName);
     post = post || {
-      authorUid: user.uid, authorPublicId, authorName,
+      authorUid: user.uid, authorPublicId, authorName, authorAvatarURL,
       eventName: '', body: '', imageURL: '', conditionTags: [], targetRank: null,
       eventBanner: '', discordURL: '', discordLabel: 'Discord', runLocationURL: '', isPublished: true,
       visibility: 'public',
@@ -348,10 +521,13 @@ const MiraiBoard = (function () {
         if (fileInput.files && fileInput.files[0]) {
           imageURL = await uploadImage(user.uid, fileInput.files[0], 'event-banner.jpg');
         }
+        const freshHub = await loadOwnHub(user.uid);
+        if (freshHub && freshHub.avatarURL) authorAvatarURL = freshHub.avatarURL;
         const data = {
           authorUid: user.uid,
           authorPublicId: authorPublicId || '',
           authorName: box.querySelector('#evAuthor').value.trim() || name,
+          authorAvatarURL: authorAvatarURL || null,
           eventName: name,
           body: box.querySelector('#evBody').value.trim(),
           imageURL: imageURL || null,
@@ -418,7 +594,17 @@ const MiraiBoard = (function () {
     const { user: viewer, friendUids } = await loadViewerContext();
     let all = [];
     try { all = await fetchMysekai(); }
-    catch (e) { box.querySelector('#boardMysekaiList').innerHTML = '<div class="info-box"><p>読み込みに失敗しました。</p></div>'; console.error(e); return; }
+    catch (e) {
+      const hint = (e && e.code === 'permission-denied')
+        ? '<p class="form-hint mt-1">Firestore のルールが未デプロイの可能性があります。<code>data/firestore.rules</code> を Firebase Console に反映してください。</p>'
+        : (e && e.code === 'failed-precondition')
+          ? '<p class="form-hint mt-1">Firestore インデックスの作成が必要な場合があります。<code>data/firestore.indexes.json</code> をデプロイしてください。</p>'
+          : '';
+      box.querySelector('#boardMysekaiList').innerHTML =
+        '<div class="info-box"><p>読み込みに失敗しました。</p>' + hint + '</div>';
+      console.error(e);
+      return;
+    }
 
     const listEl = box.querySelector('#boardMysekaiList');
     const visible = all.filter((p) => isPostVisible(p, viewer && viewer.uid, friendUids));
@@ -447,10 +633,7 @@ const MiraiBoard = (function () {
   }
 
   async function fetchMysekai() {
-    const f = await fb();
-    const { collection, query, orderBy, limit, getDocs } = f.dbFns;
-    const snap = await getDocs(query(collection(f.db, 'boardMysekai'), orderBy('updatedAt', 'desc'), limit(PAGE_SIZE)));
-    return snap.docs.map((d) => Object.assign({ authorUid: d.id }, d.data()));
+    return fetchBoardPosts('boardMysekai');
   }
 
   function mysekaiCardHtml(p) {
@@ -635,7 +818,7 @@ const MiraiBoard = (function () {
   }
 
   return {
-    initEventList, initEventEdit, initMysekaiList, initMysekaiEdit,
+    initEventList, initEventDetail, initEventEdit, initMysekaiList, initMysekaiEdit,
     mountEventEditor, mountMysekaiEditor,
     fetchOwnEventAd, fetchOwnMysekai,
   };

@@ -25,6 +25,92 @@ const MiraiMyPage = (function () {
     emerald: { name: 'エメラルド', colors: ['#d6faf0', '#a6f0dc'] },
   };
 
+  const CARD_THEME_GROUPS = [
+    { id: 'basic', label: 'VIRTUAL SINGER' },
+    { id: 'leoneed', label: 'Leo/need' },
+    { id: 'mmj', label: 'MORE MORE JUMP!' },
+    { id: 'vbs', label: 'Vivid BAD SQUAD' },
+    { id: 'wxs', label: 'ワンダーランズ×ショウタイム' },
+    { id: 'n25', label: '25時、ナイトコードで。' },
+  ];
+
+  const LEGACY_CARD_THEME_KEYS = {
+    mafuyu: 'mfy',
+    blue: 'kaito',
+    green: 'len',
+    pinkRed: 'luka',
+    purple: 'meiko',
+    yellow: 'rin',
+    emerald: 'miku',
+  };
+
+  /** メンバーズカード専用テーマ（蝙蝠傘カラーチャート準拠 / bg=背景, accent=アクセント, ink=本文, accentText=見出し） */
+  const CARD_THEMES = {
+    miku:    { name: 'ミク',   group: 'basic', bg: '#ecfdf8', accent: '#33CCBB', ink: '#1e293b', muted: '#64748b', accentText: '#229988' },
+    rin:     { name: 'リン',   group: 'basic', bg: '#fffce8', accent: '#FFCC11', ink: '#1e293b', muted: '#64748b', accentText: '#c4a800' },
+    len:     { name: 'レン',   group: 'basic', bg: '#fffef0', accent: '#FFEE11', ink: '#1e293b', muted: '#64748b', accentText: '#ccbb00' },
+    luka:    { name: 'ルカ',   group: 'basic', bg: '#fff0f5', accent: '#FFBBCC', ink: '#1e293b', muted: '#64748b', accentText: '#dd8899' },
+    meiko:   { name: 'MEIKO',  group: 'basic', bg: '#fff0f0', accent: '#DD4444', ink: '#1e293b', muted: '#64748b', accentText: '#bb3333' },
+    kaito:   { name: 'KAITO',  group: 'basic', bg: '#eef3ff', accent: '#3366CC', ink: '#1e293b', muted: '#64748b', accentText: '#2655aa' },
+    ichika:  { name: '一歌',   group: 'leoneed', bg: '#e8f6fc', accent: '#33AAEE', ink: '#1e293b', muted: '#64748b', accentText: '#1277aa' },
+    saki:    { name: '咲希',   group: 'leoneed', bg: '#fffce8', accent: '#FFDD44', ink: '#1e293b', muted: '#64748b', accentText: '#c4a800' },
+    honami:  { name: '穂波',   group: 'leoneed', bg: '#fff0f0', accent: '#FF6666', ink: '#1e293b', muted: '#64748b', accentText: '#cc4444' },
+    shiho:   { name: '志歩',   group: 'leoneed', bg: '#f5faeb', accent: '#BBDD22', ink: '#1e293b', muted: '#64748b', accentText: '#8faa18' },
+    minori:  { name: 'みのり', group: 'mmj', bg: '#fff5ee', accent: '#FFCCAA', ink: '#1e293b', muted: '#64748b', accentText: '#cc9966' },
+    haruka:  { name: '遥',     group: 'mmj', bg: '#eef6ff', accent: '#99CCFF', ink: '#1e293b', muted: '#64748b', accentText: '#6699cc' },
+    airi:    { name: '愛莉',   group: 'mmj', bg: '#fff0f8', accent: '#FFAACC', ink: '#1e293b', muted: '#64748b', accentText: '#cc88aa' },
+    shizuku: { name: '雫',     group: 'mmj', bg: '#eefaf5', accent: '#99EEDD', ink: '#1e293b', muted: '#64748b', accentText: '#66bbaa' },
+    kohane:  { name: 'こはね', group: 'vbs', bg: '#fff0f5', accent: '#FF6699', ink: '#1e293b', muted: '#64748b', accentText: '#cc4477' },
+    an:      { name: '杏',     group: 'vbs', bg: '#e8f8fc', accent: '#00BBDD', ink: '#1e293b', muted: '#64748b', accentText: '#0099bb' },
+    akito:   { name: '彰',     group: 'vbs', bg: '#fff3eb', accent: '#FF7722', ink: '#1e293b', muted: '#64748b', accentText: '#cc5500' },
+    touya:   { name: '冬弥',   group: 'vbs', bg: '#eef5fc', accent: '#0077DD', ink: '#1e293b', muted: '#64748b', accentText: '#0055aa' },
+    tsukasa: { name: '司',     group: 'wxs', bg: '#fffbeb', accent: '#FFBB00', ink: '#1e293b', muted: '#64748b', accentText: '#cc9600' },
+    emu:     { name: 'えむ',   group: 'wxs', bg: '#fff0f8', accent: '#FF66BB', ink: '#1e293b', muted: '#64748b', accentText: '#cc3388' },
+    nene:    { name: '寧々',   group: 'wxs', bg: '#eefbf5', accent: '#33DD99', ink: '#1e293b', muted: '#64748b', accentText: '#22aa66' },
+    rui:     { name: '類',     group: 'wxs', bg: '#f5f0fc', accent: '#BB88EE', ink: '#1e293b', muted: '#64748b', accentText: '#8866bb' },
+    kanade:  { name: '奏',     group: 'n25', bg: '#f8f0f5', accent: '#BB6688', ink: '#1e293b', muted: '#64748b', accentText: '#994466' },
+    ena:     { name: '絵名',   group: 'n25', bg: '#faf5ee', accent: '#CCAA88', ink: '#1e293b', muted: '#64748b', accentText: '#aa8866' },
+    mizuki:  { name: '瑞希',   group: 'n25', bg: '#faf0f5', accent: '#DDAACC', ink: '#1e293b', muted: '#64748b', accentText: '#bb88aa' },
+    mfy:     { name: 'まふゆ', group: 'n25', bg: '#eef0f8', accent: '#8888CC', ink: '#1e293b', muted: '#64748b', accentText: '#6666aa' },
+  };
+
+  function normalizeCardThemeKey(key) {
+    const k = String(key || '').trim();
+    return LEGACY_CARD_THEME_KEYS[k] || k;
+  }
+
+  function resolveCardTheme(hub) {
+    const key = normalizeCardThemeKey((hub && hub.profileCardTheme) || (hub && hub.theme) || 'kaito');
+    return CARD_THEMES[key] || CARD_THEMES.kaito;
+  }
+
+  function cardThemeStyleVars(theme) {
+    return [
+      '--pc-bg:' + theme.bg,
+      '--pc-accent:' + theme.accent,
+      '--pc-ink:' + theme.ink,
+      '--pc-muted:' + theme.muted,
+      '--pc-accent-text:' + theme.accentText,
+      '--pc-id-bg:#ffffff',
+      '--pc-id-border:' + theme.accent + '33',
+    ].join(';');
+  }
+
+  function profileCardThemePickerHtml(selected) {
+    return CARD_THEME_GROUPS.map((g) => {
+      const items = Object.keys(CARD_THEMES).filter((k) => CARD_THEMES[k].group === g.id);
+      if (!items.length) return '';
+      return `
+        <div class="pc-theme-group">
+          <p class="pc-theme-group__label">${esc(g.label)}</p>
+          <div class="pc-theme-grid">${items.map((k) => {
+            const t = CARD_THEMES[k];
+            return `<button type="button" class="pc-theme-swatch${k === normalizeCardThemeKey(selected) ? ' is-active' : ''}" data-theme="${esc(k)}" title="${esc(t.name)}" style="--swatch-bg:${t.bg};--swatch-accent:${t.accent}"><span>${esc(t.name)}</span></button>`;
+          }).join('')}</div>
+        </div>`;
+    }).join('');
+  }
+
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -859,28 +945,94 @@ const MiraiMyPage = (function () {
 
   // ================= プロフィールカード =================
 
-  function profileCardHtml(hub, qrContainerId) {
-    const theme = THEMES[hub.theme] || THEMES.blue;
-    const accent = theme.colors[1] || theme.colors[0];
+  function profileCardHtml(hub) {
+    const theme = resolveCardTheme(hub);
+    const vars = cardThemeStyleVars(theme);
     return `
-      <div class="profile-card-meishi" style="--pc-accent: ${accent}; --pc-bg: ${theme.colors[0]};">
+      <div class="profile-card-meishi" style="${vars}">
+        <div class="profile-card-meishi__accent" aria-hidden="true"></div>
+        <div class="profile-card-meishi__glow" aria-hidden="true"></div>
         <div class="profile-card-meishi__inner">
-          <div class="profile-card-meishi__main">
-            ${avatarHtml(hub, 'profile-card-meishi__avatar')}
-            <div class="profile-card-meishi__text">
-              <p class="profile-card-meishi__name">${esc(hub.displayName || '未設定')}</p>
-              ${hub.headline ? `<p class="profile-card-meishi__headline">${esc(hub.headline)}</p>` : ''}
-              ${hub.bio ? `<p class="profile-card-meishi__bio">${esc(hub.bio)}</p>` : ''}
+          <header class="profile-card-meishi__head">
+            <img src="img/icon.png" alt="" class="profile-card-meishi__logo" width="48" height="48" decoding="async" crossorigin="anonymous">
+            <div class="profile-card-meishi__head-text">
+              <span class="profile-card-meishi__site">未来喫茶</span>
+              <p class="profile-card-meishi__label">MEMBERS CARD</p>
             </div>
-          </div>
-          <div class="profile-card-meishi__qr-col">
-            <div id="${qrContainerId}" class="profile-card-meishi__qr"></div>
-            <p class="profile-card-meishi__id">ID: ${esc(hub.publicId)}</p>
-            <p class="profile-card-meishi__site">未来喫茶</p>
+          </header>
+          <div class="profile-card-meishi__rule" aria-hidden="true"></div>
+          <div class="profile-card-meishi__member">
+            <p class="profile-card-meishi__name">${esc(hub.displayName || '未設定')}</p>
+            <div class="profile-card-meishi__id-box">
+              <span class="profile-card-meishi__id-label">未来喫茶ID</span>
+              <span class="profile-card-meishi__id">${esc(hub.publicId || '—')}</span>
+            </div>
           </div>
         </div>
       </div>
     `;
+  }
+
+  function refreshProfileCardPreview(box, hub) {
+    const wrap = box.querySelector('#profileCardPreviewWrap');
+    if (wrap) wrap.innerHTML = profileCardHtml(hub);
+  }
+
+  function loadHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-profile-card="html2canvas"]');
+      if (existing) {
+        existing.addEventListener('load', () => {
+          window.html2canvas ? resolve(window.html2canvas) : reject(new Error('画像ライブラリの読み込みに失敗しました'));
+        });
+        existing.addEventListener('error', () => reject(new Error('画像ライブラリの読み込みに失敗しました')));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      script.async = true;
+      script.dataset.profileCard = 'html2canvas';
+      script.onload = () => {
+        window.html2canvas ? resolve(window.html2canvas) : reject(new Error('画像ライブラリの読み込みに失敗しました'));
+      };
+      script.onerror = () => reject(new Error('画像ライブラリの読み込みに失敗しました'));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function saveProfileCardImage(cardEl, publicId) {
+    const logo = cardEl.querySelector('.profile-card-meishi__logo');
+    if (logo) {
+      await new Promise((resolve) => {
+        if (logo.complete) { resolve(); return; }
+        logo.onload = () => resolve();
+        logo.onerror = () => resolve();
+      });
+    }
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+
+    const html2canvas = await loadHtml2Canvas();
+    const canvas = await html2canvas(cardEl, {
+      scale: 3,
+      backgroundColor: null,
+      useCORS: true,
+      logging: false,
+    });
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (b) resolve(b);
+        else reject(new Error('画像の生成に失敗しました'));
+      }, 'image/png');
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'members-card-' + (publicId || 'mirai-kissa') + '.png';
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function initProfileCard() {
@@ -904,31 +1056,69 @@ const MiraiMyPage = (function () {
     }
 
     const { hub } = await prepareHub(user);
-    const qrId = 'profileCardQr';
+    const cardTheme = normalizeCardThemeKey(hub.profileCardTheme || hub.theme || 'kaito');
 
     box.innerHTML = `
       <div class="profile-card-page">
         ${!hub.displayName ? '<div class="info-box mb-2"><p><a href="#/mypage" data-link>マイページ</a>で表示名を設定してください。</p></div>' : ''}
-        <p class="form-hint">名刺サイズ（91×55mm）のプロフィールカードです。印刷またはスクリーンショットで保存できます。</p>
+        <p class="form-hint">名刺サイズ（91×55mm）のメンバーズカードです。カラーは選ぶと自動保存されます。</p>
+
+        <section class="card profile-card-customize">
+          <h3 class="profile-card-customize__title">カラー・デザイン</h3>
+          <div class="profile-card-theme-picker">${profileCardThemePickerHtml(cardTheme)}</div>
+          <p id="profileCardThemeSaved" class="community-saved mt-2" hidden>カラー設定を保存しました ✓</p>
+        </section>
+
         <div class="profile-card-page__preview" id="profileCardPreviewWrap">
-          ${profileCardHtml(hub, qrId)}
+          ${profileCardHtml(hub)}
         </div>
         <div class="profile-card-page__actions">
-          <button type="button" class="btn btn-primary" id="profileCardPrint">印刷する</button>
+          <button type="button" class="btn btn-primary" id="profileCardSave">画像を保存</button>
           <a href="#/mypage" class="btn btn-secondary" data-link>マイページに戻る</a>
         </div>
-        <p class="form-hint mt-2">テーマカラーは<a href="#/mypage/sekainote" data-link>セカイノート</a>の設定に連動します</p>
+        <p id="profileCardError" class="form-error mt-2" hidden></p>
       </div>
     `;
 
-    if (window.MiraiQr) {
-      MiraiQr.render(box.querySelector('#' + qrId), MiraiQr.publicPageUrl(hub.publicId), 72).catch(console.error);
+    const saveBtn = box.querySelector('#profileCardSave');
+    const errEl = box.querySelector('#profileCardError');
+    const themeSavedEl = box.querySelector('#profileCardThemeSaved');
+    let themeSaveTimer = null;
+
+    async function persistCardSettings() {
+      await saveHub(user.uid, hub);
+      if (themeSavedEl) {
+        themeSavedEl.hidden = false;
+        clearTimeout(themeSaveTimer);
+        themeSaveTimer = setTimeout(() => { themeSavedEl.hidden = true; }, 2200);
+      }
     }
 
-    box.querySelector('#profileCardPrint').addEventListener('click', () => {
-      document.body.classList.add('is-print-profile-card');
-      window.print();
-      setTimeout(() => document.body.classList.remove('is-print-profile-card'), 500);
+    box.querySelectorAll('.pc-theme-swatch').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        hub.profileCardTheme = btn.dataset.theme;
+        box.querySelectorAll('.pc-theme-swatch').forEach((b) => b.classList.toggle('is-active', b === btn));
+        refreshProfileCardPreview(box, hub);
+        persistCardSettings().catch((e) => console.error(e));
+      });
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (!confirm('画像を保存しますか？')) return;
+      errEl.hidden = true;
+      saveBtn.disabled = true;
+      saveBtn.textContent = '保存中…';
+      try {
+        const card = box.querySelector('.profile-card-meishi');
+        if (!card) throw new Error('カードが見つかりません');
+        await saveProfileCardImage(card, hub.publicId);
+      } catch (e) {
+        errEl.textContent = e.message || String(e);
+        errEl.hidden = false;
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '画像を保存';
+      }
     });
   }
 

@@ -23,6 +23,7 @@
         var build = meta && meta.getAttribute('content');
         if (build === remote.version) {
           try { localStorage.setItem(KEY, remote.version); } catch (e) {}
+          try { sessionStorage.removeItem('mkUpdating'); } catch (e) {}
           return;
         }
         if (sessionStorage.getItem('mkUpdating')) return;
@@ -651,7 +652,7 @@
         <div class="calc-header">
           <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
           <h1>💳 プロフィールカード</h1>
-          <p>名刺サイズ（91×55mm）で作成できます</p>
+          <p>名刺サイズ（91×55mm）のメンバーズカードを画像保存できます</p>
         </div>
         <div id="profileCardRoot"></div>
       </div>
@@ -705,6 +706,18 @@
           <p>1アカウント1件まで。保存すると既存の内容を上書き更新します</p>
         </div>
         <div id="boardEventEditRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-board-event-detail">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide board-detail-layout">
+        <div class="calc-header">
+          <a href="#/board/event" class="back-link" data-link>← 一覧に戻る</a>
+          <h1>📣 イベラン広告</h1>
+        </div>
+        <div id="boardEventDetailRoot"></div>
       </div>
     </div>
   </template>
@@ -772,7 +785,7 @@
   <script src="js/qr-utils.js?v=1"></script>
   <script src="js/friends.js?v=1"></script>
   <script src="js/mypage.js?v=1"></script>
-  <script src="js/board.js?v=1"></script>
+  <script src="js/board.js?v=2"></script>
   <script src="js/guides.js?v=1"></script>
   <script src="js/router.js?v=15"></script>
   <script src="js/border-rankings-data.js?v=1"></script>
