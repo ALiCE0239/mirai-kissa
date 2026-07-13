@@ -1,10 +1,10 @@
 /**
  * 未来喫茶 — 掲示板（イベラン広告 / マイセカイ宣伝）
  *
- * - #/board/event         イベラン広告 一覧・検索
- * - #/board/event/edit    自分のイベラン広告 作成/編集（要ログイン）
- * - #/board/mysekai       マイセカイ宣伝 一覧・いいね
- * - #/board/mysekai/edit  自分のマイセカイ宣伝 作成/編集（要ログイン）
+ * - #/board/event         イベラン広告 一覧・検索（閲覧のみ）
+ * - #/board/mysekai       マイセカイ宣伝 一覧・いいね（閲覧のみ）
+ * - #/board/event/edit    イベラン広告 作成/編集（要ログイン・マイページから遷移）
+ * - #/board/mysekai/edit  マイセカイ宣伝 作成/編集（要ログイン・マイページから遷移）
  *
  * データ構造はアプリに準拠。
  *   boardEventAds/{authorUid}                    … 1アカウント1件
@@ -34,6 +34,11 @@ const MiraiBoard = (function () {
 
   async function fb() {
     return window.MiraiFirebaseReady ? await window.MiraiFirebaseReady : null;
+  }
+
+  async function isConfigured() {
+    const f = await fb();
+    return !!(f && f.configured);
   }
 
   function notConfiguredHtml() {
@@ -74,12 +79,12 @@ const MiraiBoard = (function () {
   async function initEventList() {
     const box = document.getElementById('app').querySelector('#boardEventRoot');
     if (!box) return;
-    if (!window.MiraiAuth || !window.MiraiAuth.isConfigured()) { box.innerHTML = notConfiguredHtml(); return; }
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
 
     box.innerHTML = `
-      <div class="board-toolbar">
+      <div class="board-toolbar board-toolbar--view">
         <input type="search" class="form-input" id="boardEventSearch" placeholder="イベント名・条件で検索">
-        <a href="#/board/event/edit" class="btn btn-primary" data-link>広告を出す</a>
+        <p class="form-hint board-toolbar__note">閲覧のみ。投稿・編集は<a href="#/mypage" data-link>マイページ</a>から行えます（1アカウント1件）。</p>
       </div>
       <div class="board-tags" id="boardEventTags"></div>
       <div id="boardEventList" class="board-list"><p class="text-muted">読み込み中…</p></div>
@@ -162,18 +167,29 @@ const MiraiBoard = (function () {
   async function initEventEdit() {
     const box = document.getElementById('app').querySelector('#boardEventEditRoot');
     if (!box) return;
-    if (!window.MiraiAuth || !window.MiraiAuth.isConfigured()) { box.innerHTML = notConfiguredHtml(); return; }
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
     box.innerHTML = '<p class="text-muted">読み込み中…</p>';
-
     const user = await requireUser(box);
     if (!user) return;
+    await mountEventEditor(box, user);
+  }
+
+  async function mountEventEditor(box, user, opts) {
+    if (!box) return;
+    opts = opts || {};
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
+    if (!user) return;
+
+    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
 
     const f = await fb();
     const { doc, getDoc } = f.dbFns;
     let post = null;
+    let docExists = false;
     try {
       const snap = await getDoc(doc(f.db, 'boardEventAds', user.uid));
-      post = snap.exists() ? snap.data() : null;
+      docExists = snap.exists();
+      post = docExists ? snap.data() : null;
     } catch (e) { console.error(e); }
 
     let authorName = post && post.authorName ? post.authorName : '';
@@ -183,6 +199,7 @@ const MiraiBoard = (function () {
       if (hub) { authorName = hub.displayName || ''; authorPublicId = hub.publicId || ''; }
     }
 
+    const hasPost = !!(post && post.eventName);
     post = post || {
       authorUid: user.uid, authorPublicId, authorName,
       eventName: '', body: '', imageURL: '', conditionTags: [], targetRank: null,
@@ -196,7 +213,8 @@ const MiraiBoard = (function () {
       .concat(TARGET_RANKS.map((r) => `<option value="${r}"${post.targetRank === r ? ' selected' : ''}>${r}位</option>`)).join('');
 
     box.innerHTML = `
-      <section class="card community-editor">
+      <p class="form-hint mp-board-hint">1アカウント1件まで。保存すると既存の内容を上書き更新します。</p>
+      <section class="card community-editor mp-board-editor">
         <div class="form-group"><label for="evName">イベント名 / タイトル</label>
           <input type="text" class="form-input" id="evName" maxlength="60" value="${esc(post.eventName)}" placeholder="例: 〇〇イベント 一緒に走りませんか"></div>
         <div class="form-group"><label for="evAuthor">表示名</label>
@@ -223,10 +241,7 @@ const MiraiBoard = (function () {
         <div class="form-group"><label class="form-toggle"><input type="checkbox" id="evPublished"${post.isPublished !== false ? ' checked' : ''}><span class="toggle-track"></span><span class="toggle-label">公開する</span></label></div>
 
         <p id="evError" class="form-error mt-2" hidden></p>
-        <div class="board-edit-actions">
-          <a href="#/board/event" class="btn btn-secondary" data-link>一覧へ</a>
-          <button type="button" class="btn btn-primary" id="evSave">保存する</button>
-        </div>
+        <button type="button" class="btn btn-primary btn-block" id="evSave">${hasPost ? '更新する' : '保存する'}</button>
         <p id="evSaved" class="community-saved mt-2" hidden>保存しました ✓</p>
       </section>
     `;
@@ -262,16 +277,38 @@ const MiraiBoard = (function () {
           runLocationURL: normalizeUrl(box.querySelector('#evRunUrl').value),
           isPublished: box.querySelector('#evPublished').checked,
         };
-        await saveDoc('boardEventAds', user.uid, data, !post.createdAt);
+        await saveDoc('boardEventAds', user.uid, data, !docExists);
+        docExists = true;
         post = Object.assign(post, data);
+        btn.textContent = '更新する';
         savedEl.hidden = false;
+        if (typeof opts.onSaved === 'function') opts.onSaved(post);
         setTimeout(() => { savedEl.hidden = true; }, 2500);
       } catch (e) {
         errEl.textContent = e.message || String(e); errEl.hidden = false;
       } finally {
-        btn.disabled = false; btn.textContent = '保存する';
+        btn.disabled = false;
+        if (btn.textContent === '保存中…') btn.textContent = hasPost ? '更新する' : '保存する';
       }
     });
+
+    return post;
+  }
+
+  async function fetchOwnEventAd(uid) {
+    const f = await fb();
+    if (!f) return null;
+    const { doc, getDoc } = f.dbFns;
+    const snap = await getDoc(doc(f.db, 'boardEventAds', uid));
+    return snap.exists() ? snap.data() : null;
+  }
+
+  async function fetchOwnMysekai(uid) {
+    const f = await fb();
+    if (!f) return null;
+    const { doc, getDoc } = f.dbFns;
+    const snap = await getDoc(doc(f.db, 'boardMysekai', uid));
+    return snap.exists() ? snap.data() : null;
   }
 
   // ========================================================
@@ -281,12 +318,12 @@ const MiraiBoard = (function () {
   async function initMysekaiList() {
     const box = document.getElementById('app').querySelector('#boardMysekaiRoot');
     if (!box) return;
-    if (!window.MiraiAuth || !window.MiraiAuth.isConfigured()) { box.innerHTML = notConfiguredHtml(); return; }
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
 
     box.innerHTML = `
-      <div class="board-toolbar">
-        <p class="text-muted board-toolbar__note">マイセカイの百景を宣伝しよう</p>
-        <a href="#/board/mysekai/edit" class="btn btn-primary" data-link>宣伝を出す</a>
+      <div class="board-toolbar board-toolbar--view">
+        <p class="text-muted board-toolbar__note">マイセカイの百景を見る（閲覧のみ）</p>
+        <p class="form-hint board-toolbar__note">投稿・編集は<a href="#/mypage" data-link>マイページ</a>から行えます（1アカウント1件）。</p>
       </div>
       <div id="boardMysekaiList" class="board-list board-list--mysekai"><p class="text-muted">読み込み中…</p></div>
     `;
@@ -367,18 +404,29 @@ const MiraiBoard = (function () {
   async function initMysekaiEdit() {
     const box = document.getElementById('app').querySelector('#boardMysekaiEditRoot');
     if (!box) return;
-    if (!window.MiraiAuth || !window.MiraiAuth.isConfigured()) { box.innerHTML = notConfiguredHtml(); return; }
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
     box.innerHTML = '<p class="text-muted">読み込み中…</p>';
-
     const user = await requireUser(box);
     if (!user) return;
+    await mountMysekaiEditor(box, user);
+  }
+
+  async function mountMysekaiEditor(box, user, opts) {
+    if (!box) return;
+    opts = opts || {};
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
+    if (!user) return;
+
+    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
 
     const f = await fb();
     const { doc, getDoc } = f.dbFns;
     let post = null;
+    let docExists = false;
     try {
       const snap = await getDoc(doc(f.db, 'boardMysekai', user.uid));
-      post = snap.exists() ? snap.data() : null;
+      docExists = snap.exists();
+      post = docExists ? snap.data() : null;
     } catch (e) { console.error(e); }
 
     let authorName = post && post.authorName ? post.authorName : '';
@@ -388,6 +436,7 @@ const MiraiBoard = (function () {
       if (hub) { authorName = hub.displayName || ''; authorPublicId = hub.publicId || ''; }
     }
 
+    const hasPost = !!(post && post.title);
     post = post || {
       authorUid: user.uid, authorPublicId, authorName,
       title: '', body: '', imageURLs: [], likeCount: 0, isPublished: true,
@@ -395,7 +444,8 @@ const MiraiBoard = (function () {
 
     const existing = (post.imageURLs || []).slice(0, 4);
     box.innerHTML = `
-      <section class="card community-editor">
+      <p class="form-hint mp-board-hint">1アカウント1件まで。保存すると既存の内容を上書き更新します。</p>
+      <section class="card community-editor mp-board-editor">
         <div class="form-group"><label for="msTitle">タイトル</label>
           <input type="text" class="form-input" id="msTitle" maxlength="60" value="${esc(post.title)}" placeholder="例: 和風庭園の百景"></div>
         <div class="form-group"><label for="msAuthor">表示名</label>
@@ -409,10 +459,7 @@ const MiraiBoard = (function () {
         <div class="form-group"><label class="form-toggle"><input type="checkbox" id="msPublished"${post.isPublished !== false ? ' checked' : ''}><span class="toggle-track"></span><span class="toggle-label">公開する</span></label></div>
 
         <p id="msError" class="form-error mt-2" hidden></p>
-        <div class="board-edit-actions">
-          <a href="#/board/mysekai" class="btn btn-secondary" data-link>一覧へ</a>
-          <button type="button" class="btn btn-primary" id="msSave">保存する</button>
-        </div>
+        <button type="button" class="btn btn-primary btn-block" id="msSave">${hasPost ? '更新する' : '保存する'}</button>
         <p id="msSaved" class="community-saved mt-2" hidden>保存しました ✓</p>
       </section>
     `;
@@ -444,16 +491,22 @@ const MiraiBoard = (function () {
           isPublished: box.querySelector('#msPublished').checked,
         };
         if (typeof post.likeCount === 'number') data.likeCount = post.likeCount;
-        await saveDoc('boardMysekai', user.uid, data, !post.createdAt);
+        await saveDoc('boardMysekai', user.uid, data, !docExists);
+        docExists = true;
         post = Object.assign(post, data);
+        btn.textContent = '更新する';
         savedEl.hidden = false;
+        if (typeof opts.onSaved === 'function') opts.onSaved(post);
         setTimeout(() => { savedEl.hidden = true; }, 2500);
       } catch (e) {
         errEl.textContent = e.message || String(e); errEl.hidden = false;
       } finally {
-        btn.disabled = false; btn.textContent = '保存する';
+        btn.disabled = false;
+        if (btn.textContent === '保存中…') btn.textContent = hasPost ? '更新する' : '保存する';
       }
     });
+
+    return post;
   }
 
   // ---------- 共通保存 ----------
@@ -475,7 +528,11 @@ const MiraiBoard = (function () {
     } catch (e) { return null; }
   }
 
-  return { initEventList, initEventEdit, initMysekaiList, initMysekaiEdit };
+  return {
+    initEventList, initEventEdit, initMysekaiList, initMysekaiEdit,
+    mountEventEditor, mountMysekaiEditor,
+    fetchOwnEventAd, fetchOwnMysekai,
+  };
 })();
 
 window.MiraiBoard = MiraiBoard;

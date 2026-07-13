@@ -1,0 +1,238 @@
+================================================================================
+未来喫茶 Web — Firebase 設定用プロンプト（この全文を Firebase の Gemini に貼り付け）
+================================================================================
+
+あなたは Firebase コンソールの設定アシスタントです。
+以下の要件どおり、プロジェクト「cafe-9d3b7」を設定する手順を、
+初心者向けに1ステップずつ案内してください。
+可能な設定は具体的な画面操作・貼り付けるコードまで示してください。
+
+【サイト概要】
+- サイト名: 未来喫茶（プロセカ非公式ファンサイト）
+- 公開URL: https://39cafe.fictionscale.jp/
+- 種類: 静的HTML + JavaScript（SPA・ハッシュルーティング #/...）
+- Firebase SDK: Web v10 modular（CDN・npm 不使用）
+- 用途: Xログイン / Googleログイン、マイページ、掲示板
+
+【重要】
+- 使用プロジェクト: cafe-9d3b7（Web専用。iOSアプリ mikucafe とは別）
+- Web側の firebaseConfig は既にコードに反映済み（変更不要）
+- 私が Console でやる作業を、順番に教えてください
+
+
+--------------------------------------------------------------------------------
+■ すでに完了していること（Webコード側・触らない）
+--------------------------------------------------------------------------------
+firebaseConfig（js/firebase-config.js に設定済み）:
+  apiKey: AIzaSyAv4RlAbdWDdLVlpOJGc850XGNu4UDUmqc
+  authDomain: cafe-9d3b7.firebaseapp.com
+  projectId: cafe-9d3b7
+  storageBucket: cafe-9d3b7.firebasestorage.app
+  messagingSenderId: 352105424419
+  appId: 1:352105424419:web:7f06b2335aac8dea0cf396
+
+実装済み画面:
+  #/login          … X / Google ログイン
+  #/mypage         … マイページ編集（リトリン風）
+  #/p/{publicId}   … 公開マイページ
+  #/board/event    … イベラン広告 一覧
+  #/board/event/edit … イベラン広告 投稿（要ログイン）
+  #/board/mysekai  … マイセカイ宣伝 一覧
+  #/board/mysekai/edit … マイセカイ宣伝 投稿（要ログイン）
+
+
+--------------------------------------------------------------------------------
+■ あなた（Gemini）に設定してほしいこと — チェックリスト
+--------------------------------------------------------------------------------
+[ ] 1. Firestore Database を作成（リージョン: asia-northeast1 推奨）
+[ ] 2. Firestore セキュリティルールを下記に設定して公開
+[ ] 3. Firestore インデックスを下記 JSON で作成
+[ ] 4. Cloud Storage を有効化
+[ ] 5. Storage セキュリティルールを下記に設定して公開
+[ ] 6. Authentication で Google ログインを有効化
+[ ] 7. Authentication で Twitter（X）ログインを有効化
+[ ] 8. Authentication → 承認済みドメインに追加:
+        - 39cafe.fictionscale.jp
+        - localhost
+[ ] 9. 設定完了後の動作確認手順を教える
+
+
+--------------------------------------------------------------------------------
+■ Firestore セキュリティルール（このまま貼り付け）
+--------------------------------------------------------------------------------
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /publicProfiles/{publicId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+    }
+    match /linkHubs/{publicId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+    }
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.authorUid == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.authorUid == request.auth.uid;
+    }
+    match /posts/{postId}/likes/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /boardEventAds/{authorUid} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == authorUid
+        && request.resource.data.authorUid == authorUid;
+      allow delete: if request.auth != null && request.auth.uid == authorUid;
+    }
+    match /boardMysekai/{authorUid} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == authorUid
+        && request.resource.data.authorUid == authorUid;
+      allow delete: if request.auth != null && request.auth.uid == authorUid;
+      match /updates/{updateId} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == authorUid;
+      }
+      match /likes/{likerUid} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == likerUid;
+      }
+    }
+    match /users/{userId}/friends/{friendUid} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null
+        && (request.auth.uid == userId || request.auth.uid == friendUid);
+    }
+    match /users/{userId}/friendRequests/{requestId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+
+
+--------------------------------------------------------------------------------
+■ Firestore インデックス（firestore.indexes.json）
+--------------------------------------------------------------------------------
+{
+  "indexes": [
+    {
+      "collectionGroup": "boardEventAds",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "boardMysekai",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
+
+
+--------------------------------------------------------------------------------
+■ Storage セキュリティルール（このまま貼り付け）
+--------------------------------------------------------------------------------
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /board/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+
+
+--------------------------------------------------------------------------------
+■ 使う Firestore コレクション（データ設計）
+--------------------------------------------------------------------------------
+linkHubs/{publicId}
+  … 公開マイページ（誰でも閲覧、本人のみ編集）
+  フィールド例: uid, publicId, displayName, headline, bio, links[], theme, updatedAt
+
+users/{uid}/sns/linkHub
+  … 本人用ミラー（linkHubs と同内容）
+
+users/{uid}/sns/auth
+  … Xログイン後の xHandle 保存
+
+boardEventAds/{authorUid}
+  … イベラン広告（1ユーザー1件、documentId = uid）
+  フィールド例: authorUid, authorName, eventName, body, conditionTags[], targetRank,
+                 discordURL, imageURL, isPublished, createdAt, updatedAt
+
+boardMysekai/{authorUid}
+  … マイセカイ宣伝（1ユーザー1件）
+  フィールド例: authorUid, title, body, imageURLs[], likeCount, isPublished, updatedAt
+  サブコレクション: likes/{likerUid}
+
+
+--------------------------------------------------------------------------------
+■ Authentication 設定
+--------------------------------------------------------------------------------
+有効化するプロバイダ:
+  1. Google（推奨・すぐ試せる）
+  2. Twitter / X（アプリと統一したい場合）
+
+Xログイン用コールバックURL（X開発者ポータルにも登録が必要）:
+  https://cafe-9d3b7.firebaseapp.com/__/auth/handler
+
+承認済みドメイン（必須）:
+  - 39cafe.fictionscale.jp
+  - localhost
+
+
+--------------------------------------------------------------------------------
+■ Xログインだけ別途必要な作業（Console外・私がやる）
+--------------------------------------------------------------------------------
+X開発者ポータル (https://developer.x.com/) で:
+  1. OAuth 1.0a を有効化
+  2. Callback URL に https://cafe-9d3b7.firebaseapp.com/__/auth/handler を登録
+  3. API Key / API Secret を Firebase Console の Twitter 設定に貼る
+
+※ この部分は Gemini では完結しないので、手順だけ簡潔に教えてください。
+
+
+--------------------------------------------------------------------------------
+■ 動作確認（設定後）
+--------------------------------------------------------------------------------
+1. https://39cafe.fictionscale.jp/#/login を開く
+2. 「Google でログイン」または「𝕏 でログイン」
+3. #/mypage で表示名・リンクを保存
+4. #/p/{publicId} で公開ページが見えるか
+5. #/board/event/edit でイベラン広告を投稿できるか
+
+エラーが出たら、エラーメッセージと対処法を教えてください。
+
+
+--------------------------------------------------------------------------------
+■ 最初の返答でお願いしたいこと
+--------------------------------------------------------------------------------
+上のチェックリスト [ ] 1 から順に、
+「今どの画面を開くか」「何をクリックするか」「何を貼るか」を
+日本語で1ステップずつ案内してください。
+完了したら次のステップに進みます。
+
+================================================================================

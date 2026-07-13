@@ -7,3 +7,4 @@ scripts/
 data/管理者ログイン情報.local.txt
 sync/sync-config.local.json
 tools/__pycache__/
+.pylibs/

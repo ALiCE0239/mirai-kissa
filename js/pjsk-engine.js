@@ -318,6 +318,9 @@ const PjskEngine = {
     '彰人', '冬弥', '司', 'えむ', '寧々', '類', '奏', 'まふゆ', '絵名', '瑞希',
   ],
 
+  /** イベラン診断のバナー選択肢から除外するミク混合バナー */
+  BANNER_EXCLUDE: ['ダショミク', 'ニーゴミク', 'ビビミク'],
+
   sortBannerList(banners) {
     const orderIndex = new Map(this.BANNER_DISPLAY_ORDER.map((name, i) => [name, i]));
     return [...banners].sort((a, b) => {
@@ -331,7 +334,10 @@ const PjskEngine = {
   getBorderFilterList(filterType) {
     const key = filterType === 'unit' ? 'units' : 'banners';
     const list = this.borderData?.[key] ?? [];
-    if (filterType === 'banner') return this.sortBannerList(list);
+    if (filterType === 'banner') {
+      const filtered = list.filter((name) => !this.BANNER_EXCLUDE.includes(name));
+      return this.sortBannerList(filtered);
+    }
     return list;
   },
 
