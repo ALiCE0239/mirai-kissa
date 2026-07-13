@@ -26,14 +26,36 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == uid;
     }
     match /boardEventAds/{authorUid} {
-      allow read: if true;
+      allow read: if request.auth != null && request.auth.uid == authorUid
+        || (
+          resource.data.get('isPublished', true) != false
+          && (
+            resource.data.get('visibility', 'public') == 'public'
+            || (
+              request.auth != null
+              && resource.data.get('visibility', 'public') == 'friends'
+              && exists(/databases/$(database)/documents/users/$(request.auth.uid)/friends/$(authorUid))
+            )
+          )
+        );
       allow create, update: if request.auth != null
         && request.auth.uid == authorUid
         && request.resource.data.authorUid == authorUid;
       allow delete: if request.auth != null && request.auth.uid == authorUid;
     }
     match /boardMysekai/{authorUid} {
-      allow read: if true;
+      allow read: if request.auth != null && request.auth.uid == authorUid
+        || (
+          resource.data.get('isPublished', true) != false
+          && (
+            resource.data.get('visibility', 'public') == 'public'
+            || (
+              request.auth != null
+              && resource.data.get('visibility', 'public') == 'friends'
+              && exists(/databases/$(database)/documents/users/$(request.auth.uid)/friends/$(authorUid))
+            )
+          )
+        );
       allow create, update: if request.auth != null
         && request.auth.uid == authorUid
         && request.resource.data.authorUid == authorUid;
