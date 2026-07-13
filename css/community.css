@@ -1,0 +1,167 @@
+/* =====================================================
+   未来喫茶 — コミュニティ機能（ログイン / マイページ / 掲示板）
+   既存の style.css の変数・btn/card/form を活用
+   ===================================================== */
+
+.community-narrow { max-width: 560px; margin: 0 auto; }
+
+/* ---------- ログイン ---------- */
+.community-login { padding: 1.75rem 1.5rem; }
+.community-login__lead { margin-bottom: 1.25rem; }
+
+.community-btn-x {
+  background: #000;
+  color: #fff;
+  border: none;
+  font-weight: 700;
+}
+.community-btn-x:hover { background: #1a1a1a; }
+
+/* ---------- マイページ編集 ---------- */
+.community-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 900px) {
+  .community-grid { grid-template-columns: 1.1fr 0.9fr; align-items: start; }
+}
+
+.community-editor { padding: 1.5rem; }
+.community-editor__title { font-size: 1.15rem; margin-bottom: 1rem; }
+
+.community-links-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.community-links-edit { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.community-link-row {
+  display: grid;
+  grid-template-columns: 56px 1fr 1.4fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+.community-link-row .mpLinkEmoji { text-align: center; }
+@media (max-width: 560px) {
+  .community-link-row {
+    grid-template-columns: 48px 1fr auto;
+  }
+  .community-link-row .mpLinkUrl { grid-column: 1 / -1; }
+}
+
+.btn-sm { padding: 0.4rem 0.75rem; font-size: 0.85rem; }
+
+.community-saved { color: var(--brand-green); font-weight: 600; }
+
+.community-preview-wrap { position: sticky; top: 90px; }
+.community-preview__label,
+.community-share .form-hint { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+.community-share { margin-top: 1rem; }
+.community-share__row { display: flex; gap: 0.5rem; }
+.community-share__row .form-input { flex: 1; font-size: 0.8rem; }
+
+/* ---------- リトリン風カード ---------- */
+.linkhub {
+  border-radius: var(--radius-lg);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+.linkhub--full { padding: 2.5rem 1.5rem; min-height: 60vh; }
+.community-public { max-width: 480px; padding-top: 1.5rem; }
+.community-public__foot { text-align: center; margin-top: 1.25rem; font-size: 0.85rem; }
+
+.linkhub-avatar {
+  width: 84px; height: 84px; margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem; font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.linkhub-name { font-size: 1.4rem; font-weight: 800; color: #1e293b; margin-bottom: 0.25rem; }
+.linkhub-headline { font-size: 0.95rem; color: #334155; margin-bottom: 0.5rem; }
+.linkhub-bio { font-size: 0.9rem; color: #475569; white-space: pre-wrap; margin-bottom: 1.25rem; }
+
+.linkhub-links { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+.linkhub-links--pins { margin-top: 0.6rem; }
+.linkhub-link {
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-pill);
+  color: #1e293b; font-weight: 600; text-decoration: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.linkhub-link:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12); }
+.linkhub-link--pin { background: rgba(255, 255, 255, 0.6); }
+.linkhub-link__emoji { font-size: 1.1rem; }
+.linkhub-empty { color: #64748b; font-size: 0.85rem; }
+
+/* ---------- 掲示板 ---------- */
+.board-toolbar {
+  display: flex; gap: 0.75rem; align-items: center;
+  margin-bottom: 1rem; flex-wrap: wrap;
+}
+.board-toolbar .form-input { flex: 1; min-width: 180px; }
+.board-toolbar__note { flex: 1; margin: 0; }
+
+.board-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.25rem; }
+.board-tag {
+  padding: 0.35rem 0.8rem; border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle); background: var(--bg-card);
+  color: var(--text-secondary); font-size: 0.82rem; cursor: pointer;
+  transition: all 0.12s ease;
+}
+.board-tag.is-active { background: var(--brand-blue); color: #fff; border-color: var(--brand-blue); }
+
+.board-list { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+@media (min-width: 720px) {
+  .board-list { grid-template-columns: 1fr 1fr; }
+}
+.board-empty { text-align: center; padding: 2rem 0; }
+
+.board-card { overflow: hidden; padding: 0; display: flex; flex-direction: column; }
+.board-card__img { width: 100%; height: 160px; object-fit: cover; display: block; }
+.board-card__body { padding: 1rem 1.15rem 1.15rem; }
+.board-card__title { font-size: 1.05rem; margin-bottom: 0.2rem; }
+.board-card__author { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.6rem; }
+.board-card__text { font-size: 0.9rem; color: var(--text-secondary); white-space: pre-wrap; margin: 0.5rem 0; }
+.board-card__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+
+.board-meta { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.board-meta-item {
+  font-size: 0.78rem; color: var(--brand-blue);
+  background: rgba(14, 165, 233, 0.1); padding: 0.15rem 0.5rem; border-radius: var(--radius-sm);
+}
+.board-chips { display: flex; gap: 0.35rem; flex-wrap: wrap; margin: 0.35rem 0; }
+.board-chip {
+  font-size: 0.75rem; color: var(--text-secondary);
+  background: var(--bg-secondary); padding: 0.15rem 0.5rem; border-radius: var(--radius-sm);
+}
+
+.board-like {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  border: 1px solid var(--border-subtle); background: var(--bg-card);
+  color: var(--text-secondary); border-radius: var(--radius-pill);
+  padding: 0.35rem 0.85rem; cursor: pointer; font-size: 0.9rem;
+  transition: all 0.12s ease;
+}
+.board-like.is-liked { color: #e11d48; border-color: #fca5b5; background: rgba(225, 29, 72, 0.06); }
+.board-like:disabled { opacity: 0.6; cursor: default; }
+
+.board-gallery { display: grid; gap: 2px; }
+.board-gallery img { width: 100%; height: 120px; object-fit: cover; display: block; }
+.board-gallery--1 { grid-template-columns: 1fr; }
+.board-gallery--1 img { height: 200px; }
+.board-gallery--2 { grid-template-columns: 1fr 1fr; }
+.board-gallery--3, .board-gallery--4 { grid-template-columns: 1fr 1fr; }
+
+.board-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.board-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
+.board-edit-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem; }
+
+/* ナビの認証リンクを少し強調 */
+#navAuth a { font-weight: 700; }

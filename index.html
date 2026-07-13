@@ -37,6 +37,10 @@
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
   <link rel="stylesheet" href="css/style.css?v=34">
+  <link rel="stylesheet" href="css/community.css?v=1">
+  <link rel="stylesheet" href="css/ads.css?v=1">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3749566622644230"
+    crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -61,12 +65,16 @@
         <li><a href="#/adjust-next" data-link>Pt調整N</a></li>
         <li><a href="#/kizuna" data-link>キズナ</a></li>
         <li><a href="#/diagnosis" data-link>イベラン</a></li>
+        <li><a href="#/board/event" data-link>掲示板</a></li>
+        <li id="navAuth"><a href="#/login" data-link>ログイン</a></li>
       </ul>
     </div>
   </nav>
 
   <main class="page" id="app"></main>
   <div id="diagnosisShareMount" class="diagnosis-share-mount" aria-hidden="true"></div>
+
+  <div id="adFooterMount" hidden></div>
 
   <footer class="footer">
     <p>© 2026 未来喫茶 — プロジェクトセカイ非公式ツール集</p>
@@ -572,6 +580,97 @@
     </div>
   </template>
 
+  <!-- ==================== ログイン ==================== -->
+  <template id="tmpl-login">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>👤 ログイン</h1>
+        </div>
+        <div class="card community-login" id="loginBox"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== マイページ編集 ==================== -->
+  <template id="tmpl-mypage">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>🔗 マイページ</h1>
+          <p>リンクをまとめて公開できます（リトリン風）</p>
+        </div>
+        <div id="myPageRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== 公開マイページ ==================== -->
+  <template id="tmpl-public">
+    <div class="page-content page-enter">
+      <div class="community-narrow community-public">
+        <div id="publicProfileRoot"></div>
+        <p class="community-public__foot"><a href="#/" data-link>未来喫茶で作る</a></p>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== 掲示板: イベラン広告 ==================== -->
+  <template id="tmpl-board-event">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>📣 イベラン広告</h1>
+          <p>一緒に走る仲間・Discord募集を探せます</p>
+        </div>
+        <div id="boardEventRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-board-event-edit">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/board/event" class="back-link" data-link>← 一覧に戻る</a>
+          <h1>📣 イベラン広告を編集</h1>
+          <p>1アカウント1件まで。いつでも書き換えできます</p>
+        </div>
+        <div id="boardEventEditRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== 掲示板: マイセカイ宣伝 ==================== -->
+  <template id="tmpl-board-mysekai">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>🌿 マイセカイ宣伝</h1>
+          <p>自慢の百景をみんなに見てもらおう</p>
+        </div>
+        <div id="boardMysekaiRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-board-mysekai-edit">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/board/mysekai" class="back-link" data-link>← 一覧に戻る</a>
+          <h1>🌿 マイセカイ宣伝を編集</h1>
+          <p>1アカウント1件まで</p>
+        </div>
+        <div id="boardMysekaiEditRoot"></div>
+      </div>
+    </div>
+  </template>
+
   <template id="tmpl-404">
     <div class="page-content page-enter">
       <div class="calc-page text-center" style="padding-top: 6rem;">
@@ -584,12 +683,19 @@
 
   <script src="js/analytics-config.js?v=3"></script>
   <script src="js/analytics.js?v=1"></script>
+  <script src="js/ads-config.js?v=1"></script>
+  <script src="js/ads.js?v=1"></script>
   <script src="js/admin.js?v=3"></script>
-  <script src="js/router.js?v=14"></script>
+  <script src="js/firebase-config.js?v=1"></script>
+  <script type="module" src="js/firebase.js?v=1"></script>
+  <script src="js/auth.js?v=1"></script>
+  <script src="js/mypage.js?v=1"></script>
+  <script src="js/board.js?v=1"></script>
+  <script src="js/router.js?v=15"></script>
   <script src="js/border-rankings-data.js?v=1"></script>
   <script src="js/song-kiso-data.js?v=1"></script>
   <script src="js/song-kiso.js?v=3"></script>
-  <script src="js/pjsk-engine.js?v=32"></script>
+  <script src="js/pjsk-engine.js?v=33"></script>
   <script src="js/calculators.js?v=56"></script>
   <script src="js/app.js?v=17"></script>
 </body>

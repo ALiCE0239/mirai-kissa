@@ -1,0 +1,36 @@
+/* Google AdSense 広告枠 */
+.ad-unit {
+  max-width: 728px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem 1rem;
+  text-align: center;
+}
+
+.ad-unit__label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  margin-bottom: 0.35rem;
+}
+
+.ad-unit--inline {
+  margin: 0 auto 1.25rem;
+}
+
+#adFooterMount {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
+}
+
+#adFooterMount[hidden] {
+  display: none;
+}
+
+/* 広告が空のときの最小高さを抑える */
+.ad-unit ins.adsbygoogle[data-ad-status="unfilled"] {
+  display: none !important;
+}
+
+.ad-unit:has(ins.adsbygoogle[data-ad-status="unfilled"]) {
+  display: none;
+}

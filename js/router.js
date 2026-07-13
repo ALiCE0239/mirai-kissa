@@ -14,9 +14,41 @@ class Router {
     return this;
   }
 
+  /**
+   * '/p/:id' のようなパターンと実際のハッシュを照合。
+   * 一致すれば { params } を返し、しなければ null。
+   */
+  matchPattern(pattern, hash) {
+    if (!pattern.includes(':')) return null;
+    const pp = pattern.split('/');
+    const hp = hash.split('/');
+    if (pp.length !== hp.length) return null;
+    const params = {};
+    for (let i = 0; i < pp.length; i++) {
+      if (pp[i].startsWith(':')) {
+        if (!hp[i]) return null;
+        params[pp[i].slice(1)] = decodeURIComponent(hp[i]);
+      } else if (pp[i] !== hp[i]) {
+        return null;
+      }
+    }
+    return { params };
+  }
+
   resolve() {
     const hash = location.hash.slice(1) || '/';
-    const route = this.routes.get(hash) || this.routes.get('404');
+
+    let route = this.routes.get(hash);
+    let params = {};
+    let matchedKey = hash;
+
+    if (!route) {
+      for (const [path, r] of this.routes) {
+        const m = this.matchPattern(path, hash);
+        if (m) { route = r; params = m.params; matchedKey = path; break; }
+      }
+    }
+    if (!route) { route = this.routes.get('404'); matchedKey = '404'; }
 
     if (!route) return;
 
@@ -30,10 +62,10 @@ class Router {
     app.appendChild(content);
 
     this.currentRoute = hash;
-    this.updateActiveLink(hash);
+    this.updateActiveLink(matchedKey);
 
     if (route.initFn) {
-      Promise.resolve(route.initFn()).catch((err) => {
+      Promise.resolve(route.initFn(params)).catch((err) => {
         console.error('[未来喫茶] ページ初期化エラー:', err);
       });
     }
