@@ -84,8 +84,8 @@ const MiraiMyPage = (function () {
     return LEGACY_CARD_THEME_KEYS[k] || k;
   }
 
-  function resolveCardTheme(hub) {
-    const key = normalizeCardThemeKey((hub && hub.profileCardTheme) || (hub && hub.theme) || 'kaito');
+  function resolveCardTheme(hub, rewards) {
+    const key = resolveEffectiveProfileCardThemeKey(hub, rewards);
     return CARD_THEMES[key] || CARD_THEMES.kaito;
   }
 
@@ -101,10 +101,23 @@ const MiraiMyPage = (function () {
     ].join(';');
   }
 
-  function resolveUnlockedThemeKeys(rewards) {
+  function resolveUnlockedThemeKeys(rewards, hub) {
     const extra = rewards && Array.isArray(rewards.unlockedCardThemes) ? rewards.unlockedCardThemes : [];
     const keys = DEFAULT_UNLOCKED_CARD_THEMES.concat(extra.map(normalizeCardThemeKey));
+    const saved = normalizeCardThemeKey(hub && hub.profileCardTheme);
+    if (saved && CARD_THEMES[saved] && !keys.includes(saved)) {
+      keys.push(saved);
+    }
     return [...new Set(keys.filter((k) => CARD_THEMES[k]))];
+  }
+
+  function resolveEffectiveProfileCardThemeKey(hub, rewards) {
+    const unlocked = resolveUnlockedThemeKeys(rewards, hub);
+    const preferred = normalizeCardThemeKey(
+      (hub && hub.profileCardTheme) || (hub && hub.theme) || 'kaito'
+    );
+    if (unlocked.includes(preferred)) return preferred;
+    return unlocked[0] || 'kaito';
   }
 
   function resolveGrantedTitles(rewards) {
@@ -1051,7 +1064,7 @@ const MiraiMyPage = (function () {
   // ================= プロフィールカード =================
 
   function profileCardHtml(hub, rewards) {
-    const theme = resolveCardTheme(hub);
+    const theme = resolveCardTheme(hub, rewards);
     const vars = cardThemeStyleVars(theme);
     const title = resolveProfileCardTitle(hub, rewards) || 'MEMBERS CARD';
     return `
@@ -1163,13 +1176,9 @@ const MiraiMyPage = (function () {
 
     const { hub } = await prepareHub(user);
     const rewards = await loadUserRewards(user.uid);
-    const unlockedThemes = resolveUnlockedThemeKeys(rewards);
+    const unlockedThemes = resolveUnlockedThemeKeys(rewards, hub);
     const grantedTitles = resolveGrantedTitles(rewards);
-    let cardTheme = normalizeCardThemeKey(hub.profileCardTheme || hub.theme || 'kaito');
-    if (!unlockedThemes.includes(cardTheme)) {
-      cardTheme = unlockedThemes[0] || 'kaito';
-      hub.profileCardTheme = cardTheme;
-    }
+    const cardTheme = resolveEffectiveProfileCardThemeKey(hub, rewards);
     hub.profileCardTitle = resolveProfileCardTitle(hub, rewards);
 
     const titlePickerHtml = grantedTitles.length
@@ -1218,11 +1227,17 @@ const MiraiMyPage = (function () {
     let themeSaveTimer = null;
 
     async function persistCardSettings() {
-      await saveHub(user.uid, hub);
-      if (themeSavedEl) {
-        themeSavedEl.hidden = false;
-        clearTimeout(themeSaveTimer);
-        themeSaveTimer = setTimeout(() => { themeSavedEl.hidden = true; }, 2200);
+      try {
+        await saveHub(user.uid, hub);
+        if (themeSavedEl) {
+          themeSavedEl.hidden = false;
+          clearTimeout(themeSaveTimer);
+          themeSaveTimer = setTimeout(() => { themeSavedEl.hidden = true; }, 2200);
+        }
+      } catch (e) {
+        errEl.textContent = e.message || String(e);
+        errEl.hidden = false;
+        throw e;
       }
     }
 
@@ -1376,6 +1391,7 @@ const MiraiMyPage = (function () {
     getCardThemeGroups: () => CARD_THEME_GROUPS,
     getDefaultUnlockedCardThemes: () => DEFAULT_UNLOCKED_CARD_THEMES.slice(),
     resolveUnlockedThemeKeys,
+    resolveEffectiveProfileCardThemeKey,
     resolveGrantedTitles,
     resolveProfileCardTitle,
     profileCardHtml,
