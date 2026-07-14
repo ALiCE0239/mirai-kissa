@@ -19,6 +19,23 @@ const MiraiBoard = (function () {
     'ゆるラン', 'ガチラン', 'Discord周回', '初心者歓迎', '高速周回',
     'シフト制', 'リアクション制', '内部値重視', '速度重視', 'オープンチャット周回',
   ];
+  const EVENT_FORMAT_TAGS = [
+    'ワールドリンク総合',
+    'Leo/need箱',
+    'MORE MORE JUMP!箱',
+    'VIRTUAL SINGER箱',
+    'ワンダーランズ×ショウタイム箱',
+    '25時、ナイトコードで。箱',
+    '混合イベント',
+    'チアフルイベント',
+  ];
+  const EVENT_VOCALOID_BANNER_TAGS = [
+    '初音ミク', '鏡音リン', '鏡音レン', '巡音ルカ', 'MEIKO', 'KAITO',
+  ];
+  const FALLBACK_EVENT_BANNER_TAGS = [
+    '一歌', '咲希', '穂波', '志歩', 'みのり', '遥', '愛莉', '雫', 'こはね', '杏',
+    '彰人', '冬弥', '司', 'えむ', '寧々', '類', '奏', 'まふゆ', '絵名', '瑞希',
+  ].concat(EVENT_VOCALOID_BANNER_TAGS);
   const BOOKMARK_TAG = '__bookmark__';
   const TARGET_RANKS = [10, 50, 100, 500, 1000, 2000, 3000, 4000, 5000, 10000];
   const PAGE_SIZE = 30;
@@ -32,6 +49,214 @@ const MiraiBoard = (function () {
     const u = String(url || '').trim();
     if (!u) return '';
     return /^https?:\/\//i.test(u) ? u : 'https://' + u;
+  }
+
+  function getEventBannerTags() {
+    const engine = window.PjskEngine;
+    if (engine && Array.isArray(engine.BANNER_DISPLAY_ORDER)) {
+      return engine.BANNER_DISPLAY_ORDER.concat(EVENT_VOCALOID_BANNER_TAGS);
+    }
+    return FALLBACK_EVENT_BANNER_TAGS.slice();
+  }
+
+  function getAllEventTags() {
+    return EVENT_FORMAT_TAGS.concat(getEventBannerTags());
+  }
+
+  function getAllFilterTags() {
+    return CONDITION_TAGS.concat(getAllEventTags());
+  }
+
+  function isConditionTag(tag) {
+    return CONDITION_TAGS.includes(tag);
+  }
+
+  function isEventTag(tag) {
+    return getAllEventTags().includes(tag);
+  }
+
+  function isEventFormatTag(tag) {
+    return EVENT_FORMAT_TAGS.includes(tag);
+  }
+
+  function isEventBannerTag(tag) {
+    return getEventBannerTags().includes(tag);
+  }
+
+  function splitEventTags(tags) {
+    const list = (Array.isArray(tags) ? tags : []).map((t) => String(t || '').trim()).filter(Boolean);
+    const formats = list.filter((t) => isEventFormatTag(t));
+    const banners = list.filter((t) => isEventBannerTag(t));
+    return {
+      eventFormat: formats[0] || '',
+      eventBanner: banners[0] || '',
+      eventTags: [formats[0], banners[0]].filter(Boolean),
+    };
+  }
+
+  function normalizeSavedEventTags(selected) {
+    return splitEventTags(selected).eventTags;
+  }
+
+  function getPostEventTags(p) {
+    const tags = Array.isArray(p && p.eventTags)
+      ? p.eventTags.map((t) => String(t || '').trim()).filter(Boolean)
+      : [];
+    const banner = String((p && p.eventBanner) || '').trim();
+    if (banner && !tags.includes(banner)) tags.push(banner);
+    return [...new Set(tags)];
+  }
+
+  function postHasActiveTag(p, tag) {
+    if (!tag) return true;
+    if (isConditionTag(tag)) return (p.conditionTags || []).includes(tag);
+    if (isEventTag(tag)) return getPostEventTags(p).includes(tag);
+    return false;
+  }
+
+  function postSearchHaystack(p) {
+    return [
+      p.eventName || '',
+      p.body || '',
+      p.authorName || '',
+      p.eventBanner || '',
+      ...(p.conditionTags || []),
+      ...getPostEventTags(p),
+    ].map((s) => String(s).toLowerCase());
+  }
+
+  function scoreTagSuggestion(tag, query) {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return 0;
+    const label = String(tag).toLowerCase();
+    if (label === q) return 100;
+    if (label.startsWith(q)) return 80;
+    if (label.includes(q)) return 60;
+    return 0;
+  }
+
+  function suggestFilterTags(query, limit) {
+    const max = limit || 8;
+    return getAllFilterTags()
+      .map((tag) => ({ tag, score: scoreTagSuggestion(tag, query), kind: isConditionTag(tag) ? 'condition' : 'event' }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.tag.localeCompare(b.tag, 'ja'))
+      .slice(0, max);
+  }
+
+  function findExactFilterTag(query) {
+    const q = String(query || '').trim();
+    if (!q) return '';
+    return getAllFilterTags().find((tag) => tag === q) || '';
+  }
+
+  function activeFilterLabel(tag) {
+    if (!tag) return '';
+    if (tag === BOOKMARK_TAG) return '★ ブックマーク';
+    return tag;
+  }
+
+  function createEmptyEventFilters() {
+    return {
+      bookmarkOnly: false,
+      conditionTags: [],
+      eventFormat: '',
+      eventBanner: '',
+    };
+  }
+
+  function hasActiveEventFilters(filters) {
+    return !!(filters.bookmarkOnly || filters.conditionTags.length || filters.eventFormat || filters.eventBanner);
+  }
+
+  function postMatchesEventFilters(p, filters, bookmarkUids) {
+    if (filters.bookmarkOnly && !bookmarkUids.has(p.authorUid)) return false;
+    if (filters.conditionTags.length &&
+      !filters.conditionTags.every((t) => (p.conditionTags || []).includes(t))) return false;
+    const eventTags = getPostEventTags(p);
+    if (filters.eventFormat && !eventTags.includes(filters.eventFormat)) return false;
+    if (filters.eventBanner && !eventTags.includes(filters.eventBanner)) return false;
+    return true;
+  }
+
+  function toggleEventFilter(filters, tag) {
+    if (tag === '') {
+      return createEmptyEventFilters();
+    }
+    if (tag === BOOKMARK_TAG) {
+      const next = createEmptyEventFilters();
+      next.bookmarkOnly = !filters.bookmarkOnly;
+      return next;
+    }
+    const next = Object.assign(createEmptyEventFilters(), {
+      bookmarkOnly: false,
+      conditionTags: filters.conditionTags.slice(),
+      eventFormat: filters.eventFormat,
+      eventBanner: filters.eventBanner,
+    });
+    if (isConditionTag(tag)) {
+      const idx = next.conditionTags.indexOf(tag);
+      if (idx >= 0) next.conditionTags.splice(idx, 1);
+      else next.conditionTags.push(tag);
+      return next;
+    }
+    if (isEventFormatTag(tag)) {
+      next.eventFormat = next.eventFormat === tag ? '' : tag;
+      return next;
+    }
+    if (isEventBannerTag(tag)) {
+      next.eventBanner = next.eventBanner === tag ? '' : tag;
+      return next;
+    }
+    return filters;
+  }
+
+  function applySearchTagToFilters(filters, tag) {
+    if (!tag || tag === BOOKMARK_TAG) return toggleEventFilter(filters, tag);
+    const next = Object.assign(createEmptyEventFilters(), {
+      bookmarkOnly: false,
+      conditionTags: filters.conditionTags.slice(),
+      eventFormat: filters.eventFormat,
+      eventBanner: filters.eventBanner,
+    });
+    if (isConditionTag(tag)) {
+      if (!next.conditionTags.includes(tag)) next.conditionTags.push(tag);
+      return next;
+    }
+    if (isEventFormatTag(tag)) {
+      next.eventFormat = tag;
+      return next;
+    }
+    if (isEventBannerTag(tag)) {
+      next.eventBanner = tag;
+      return next;
+    }
+    return filters;
+  }
+
+  function removeEventFilterTag(filters, tag) {
+    if (tag === BOOKMARK_TAG) {
+      const next = Object.assign(createEmptyEventFilters(), filters);
+      next.bookmarkOnly = false;
+      return next;
+    }
+    const next = Object.assign(createEmptyEventFilters(), filters);
+    if (isConditionTag(tag)) {
+      next.conditionTags = next.conditionTags.filter((t) => t !== tag);
+      return next;
+    }
+    if (isEventFormatTag(tag) && next.eventFormat === tag) next.eventFormat = '';
+    if (isEventBannerTag(tag) && next.eventBanner === tag) next.eventBanner = '';
+    return next;
+  }
+
+  function activeEventFilterItems(filters) {
+    const items = [];
+    if (filters.bookmarkOnly) items.push({ tag: BOOKMARK_TAG, label: activeFilterLabel(BOOKMARK_TAG) });
+    filters.conditionTags.forEach((tag) => items.push({ tag, label: tag }));
+    if (filters.eventFormat) items.push({ tag: filters.eventFormat, label: filters.eventFormat });
+    if (filters.eventBanner) items.push({ tag: filters.eventBanner, label: filters.eventBanner });
+    return items;
   }
 
   function postVisibility(p) {
@@ -333,15 +558,45 @@ const MiraiBoard = (function () {
 
     box.innerHTML = `
       <div class="board-toolbar board-toolbar--view">
-        <input type="search" class="form-input" id="boardEventSearch" placeholder="イベント名・条件で検索">
+        <div class="board-search-wrap">
+          <input type="search" class="form-input" id="boardEventSearch" placeholder="イベント名・タグで検索（例: 初音ミク、ガチラン）" autocomplete="off" aria-autocomplete="list" aria-controls="boardEventSuggest" aria-expanded="false">
+          <div id="boardEventSuggest" class="board-search-suggest" role="listbox" hidden></div>
+        </div>
+        <div id="boardEventActiveFilter" class="board-active-filter-wrap" hidden></div>
         <p class="form-hint board-toolbar__note">閲覧のみ。投稿・編集は<a href="#/mypage" data-link>マイページ</a>から行えます（1アカウント1件）。</p>
       </div>
-      <div class="board-tags" id="boardEventTags"></div>
+      <div class="board-filter-compact" id="boardEventTagGroups">
+        <div class="board-filter-row">
+          <span class="board-filter-row__label">条件</span>
+          <div class="board-filter-row__content">
+            <p class="form-hint board-filter-row__hint">複数選択可</p>
+            <div class="board-tags board-tags--scroll" id="boardEventConditionTags"></div>
+          </div>
+        </div>
+        <details class="board-tag-fold">
+          <summary class="board-tag-fold__summary">
+            <span class="board-tag-fold__chevron" aria-hidden="true"></span>
+            <span class="board-tag-fold__text">
+              <strong class="board-tag-fold__title">イベントタグ一覧</strong>
+              <span class="board-tag-fold__hint">形式・バナーキャラで絞り込む（タップして開く）</span>
+            </span>
+          </summary>
+          <div class="board-tag-fold__body">
+            <p class="form-hint board-tag-group__hint">イベント形式（1つまで）</p>
+            <div class="board-tags board-tags--dense" id="boardEventFormatTags"></div>
+            <p class="form-hint board-tag-group__hint mt-2">バナーキャラクター（1つまで）</p>
+            <div class="board-tags board-tags--dense board-tags--scroll-y" id="boardEventBannerTags"></div>
+          </div>
+        </details>
+      </div>
       <div id="boardEventList" class="board-list board-feed-wrap"><p class="text-muted">読み込み中…</p></div>
     `;
 
-    const tagWrap = box.querySelector('#boardEventTags');
-    let activeTag = '';
+    const tagGroups = box.querySelector('#boardEventTagGroups');
+    const conditionTagWrap = box.querySelector('#boardEventConditionTags');
+    const formatTagWrap = box.querySelector('#boardEventFormatTags');
+    const bannerTagWrap = box.querySelector('#boardEventBannerTags');
+    let filters = createEmptyEventFilters();
 
     const { user: viewer, friendUids } = await loadViewerContext();
     let bookmarkUids = viewer ? await loadBookmarkedUids(viewer.uid) : new Set();
@@ -351,19 +606,35 @@ const MiraiBoard = (function () {
       try {
         if (sessionStorage.getItem('miraiBoardEventFilter') === 'bookmark') {
           sessionStorage.removeItem('miraiBoardEventFilter');
-          activeTag = BOOKMARK_TAG;
+          filters.bookmarkOnly = true;
         }
       } catch (e) { /* ignore */ }
     }
 
-    const tagButtons = ['<button type="button" class="board-tag' + (activeTag === '' ? ' is-active' : '') + '" data-tag="">すべて</button>'];
-    if (canBookmark) {
-      tagButtons.push(`<button type="button" class="board-tag board-tag--bookmark${activeTag === BOOKMARK_TAG ? ' is-active' : ''}" data-tag="${BOOKMARK_TAG}">★ ブックマーク</button>`);
+    function isTagButtonActive(tag) {
+      if (tag === '') return !hasActiveEventFilters(filters);
+      if (tag === BOOKMARK_TAG) return filters.bookmarkOnly;
+      if (isConditionTag(tag)) return filters.conditionTags.includes(tag);
+      if (isEventFormatTag(tag)) return filters.eventFormat === tag;
+      if (isEventBannerTag(tag)) return filters.eventBanner === tag;
+      return false;
     }
-    tagButtons.push(...CONDITION_TAGS.map((t) =>
-      `<button type="button" class="board-tag${t === activeTag ? ' is-active' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`
-    ));
-    tagWrap.innerHTML = tagButtons.join('');
+
+    function tagButtonHtml(tag, label, extraClass) {
+      const active = isTagButtonActive(tag) ? ' is-active' : '';
+      const cls = 'board-tag' + (extraClass ? ' ' + extraClass : '') + active;
+      return '<button type="button" class="' + cls + '" data-tag="' + esc(tag) + '">' + esc(label || tag) + '</button>';
+    }
+
+    function renderTagButtons() {
+      conditionTagWrap.innerHTML =
+        tagButtonHtml('', 'すべて') +
+        (canBookmark ? tagButtonHtml(BOOKMARK_TAG, '★ ブックマーク', 'board-tag--bookmark') : '') +
+        CONDITION_TAGS.map((t) => tagButtonHtml(t, t, 'board-tag--condition')).join('');
+      formatTagWrap.innerHTML = EVENT_FORMAT_TAGS.map((t) => tagButtonHtml(t, t, 'board-tag--event')).join('');
+      bannerTagWrap.innerHTML = getEventBannerTags().map((t) => tagButtonHtml(t, t, 'board-tag--event')).join('');
+    }
+    renderTagButtons();
 
     let all = [];
     try {
@@ -382,33 +653,157 @@ const MiraiBoard = (function () {
 
     const listEl = box.querySelector('#boardEventList');
     const searchEl = box.querySelector('#boardEventSearch');
+    const suggestEl = box.querySelector('#boardEventSuggest');
+    const activeFilterEl = box.querySelector('#boardEventActiveFilter');
+
+    function syncActiveTagButtons() {
+      renderTagButtons();
+    }
+
+    function renderActiveFilter() {
+      if (!activeFilterEl) return;
+      const items = activeEventFilterItems(filters);
+      if (!items.length) {
+        activeFilterEl.hidden = true;
+        activeFilterEl.innerHTML = '';
+        return;
+      }
+      activeFilterEl.hidden = false;
+      activeFilterEl.innerHTML =
+        items.map((item) =>
+          '<span class="board-active-filter">' +
+          '<span class="board-active-filter__label">絞り込み</span>' +
+          '<span class="board-active-filter__tag">' + esc(item.label) + '</span>' +
+          '<button type="button" class="board-active-filter__clear" data-clear-tag="' + esc(item.tag) + '" aria-label="' + esc(item.label) + 'の絞り込みを解除">✕</button>' +
+          '</span>'
+        ).join('') +
+        '<button type="button" class="board-active-filter__clear-all">すべて解除</button>';
+    }
+
+    function hideSuggestions() {
+      if (!suggestEl) return;
+      suggestEl.hidden = true;
+      suggestEl.innerHTML = '';
+      searchEl.setAttribute('aria-expanded', 'false');
+    }
+
+    function renderSuggestions() {
+      if (!suggestEl) return;
+      const q = searchEl.value.trim();
+      const items = suggestFilterTags(q, 12);
+      if (!q || !items.length) {
+        hideSuggestions();
+        return;
+      }
+      const groups = [
+        { label: '条件タグ', items: items.filter((item) => item.kind === 'condition') },
+        { label: 'イベントタグ', items: items.filter((item) => item.kind === 'event') },
+      ].filter((group) => group.items.length);
+      suggestEl.innerHTML = groups.map((group) =>
+        '<div class="board-search-suggest__group">' +
+        '<p class="board-search-suggest__heading">' + esc(group.label) + '</p>' +
+        group.items.map((item) =>
+          '<button type="button" class="board-search-suggest__item" role="option" data-tag="' + esc(item.tag) + '">' +
+          '<span class="board-search-suggest__tag">' + esc(item.tag) + '</span>' +
+          '</button>'
+        ).join('') +
+        '</div>'
+      ).join('');
+      suggestEl.hidden = false;
+      searchEl.setAttribute('aria-expanded', 'true');
+    }
+
+    function clearAllFilters() {
+      filters = createEmptyEventFilters();
+      searchEl.value = '';
+      syncActiveTagButtons();
+      renderActiveFilter();
+      hideSuggestions();
+      render();
+    }
+
+    function applySearchTag(tag) {
+      filters = applySearchTagToFilters(filters, tag);
+      searchEl.value = tag;
+      syncActiveTagButtons();
+      renderActiveFilter();
+      hideSuggestions();
+      render();
+    }
 
     function render() {
       const q = searchEl.value.trim().toLowerCase();
       const items = all.filter((p) => {
         if (!isPostVisible(p, viewer && viewer.uid, friendUids)) return false;
-        if (activeTag === BOOKMARK_TAG) {
-          if (!bookmarkUids.has(p.authorUid)) return false;
-        } else if (activeTag && !(p.conditionTags || []).includes(activeTag)) return false;
+        if (!postMatchesEventFilters(p, filters, bookmarkUids)) return false;
         if (!q) return true;
-        return [(p.eventName || ''), (p.body || ''), (p.authorName || ''), (p.eventBanner || '')]
-          .some((s) => String(s).toLowerCase().includes(q));
+        return postSearchHaystack(p).some((s) => s.includes(q));
       });
       listEl.innerHTML = items.length
         ? `<div class="board-feed">${items.map((p) => eventCardHtml(p, bookmarkUids, canBookmark)).join('')}</div>`
-        : (activeTag === BOOKMARK_TAG
+        : (filters.bookmarkOnly
           ? '<p class="text-muted board-empty">ブックマークした広告はまだありません。</p>'
           : '<p class="text-muted board-empty">該当する広告はまだありません。</p>');
     }
 
-    searchEl.addEventListener('input', render);
-    tagWrap.addEventListener('click', (e) => {
-      const b = e.target.closest('.board-tag');
-      if (!b) return;
-      activeTag = b.dataset.tag;
-      tagWrap.querySelectorAll('.board-tag').forEach((x) => x.classList.toggle('is-active', x === b));
+    searchEl.addEventListener('input', () => {
+      renderSuggestions();
       render();
     });
+    searchEl.addEventListener('focus', renderSuggestions);
+    searchEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideSuggestions();
+        return;
+      }
+      if (e.key !== 'Enter') return;
+      const q = searchEl.value.trim();
+      const exactTag = findExactFilterTag(q);
+      if (exactTag) {
+        e.preventDefault();
+        applySearchTag(exactTag);
+        return;
+      }
+      const items = suggestFilterTags(q, 1);
+      if (items.length === 1 && items[0].score >= 60) {
+        e.preventDefault();
+        applySearchTag(items[0].tag);
+      }
+    });
+    if (activeFilterEl) {
+      activeFilterEl.addEventListener('click', (e) => {
+        const clearOne = e.target.closest('[data-clear-tag]');
+        if (clearOne) {
+          filters = removeEventFilterTag(filters, clearOne.dataset.clearTag);
+          syncActiveTagButtons();
+          renderActiveFilter();
+          render();
+          return;
+        }
+        if (e.target.closest('.board-active-filter__clear-all')) {
+          clearAllFilters();
+        }
+      });
+    }
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.board-search-wrap')) hideSuggestions();
+    });
+    if (suggestEl) {
+      suggestEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.board-search-suggest__item');
+        if (!btn) return;
+        applySearchTag(btn.dataset.tag);
+      });
+    }
+    tagGroups.addEventListener('click', (e) => {
+      const b = e.target.closest('.board-tag');
+      if (!b) return;
+      filters = toggleEventFilter(filters, b.dataset.tag);
+      syncActiveTagButtons();
+      renderActiveFilter();
+      render();
+    });
+    renderActiveFilter();
     listEl.addEventListener('click', async (e) => {
       const btn = e.target.closest('.board-bookmark');
       if (!btn) return;
@@ -437,12 +832,17 @@ const MiraiBoard = (function () {
   }
 
   function eventCardHtml(p, bookmarkUids, canBookmark) {
-    const tags = (p.conditionTags || []).map((t) => `<span class="board-chip">${esc(t)}</span>`).join('');
+    const conditionTags = (p.conditionTags || []).map((t) => `<span class="board-chip">${esc(t)}</span>`).join('');
+    const eventTags = getPostEventTags(p).map((t) => `<span class="board-chip board-chip--event">${esc(t)}</span>`).join('');
     const rank = p.targetRank ? `<span class="board-meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
     const banner = p.eventBanner ? `<span class="board-meta-item">${esc(p.eventBanner)}</span>` : '';
     const detailUrl = `#/board/event/${encodeURIComponent(p.authorUid)}`;
     const bookmarked = bookmarkUids && bookmarkUids.has(p.authorUid);
     const bookmarkBtn = canBookmark ? eventBookmarkBtnHtml(p, bookmarked) : '';
+    const chipsHtml = [
+      conditionTags ? `<div class="board-chips">${conditionTags}</div>` : '',
+      eventTags ? `<div class="board-chips board-chips--event">${eventTags}</div>` : '',
+    ].filter(Boolean).join('');
 
     return `
       <article class="board-feed-card board-feed-card--event">
@@ -450,7 +850,7 @@ const MiraiBoard = (function () {
         <div class="board-feed-card__body">
           ${authorRowHtml(p)}
           <div class="board-meta">${rank}${banner}</div>
-          ${tags ? `<div class="board-chips">${tags}</div>` : ''}
+          ${chipsHtml}
           <div class="board-card__actions board-card__actions--event">
             ${bookmarkBtn}
             <a href="${detailUrl}" class="btn btn-secondary btn-sm board-detail-link" data-link>詳細を見る</a>
@@ -524,7 +924,8 @@ const MiraiBoard = (function () {
 
   function eventDetailHtml(p, opts) {
     opts = opts || {};
-    const tags = (p.conditionTags || []).map((t) => `<span class="board-chip">${esc(t)}</span>`).join('');
+    const conditionTags = (p.conditionTags || []).map((t) => `<span class="board-chip">${esc(t)}</span>`).join('');
+    const eventTags = getPostEventTags(p).map((t) => `<span class="board-chip board-chip--event">${esc(t)}</span>`).join('');
     const rank = p.targetRank ? `<span class="board-meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
     const banner = p.eventBanner ? `<span class="board-meta-item">${esc(p.eventBanner)}</span>` : '';
     const discord = p.discordURL
@@ -533,6 +934,10 @@ const MiraiBoard = (function () {
       ? `<a class="btn btn-secondary btn-sm" href="${esc(normalizeUrl(p.runLocationURL))}" target="_blank" rel="noopener noreferrer">周回場所</a>` : '';
     const bookmarkBtn = opts.canBookmark
       ? `<div class="board-detail-page__bookmark">${eventBookmarkBtnHtml(p, !!opts.bookmarked)}</div>` : '';
+    const chipsHtml = [
+      conditionTags ? `<div class="board-chips">${conditionTags}</div>` : '',
+      eventTags ? `<div class="board-chips board-chips--event">${eventTags}</div>` : '',
+    ].filter(Boolean).join('');
 
     return `
       <article class="board-detail-page">
@@ -541,7 +946,7 @@ const MiraiBoard = (function () {
           ${bookmarkBtn}
           ${authorRowHtml(p)}
           <div class="board-meta">${rank}${banner}</div>
-          ${tags ? `<div class="board-chips">${tags}</div>` : ''}
+          ${chipsHtml}
           ${p.body ? `<p class="board-card__text">${esc(p.body)}</p>` : ''}
           ${(discord || run) ? `<div class="board-card__actions">${discord}${run}</div>` : ''}
         </div>
@@ -587,13 +992,21 @@ const MiraiBoard = (function () {
     const hasPost = !!(post && post.eventName);
     post = post || {
       authorUid: user.uid, authorPublicId, authorName, authorAvatarURL,
-      eventName: '', body: '', imageURL: '', conditionTags: [], targetRank: null,
+      eventName: '', body: '', imageURL: '', conditionTags: [], eventTags: [], targetRank: null,
       eventBanner: '', discordURL: '', discordLabel: 'Discord', runLocationURL: '', isPublished: true,
       visibility: 'public',
     };
 
+    const storedEventTags = getPostEventTags(post);
+    const selectedEvent = splitEventTags(storedEventTags);
     const tagChecks = CONDITION_TAGS.map((t) => `
       <label class="board-check"><input type="checkbox" value="${esc(t)}"${(post.conditionTags || []).includes(t) ? ' checked' : ''}><span>${esc(t)}</span></label>
+    `).join('');
+    const eventFormatChecks = EVENT_FORMAT_TAGS.map((t) => `
+      <label class="board-check"><input type="checkbox" name="evEventFormat" value="${esc(t)}"${selectedEvent.eventFormat === t ? ' checked' : ''}><span>${esc(t)}</span></label>
+    `).join('');
+    const eventBannerChecks = getEventBannerTags().map((t) => `
+      <label class="board-check"><input type="checkbox" name="evEventBanner" value="${esc(t)}"${selectedEvent.eventBanner === t ? ' checked' : ''}><span>${esc(t)}</span></label>
     `).join('');
     const rankOpts = ['<option value="">指定なし</option>']
       .concat(TARGET_RANKS.map((r) => `<option value="${r}"${post.targetRank === r ? ' selected' : ''}>${r}位</option>`)).join('');
@@ -609,10 +1022,18 @@ const MiraiBoard = (function () {
           <textarea class="form-input" id="evBody" rows="4" maxlength="500" placeholder="募集内容・条件・雰囲気など">${esc(post.body)}</textarea></div>
         <div class="form-row">
           <div class="form-group"><label for="evRank">目標順位</label><select class="form-select" id="evRank">${rankOpts}</select></div>
-          <div class="form-group"><label for="evBanner">対象バナー/キャラ</label>
-            <input type="text" class="form-input" id="evBanner" maxlength="30" value="${esc(post.eventBanner)}" placeholder="例: 一歌"></div>
+          <div class="form-group"><label for="evBanner">対象バナー/キャラ（表示用・任意）</label>
+            <input type="text" class="form-input" id="evBanner" maxlength="30" value="${esc(post.eventBanner)}" placeholder="例: 一歌（未入力時はバナータグから自動設定）"></div>
         </div>
-        <div class="form-group"><label>条件タグ</label><div class="board-checks" id="evTags">${tagChecks}</div></div>
+        <div class="form-group"><label>条件タグ</label>
+          <p class="form-hint">複数選択できます</p>
+          <div class="board-checks" id="evTags">${tagChecks}</div></div>
+        <div class="form-group"><label>イベントタグ</label>
+          <p class="form-hint">イベント形式（1つまで）</p>
+          <div class="board-checks" id="evEventFormatTags">${eventFormatChecks}</div>
+          <p class="form-hint mt-2">バナーキャラクター（1つまで）</p>
+          <div class="board-checks board-checks--dense" id="evEventBannerTags">${eventBannerChecks}</div>
+        </div>
         <div class="form-row">
           <div class="form-group"><label for="evDiscordUrl">Discord / 募集URL</label>
             <input type="text" class="form-input" id="evDiscordUrl" value="${esc(post.discordURL)}" placeholder="https://discord.gg/..."></div>
@@ -635,6 +1056,25 @@ const MiraiBoard = (function () {
 
     const errEl = box.querySelector('#evError');
     const savedEl = box.querySelector('#evSaved');
+
+    function wireSingleSelectEventTags(root) {
+      const formatInputs = root.querySelectorAll('#evEventFormatTags input[name="evEventFormat"]');
+      const bannerInputs = root.querySelectorAll('#evEventBannerTags input[name="evEventBanner"]');
+      formatInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          formatInputs.forEach((other) => { if (other !== input) other.checked = false; });
+        });
+      });
+      bannerInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          bannerInputs.forEach((other) => { if (other !== input) other.checked = false; });
+        });
+      });
+    }
+    wireSingleSelectEventTags(box);
+
     box.querySelector('#evSave').addEventListener('click', async () => {
       errEl.hidden = true; savedEl.hidden = true;
       const name = box.querySelector('#evName').value.trim();
@@ -644,6 +1084,11 @@ const MiraiBoard = (function () {
       try {
         const rankVal = box.querySelector('#evRank').value;
         const tags = Array.from(box.querySelectorAll('#evTags input:checked')).map((i) => i.value);
+        const formatTag = (box.querySelector('#evEventFormatTags input:checked') || {}).value || '';
+        const bannerTag = (box.querySelector('#evEventBannerTags input:checked') || {}).value || '';
+        const eventTags = normalizeSavedEventTags([formatTag, bannerTag]);
+        let eventBanner = box.querySelector('#evBanner').value.trim();
+        if (!eventBanner && bannerTag) eventBanner = bannerTag;
         const fileInput = box.querySelector('#evImg');
         let imageURL = post.imageURL || '';
         if (fileInput.files && fileInput.files[0]) {
@@ -660,8 +1105,9 @@ const MiraiBoard = (function () {
           body: box.querySelector('#evBody').value.trim(),
           imageURL: imageURL || null,
           conditionTags: tags,
+          eventTags: eventTags,
           targetRank: rankVal ? parseInt(rankVal, 10) : null,
-          eventBanner: box.querySelector('#evBanner').value.trim(),
+          eventBanner: eventBanner,
           discordURL: normalizeUrl(box.querySelector('#evDiscordUrl').value),
           discordLabel: box.querySelector('#evDiscordLabel').value.trim() || 'Discord',
           runLocationURL: normalizeUrl(box.querySelector('#evRunUrl').value),
