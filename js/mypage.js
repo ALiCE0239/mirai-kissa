@@ -74,19 +74,37 @@ const MiraiMyPage = (function () {
     mfy:     { name: 'まふゆ', group: 'n25', bg: '#eef0f8', accent: '#8888CC', ink: '#1e293b', muted: '#64748b', accentText: '#6666aa' },
   };
 
-  /** 全員が最初から使えるカードカラー（VIRTUAL SINGER） */
-  const DEFAULT_UNLOCKED_CARD_THEMES = Object.keys(CARD_THEMES).filter(
-    (k) => CARD_THEMES[k].group === 'basic'
-  );
+  /** 管理者付与の特殊カラー（キャラクター以外）。追加時はここに定義 */
+  const SPECIAL_CARD_THEMES = {};
+
+  const SPECIAL_CARD_THEME_GROUPS = [
+    { id: 'special', label: '特殊カラー' },
+  ];
+
+  /** 全員が最初から使えるカードカラー（全キャラクター） */
+  const DEFAULT_UNLOCKED_CARD_THEMES = Object.keys(CARD_THEMES);
+
+  function allCardThemes() {
+    return Object.assign({}, CARD_THEMES, SPECIAL_CARD_THEMES);
+  }
+
+  function isCharacterCardThemeKey(key) {
+    return !!CARD_THEMES[normalizeCardThemeKey(key)];
+  }
+
+  function isSpecialCardThemeKey(key) {
+    return !!SPECIAL_CARD_THEMES[normalizeCardThemeKey(key)];
+  }
 
   function normalizeCardThemeKey(key) {
     const k = String(key || '').trim();
     return LEGACY_CARD_THEME_KEYS[k] || k;
   }
 
-  function resolveCardTheme(hub) {
-    const key = resolveEffectiveProfileCardThemeKey(hub);
-    return CARD_THEMES[key] || CARD_THEMES.kaito;
+  function resolveCardTheme(hub, rewards) {
+    const key = resolveEffectiveProfileCardThemeKey(hub, rewards);
+    const themes = allCardThemes();
+    return themes[key] || CARD_THEMES.kaito;
   }
 
   function cardThemeStyleVars(theme) {
@@ -101,21 +119,30 @@ const MiraiMyPage = (function () {
     ].join(';');
   }
 
-  function resolveUnlockedThemeKeys(rewards, hub) {
+  function resolveUnlockedSpecialThemeKeys(rewards) {
     const extra = rewards && Array.isArray(rewards.unlockedCardThemes) ? rewards.unlockedCardThemes : [];
-    const keys = DEFAULT_UNLOCKED_CARD_THEMES.concat(extra.map(normalizeCardThemeKey));
-    const saved = normalizeCardThemeKey(hub && hub.profileCardTheme);
-    if (saved && CARD_THEMES[saved] && !keys.includes(saved)) {
-      keys.push(saved);
-    }
-    return [...new Set(keys.filter((k) => CARD_THEMES[k]))];
+    return [...new Set(extra.map(normalizeCardThemeKey).filter((k) => isSpecialCardThemeKey(k)))];
   }
 
-  function resolveEffectiveProfileCardThemeKey(hub) {
+  function resolveUnlockedThemeKeys(rewards, hub) {
+    const keys = DEFAULT_UNLOCKED_CARD_THEMES.slice();
+    resolveUnlockedSpecialThemeKeys(rewards).forEach((k) => {
+      if (!keys.includes(k)) keys.push(k);
+    });
+    const saved = normalizeCardThemeKey(hub && hub.profileCardTheme);
+    if (saved && allCardThemes()[saved] && !keys.includes(saved)) {
+      keys.push(saved);
+    }
+    return [...new Set(keys.filter((k) => allCardThemes()[k]))];
+  }
+
+  function resolveEffectiveProfileCardThemeKey(hub, rewards) {
+    const unlocked = new Set(resolveUnlockedThemeKeys(rewards, hub));
     const preferred = normalizeCardThemeKey(
       (hub && hub.profileCardTheme) || (hub && hub.theme) || 'kaito'
     );
-    return CARD_THEMES[preferred] ? preferred : 'kaito';
+    if (unlocked.has(preferred)) return preferred;
+    return DEFAULT_UNLOCKED_CARD_THEMES[0] || 'kaito';
   }
 
   function resolveGrantedTitles(rewards) {
@@ -131,19 +158,37 @@ const MiraiMyPage = (function () {
     return '';
   }
 
-  function profileCardThemePickerHtml(selected) {
-    return CARD_THEME_GROUPS.map((g) => {
+  function profileCardThemePickerHtml(selected, unlockedSpecialKeys) {
+    const characterHtml = CARD_THEME_GROUPS.map((g) => {
       const items = Object.keys(CARD_THEMES).filter((k) => CARD_THEMES[k].group === g.id);
       if (!items.length) return '';
-      return `
-        <div class="pc-theme-group">
-          <p class="pc-theme-group__label">${esc(g.label)}</p>
-          <div class="pc-theme-grid">${items.map((k) => {
-            const t = CARD_THEMES[k];
-            return `<button type="button" class="pc-theme-swatch${k === normalizeCardThemeKey(selected) ? ' is-active' : ''}" data-theme="${esc(k)}" title="${esc(t.name)}" style="--swatch-bg:${t.bg};--swatch-accent:${t.accent}"><span>${esc(t.name)}</span></button>`;
-          }).join('')}</div>
-        </div>`;
+      return (
+        '<div class="pc-theme-group">' +
+        '<p class="pc-theme-group__label">' + esc(g.label) + '</p>' +
+        '<div class="pc-theme-grid">' + items.map((k) => {
+          const t = CARD_THEMES[k];
+          return '<button type="button" class="pc-theme-swatch' + (k === normalizeCardThemeKey(selected) ? ' is-active' : '') + '" data-theme="' + esc(k) + '" title="' + esc(t.name) + '" style="--swatch-bg:' + t.bg + ';--swatch-accent:' + t.accent + '"><span>' + esc(t.name) + '</span></button>';
+        }).join('') + '</div></div>'
+      );
     }).join('');
+
+    const specialKeys = (unlockedSpecialKeys || []).filter((k) => isSpecialCardThemeKey(k));
+    if (!specialKeys.length) return characterHtml;
+
+    const specialHtml = SPECIAL_CARD_THEME_GROUPS.map((g) => {
+      const items = specialKeys.filter((k) => SPECIAL_CARD_THEMES[k].group === g.id);
+      if (!items.length) return '';
+      return (
+        '<div class="pc-theme-group">' +
+        '<p class="pc-theme-group__label">' + esc(g.label) + '</p>' +
+        '<div class="pc-theme-grid">' + items.map((k) => {
+          const t = SPECIAL_CARD_THEMES[k];
+          return '<button type="button" class="pc-theme-swatch' + (k === normalizeCardThemeKey(selected) ? ' is-active' : '') + '" data-theme="' + esc(k) + '" title="' + esc(t.name) + '" style="--swatch-bg:' + t.bg + ';--swatch-accent:' + t.accent + '"><span>' + esc(t.name) + '</span></button>';
+        }).join('') + '</div></div>'
+      );
+    }).join('');
+
+    return characterHtml + specialHtml;
   }
 
   function esc(s) {
@@ -1061,7 +1106,7 @@ const MiraiMyPage = (function () {
   // ================= プロフィールカード =================
 
   function profileCardHtml(hub, rewards) {
-    const theme = resolveCardTheme(hub);
+    const theme = resolveCardTheme(hub, rewards);
     const vars = cardThemeStyleVars(theme);
     const title = rewards
       ? (resolveProfileCardTitle(hub, rewards) || 'MEMBERS CARD')
@@ -1176,7 +1221,8 @@ const MiraiMyPage = (function () {
     const { hub } = await prepareHub(user);
     const rewards = await loadUserRewards(user.uid);
     const grantedTitles = resolveGrantedTitles(rewards);
-    const cardTheme = resolveEffectiveProfileCardThemeKey(hub);
+    const unlockedSpecial = resolveUnlockedSpecialThemeKeys(rewards);
+    const cardTheme = resolveEffectiveProfileCardThemeKey(hub, rewards);
     hub.profileCardTitle = resolveProfileCardTitle(hub, rewards);
 
     const titlePickerHtml = grantedTitles.length
@@ -1199,7 +1245,8 @@ const MiraiMyPage = (function () {
 
         <section class="card profile-card-customize">
           <h3 class="profile-card-customize__title">カラー・デザイン</h3>
-          <div class="profile-card-theme-picker">${profileCardThemePickerHtml(cardTheme)}</div>
+          <div class="profile-card-theme-picker">${profileCardThemePickerHtml(cardTheme, unlockedSpecial)}</div>
+          <p class="form-hint mt-2">キャラクターカラーは全員が選べます。特殊カラーは管理者から付与されると表示されます。</p>
           <p id="profileCardThemeSaved" class="community-saved mt-2" hidden>カラー設定を保存しました ✓</p>
         </section>
 
@@ -1239,7 +1286,7 @@ const MiraiMyPage = (function () {
     box.querySelectorAll('.pc-theme-swatch').forEach((btn) => {
       btn.addEventListener('click', () => {
         const next = normalizeCardThemeKey(btn.dataset.theme);
-        if (!CARD_THEMES[next]) return;
+        if (!isCharacterCardThemeKey(next) && !unlockedSpecial.includes(next)) return;
         hub.profileCardTheme = next;
         box.querySelectorAll('.pc-theme-swatch').forEach((b) => b.classList.toggle('is-active', b === btn));
         refreshProfileCardPreview(box, hub, rewards);
@@ -1386,9 +1433,13 @@ const MiraiMyPage = (function () {
     loadUserRewards,
     saveUserRewards,
     getCardThemes: () => CARD_THEMES,
+    getSpecialCardThemes: () => SPECIAL_CARD_THEMES,
+    getAllCardThemes: () => allCardThemes(),
     getCardThemeGroups: () => CARD_THEME_GROUPS,
+    getSpecialCardThemeGroups: () => SPECIAL_CARD_THEME_GROUPS,
     getDefaultUnlockedCardThemes: () => DEFAULT_UNLOCKED_CARD_THEMES.slice(),
     resolveUnlockedThemeKeys,
+    resolveUnlockedSpecialThemeKeys,
     resolveEffectiveProfileCardThemeKey,
     resolveGrantedTitles,
     resolveProfileCardTitle,
