@@ -361,6 +361,11 @@ const MiraiMyPage = (function () {
     const data = Object.assign({}, hub, { uid, updatedAt: serverTimestamp() });
     await setDoc(doc(f.db, 'linkHubs', data.publicId), data, { merge: true });
     await setDoc(doc(f.db, 'users', uid, 'sns', 'linkHub'), data, { merge: true });
+    if (window.MiraiFriends && typeof MiraiFriends.syncFriendProfileForPeers === 'function') {
+      MiraiFriends.syncFriendProfileForPeers(uid, data).catch((e) => {
+        console.warn('[mypage] friend profile sync failed:', e);
+      });
+    }
     return data;
   }
 

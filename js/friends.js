@@ -140,6 +140,39 @@ const MiraiFriends = (function () {
     return snap.docs.map((d) => Object.assign({ friendUid: d.id }, d.data()));
   }
 
+  async function hydrateFriendsFromHubs(friends) {
+    if (!friends.length) return friends;
+    return Promise.all(friends.map(async (fr) => {
+      const hub = fr.publicId
+        ? await loadHubByPublicId(fr.publicId)
+        : null;
+      if (!hub) return fr;
+      return Object.assign({}, fr, {
+        displayName: hub.displayName || fr.displayName || 'ユーザー',
+        avatarURL: hub.avatarURL != null ? hub.avatarURL : (fr.avatarURL || ''),
+        publicId: hub.publicId || fr.publicId || '',
+      });
+    }));
+  }
+
+  /** 表示名・アバター変更を、相互フレンドの一覧キャッシュへ反映 */
+  async function syncFriendProfileForPeers(uid, hub) {
+    const f = await fb();
+    if (!f || !f.configured || !uid || !hub) return;
+    const friends = await listFriends(uid);
+    if (!friends.length) return;
+    const { doc, setDoc } = f.dbFns;
+    const patch = {
+      displayName: hub.displayName || '',
+      avatarURL: hub.avatarURL || '',
+      publicId: hub.publicId || '',
+    };
+    await Promise.all(friends.map((fr) => {
+      if (!fr.friendUid) return Promise.resolve();
+      return setDoc(doc(f.db, 'users', fr.friendUid, 'friends', uid), patch, { merge: true });
+    }));
+  }
+
   function friendAvatar(meta, className) {
     const cls = 'mp-friend-avatar' + (className ? ' ' + className : '');
     if (meta.avatarURL) {
@@ -298,7 +331,7 @@ const MiraiFriends = (function () {
 
     rootEl.innerHTML = '<p class="text-muted">読み込み中…</p>';
     try {
-      const friends = await listFriends(user.uid);
+      const friends = await hydrateFriendsFromHubs(await listFriends(user.uid));
 
       if (!friends.length) {
         rootEl.innerHTML = '<p class="text-muted mp-friends-empty">フレンドはまだいません。ID検索またはセカイノートから申請できます</p>';
@@ -414,6 +447,8 @@ const MiraiFriends = (function () {
     rejectRequest,
     listIncomingRequests,
     listFriends,
+    hydrateFriendsFromHubs,
+    syncFriendProfileForPeers,
     loadHubByPublicId,
     normalizePublicId,
     renderActionButton,
