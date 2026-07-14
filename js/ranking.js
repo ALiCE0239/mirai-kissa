@@ -117,7 +117,10 @@ const MiraiRanking = (function () {
 
   async function requireUser(box) {
     await window.MiraiFirebaseReady;
-    const user = window.MiraiAuth && window.MiraiAuth.getUser();
+    let user = window.MiraiAuth && window.MiraiAuth.getUser();
+    if (!user && window.MiraiAuth && typeof window.MiraiAuth.waitForUser === 'function') {
+      user = await window.MiraiAuth.waitForUser(3000);
+    }
     if (!user) {
       box.innerHTML =
         '<div class="info-box"><p>ログインが必要です。</p>' +
@@ -127,21 +130,17 @@ const MiraiRanking = (function () {
     return user;
   }
 
-  async function loadOwnHub(uid) {
-    if (window.MiraiMyPage && typeof window.MiraiMyPage.loadHub !== 'function') return null;
-    const f = await fb();
-    if (!isConfigured(f)) return null;
-    const { doc, getDoc } = f.dbFns;
-    const snap = await getDoc(doc(f.db, 'users', uid, 'sns', 'linkHub'));
-    return snap.exists() ? snap.data() : null;
-  }
-
   async function fetchOwnEntry(uid, type) {
     const f = await fb();
     if (!isConfigured(f)) return null;
     const { doc, getDoc } = f.dbFns;
-    const snap = await getDoc(doc(f.db, COLLECTION, docId(uid, type)));
-    return snap.exists() ? snap.data() : null;
+    try {
+      const snap = await getDoc(doc(f.db, COLLECTION, docId(uid, type)));
+      return snap.exists() ? snap.data() : null;
+    } catch (e) {
+      console.warn('[ranking] fetchOwnEntry failed:', type, e);
+      return null;
+    }
   }
 
   async function fetchApprovedByType(type) {
@@ -320,37 +319,52 @@ const MiraiRanking = (function () {
     return initHub();
   }
 
+  async function loadOwnHub(uid) {
+    const f = await fb();
+    if (!isConfigured(f)) return null;
+    const { doc, getDoc } = f.dbFns;
+    const snap = await getDoc(doc(f.db, 'users', uid, 'sns', 'linkHub'));
+    return snap.exists() ? snap.data() : null;
+  }
+
   async function initMypageHub() {
     const box = document.getElementById('app').querySelector('#rankingHubRoot');
     if (!box) return;
     if (!isConfigured(await fb())) { box.innerHTML = notConfiguredHtml(); return; }
     box.innerHTML = '<p class="text-muted">読み込み中…</p>';
-    const user = await requireUser(box);
-    if (!user) return;
+    try {
+      const user = await requireUser(box);
+      if (!user) return;
 
-    const entries = await Promise.all(
-      Object.keys(TYPES).map(async (type) => ({ type, entry: await fetchOwnEntry(user.uid, type) }))
-    );
+      const entries = await Promise.all(
+        Object.keys(TYPES).map(async (type) => ({ type, entry: await fetchOwnEntry(user.uid, type) }))
+      );
 
-    box.innerHTML =
-      '<p class="form-hint">各項目1件まで。更新する場合は再申請となり、管理者の承認後にランキングへ反映されます。</p>' +
-      '<p class="form-hint mt-1">証拠画像は X や Imgur 等に投稿したURLを貼ってください（サイト内には保存しません）。</p>' +
-      entries.map(({ type, entry }) => {
-        const meta = typeMeta(type);
-        const status = entry ? (STATUS_LABELS[entry.moderationStatus] || '—') : '未登録';
-        return (
-          '<section class="card ranking-hub-card">' +
-          '<div class="ranking-hub-card__head">' +
-          '<div><h3>' + esc(meta.label) + '</h3>' +
-          '<p class="text-muted">' + esc(summaryText(entry, type)) + '</p></div>' +
-          '<a href="#/mypage/ranking/' + type + '" class="btn btn-primary btn-sm" data-link>' +
-          (entry ? '再申請する' : '登録する') + '</a></div>' +
-          '<p class="form-hint">状態: <strong>' + esc(status) + '</strong></p>' +
-          '</section>'
-        );
-      }).join('') +
-      '<a href="#/ranking" class="btn btn-secondary mt-3" data-link>ランキングを見る</a>' +
-      '<a href="#/mypage" class="btn btn-secondary mt-3" data-link>マイページに戻る</a>';
+      box.innerHTML =
+        '<p class="form-hint">各項目1件まで。更新する場合は再申請となり、管理者の承認後にランキングへ反映されます。</p>' +
+        '<p class="form-hint mt-1">証拠画像は X や Imgur 等に投稿したURLを貼ってください（サイト内には保存しません）。</p>' +
+        entries.map(({ type, entry }) => {
+          const meta = typeMeta(type);
+          const status = entry ? (STATUS_LABELS[entry.moderationStatus] || '—') : '未登録';
+          return (
+            '<section class="card ranking-hub-card">' +
+            '<div class="ranking-hub-card__head">' +
+            '<div><h3>' + esc(meta.label) + '</h3>' +
+            '<p class="text-muted">' + esc(summaryText(entry, type)) + '</p></div>' +
+            '<a href="#/mypage/ranking/' + type + '" class="btn btn-primary btn-sm" data-link>' +
+            (entry ? '再申請する' : '登録する') + '</a></div>' +
+            '<p class="form-hint">状態: <strong>' + esc(status) + '</strong></p>' +
+            '</section>'
+          );
+        }).join('') +
+        '<a href="#/ranking" class="btn btn-secondary mt-3" data-link>ランキングを見る</a>' +
+        '<a href="#/mypage" class="btn btn-secondary mt-3" data-link>マイページに戻る</a>';
+    } catch (e) {
+      box.innerHTML =
+        '<div class="info-box"><p>読み込みに失敗しました。</p>' +
+        '<p class="form-error mt-1">' + esc(e.message || String(e)) + '</p>' +
+        '<p class="form-hint mt-2">Firebase のルール（data/firestore.rules）を Console に公開済みか確認してください。</p></div>';
+    }
   }
 
   async function initEdit(params) {
@@ -364,100 +378,107 @@ const MiraiRanking = (function () {
     }
     if (!isConfigured(await fb())) { box.innerHTML = notConfiguredHtml(); return; }
     box.innerHTML = '<p class="text-muted">読み込み中…</p>';
-    const user = await requireUser(box);
-    if (!user) return;
+    try {
+      const user = await requireUser(box);
+      if (!user) return;
 
-    const hub = await loadOwnHub(user.uid);
-    const existing = await fetchOwnEntry(user.uid, type);
-    const entry = existing || {
-      characterKey: 'kaito',
-      characterName: characterName('kaito'),
-      playerName: (hub && hub.displayName) || '',
-      score: '',
-      proofURL: '',
-      note: '',
-    };
+      const hub = await loadOwnHub(user.uid);
+      const existing = await fetchOwnEntry(user.uid, type);
+      const entry = existing || {
+        characterKey: 'kaito',
+        characterName: characterName('kaito'),
+        playerName: (hub && hub.displayName) || '',
+        score: '',
+        proofURL: '',
+        note: '',
+      };
 
-    const statusNote = existing
-      ? '<div class="info-box mb-2"><p>現在の状態: <strong>' + esc(STATUS_LABELS[existing.moderationStatus] || existing.moderationStatus) + '</strong></p>' +
-        (existing.moderationStatus === 'rejected' && existing.rejectionReason
-          ? '<p class="form-error mt-1">却下理由: ' + esc(existing.rejectionReason) + '</p>' : '') +
-        '<p class="form-hint mt-1">保存すると再申請（審査中）になります。</p></div>'
-      : '';
+      const statusNote = existing
+        ? '<div class="info-box mb-2"><p>現在の状態: <strong>' + esc(STATUS_LABELS[existing.moderationStatus] || existing.moderationStatus) + '</strong></p>' +
+          (existing.moderationStatus === 'rejected' && existing.rejectionReason
+            ? '<p class="form-error mt-1">却下理由: ' + esc(existing.rejectionReason) + '</p>' : '') +
+          '<p class="form-hint mt-1">保存すると再申請（審査中）になります。</p></div>'
+        : '';
 
-    box.innerHTML =
-      statusNote +
-      '<section class="card community-editor mp-board-editor">' +
-      '<h2 class="community-editor__title">' + esc(meta.label) + 'を登録</h2>' +
-      '<div class="form-group"><label for="rkCharacter">キャラクター</label>' +
-      '<select class="form-select" id="rkCharacter">' + characterOptionsHtml(entry.characterKey) + '</select></div>' +
-      '<div class="form-group"><label for="rkPlayerName">名前（ランキング表示名）</label>' +
-      '<input type="text" class="form-input" id="rkPlayerName" maxlength="30" value="' + esc(entry.playerName || '') + '" placeholder="ゲーム内の名前など"></div>' +
-      '<div class="form-group"><label for="rkScore">' + esc(meta.scoreLabel) + '</label>' +
-      '<input type="number" class="form-input" id="rkScore" min="1" max="99999999" value="' + esc(entry.score != null ? entry.score : '') + '" placeholder="' + esc(meta.scorePlaceholder) + '"></div>' +
-      '<div class="form-group"><label for="rkProof">証拠画像のURL <span class="text-muted">（必須）</span></label>' +
-      '<input type="url" class="form-input" id="rkProof" value="' + esc(entry.proofURL || '') + '" placeholder="https://x.com/... または https://i.imgur.com/...">' +
-      '<p class="form-hint mt-1">スクリーンショットを X・Imgur 等に投稿し、公開URLを貼ってください。Firebase には保存しません。</p></div>' +
-      '<div class="form-group"><label for="rkNote">補足（任意）</label>' +
-      '<textarea class="form-input" id="rkNote" rows="2" maxlength="200" placeholder="楽曲名・難易度など">' + esc(entry.note || '') + '</textarea></div>' +
-      '<p id="rkError" class="form-error mt-2" hidden></p>' +
-      '<button type="button" class="btn btn-primary btn-block" id="rkSave">' + (existing ? '再申請する' : '申請する') + '</button>' +
-      '<p id="rkSaved" class="community-saved mt-2" hidden>申請しました ✓ 管理者の承認をお待ちください</p>' +
-      '</section>' +
-      '<a href="#/mypage/ranking" class="btn btn-secondary mt-3" data-link>登録メニューに戻る</a>';
+      box.innerHTML =
+        statusNote +
+        '<section class="card community-editor mp-board-editor">' +
+        '<h2 class="community-editor__title">' + esc(meta.label) + 'を登録</h2>' +
+        '<div class="form-group"><label for="rkCharacter">キャラクター</label>' +
+        '<select class="form-select" id="rkCharacter">' + characterOptionsHtml(entry.characterKey) + '</select></div>' +
+        '<div class="form-group"><label for="rkPlayerName">名前（ランキング表示名）</label>' +
+        '<input type="text" class="form-input" id="rkPlayerName" maxlength="30" value="' + esc(entry.playerName || '') + '" placeholder="ゲーム内の名前など"></div>' +
+        '<div class="form-group"><label for="rkScore">' + esc(meta.scoreLabel) + '</label>' +
+        '<input type="number" class="form-input" id="rkScore" min="1" max="99999999" value="' + esc(entry.score != null ? entry.score : '') + '" placeholder="' + esc(meta.scorePlaceholder) + '"></div>' +
+        '<div class="form-group"><label for="rkProof">証拠画像のURL <span class="text-muted">（必須）</span></label>' +
+        '<input type="url" class="form-input" id="rkProof" value="' + esc(entry.proofURL || '') + '" placeholder="https://x.com/... または https://i.imgur.com/...">' +
+        '<p class="form-hint mt-1">スクリーンショットを X・Imgur 等に投稿し、公開URLを貼ってください。Firebase には保存しません。</p></div>' +
+        '<div class="form-group"><label for="rkNote">補足（任意）</label>' +
+        '<textarea class="form-input" id="rkNote" rows="2" maxlength="200" placeholder="楽曲名・難易度など">' + esc(entry.note || '') + '</textarea></div>' +
+        '<p id="rkError" class="form-error mt-2" hidden></p>' +
+        '<button type="button" class="btn btn-primary btn-block" id="rkSave">' + (existing ? '再申請する' : '申請する') + '</button>' +
+        '<p id="rkSaved" class="community-saved mt-2" hidden>申請しました ✓ 管理者の承認をお待ちください</p>' +
+        '</section>' +
+        '<a href="#/mypage/ranking" class="btn btn-secondary mt-3" data-link>登録メニューに戻る</a>';
 
-    const errEl = box.querySelector('#rkError');
-    const savedEl = box.querySelector('#rkSaved');
-    box.querySelector('#rkSave').addEventListener('click', async () => {
-      errEl.hidden = true;
-      savedEl.hidden = true;
-      const charKey = box.querySelector('#rkCharacter').value;
-      const playerName = box.querySelector('#rkPlayerName').value.trim();
-      const score = parseInt(box.querySelector('#rkScore').value, 10);
-      const proofURL = normalizeUrl(box.querySelector('#rkProof').value);
-      const note = box.querySelector('#rkNote').value.trim();
+      const errEl = box.querySelector('#rkError');
+      const savedEl = box.querySelector('#rkSaved');
+      box.querySelector('#rkSave').addEventListener('click', async () => {
+        errEl.hidden = true;
+        savedEl.hidden = true;
+        const charKey = box.querySelector('#rkCharacter').value;
+        const playerName = box.querySelector('#rkPlayerName').value.trim();
+        const score = parseInt(box.querySelector('#rkScore').value, 10);
+        const proofURL = normalizeUrl(box.querySelector('#rkProof').value);
+        const note = box.querySelector('#rkNote').value.trim();
 
-      if (!charKey) { errEl.textContent = 'キャラクターを選んでください。'; errEl.hidden = false; return; }
-      if (!playerName) { errEl.textContent = '名前を入力してください。'; errEl.hidden = false; return; }
-      if (!Number.isFinite(score) || score < 1) { errEl.textContent = meta.scoreLabel + 'を正しく入力してください。'; errEl.hidden = false; return; }
-      if (!proofURL) { errEl.textContent = '証拠画像のURLを入力してください。'; errEl.hidden = false; return; }
+        if (!charKey) { errEl.textContent = 'キャラクターを選んでください。'; errEl.hidden = false; return; }
+        if (!playerName) { errEl.textContent = '名前を入力してください。'; errEl.hidden = false; return; }
+        if (!Number.isFinite(score) || score < 1) { errEl.textContent = meta.scoreLabel + 'を正しく入力してください。'; errEl.hidden = false; return; }
+        if (!proofURL) { errEl.textContent = '証拠画像のURLを入力してください。'; errEl.hidden = false; return; }
 
-      const btn = box.querySelector('#rkSave');
-      btn.disabled = true;
-      btn.textContent = '送信中…';
-      try {
-        const f = await fb();
-        const { doc, setDoc, serverTimestamp } = f.dbFns;
-        const freshHub = await loadOwnHub(user.uid);
-        const data = {
-          authorUid: user.uid,
-          authorPublicId: (freshHub && freshHub.publicId) || (entry.authorPublicId || ''),
-          authorName: (freshHub && freshHub.displayName) || playerName,
-          authorAvatarURL: (freshHub && freshHub.avatarURL) || null,
-          type: type,
-          characterKey: charKey,
-          characterName: characterName(charKey),
-          playerName: playerName,
-          score: score,
-          proofURL: proofURL,
-          note: note || '',
-          moderationStatus: 'pending',
-          rejectionReason: null,
-          updatedAt: serverTimestamp(),
-          submittedAt: serverTimestamp(),
-        };
-        if (!existing) data.createdAt = serverTimestamp();
-        await setDoc(doc(f.db, COLLECTION, docId(user.uid, type)), data, { merge: true });
-        savedEl.hidden = false;
-        setTimeout(() => { location.hash = '#/mypage/ranking'; }, 1600);
-      } catch (e) {
-        errEl.textContent = e.message || String(e);
-        errEl.hidden = false;
-      } finally {
-        btn.disabled = false;
-        btn.textContent = existing ? '再申請する' : '申請する';
-      }
-    });
+        const btn = box.querySelector('#rkSave');
+        btn.disabled = true;
+        btn.textContent = '送信中…';
+        try {
+          const f = await fb();
+          const { doc, setDoc, serverTimestamp } = f.dbFns;
+          const freshHub = await loadOwnHub(user.uid);
+          const data = {
+            authorUid: user.uid,
+            authorPublicId: (freshHub && freshHub.publicId) || (entry.authorPublicId || ''),
+            authorName: (freshHub && freshHub.displayName) || playerName,
+            authorAvatarURL: (freshHub && freshHub.avatarURL) || null,
+            type: type,
+            characterKey: charKey,
+            characterName: characterName(charKey),
+            playerName: playerName,
+            score: score,
+            proofURL: proofURL,
+            note: note || '',
+            moderationStatus: 'pending',
+            rejectionReason: null,
+            updatedAt: serverTimestamp(),
+            submittedAt: serverTimestamp(),
+          };
+          if (!existing) data.createdAt = serverTimestamp();
+          await setDoc(doc(f.db, COLLECTION, docId(user.uid, type)), data, { merge: true });
+          savedEl.hidden = false;
+          setTimeout(() => { location.hash = '#/mypage/ranking'; }, 1600);
+        } catch (e) {
+          errEl.textContent = e.message || String(e);
+          errEl.hidden = false;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = existing ? '再申請する' : '申請する';
+        }
+      });
+    } catch (e) {
+      box.innerHTML =
+        '<div class="info-box"><p>読み込みに失敗しました。</p>' +
+        '<p class="form-error mt-1">' + esc(e.message || String(e)) + '</p>' +
+        '<p class="form-hint mt-2">Firebase のルール（data/firestore.rules）を Console に公開済みか確認してください。</p></div>';
+    }
   }
 
   async function moderateEntry(entryId, action, adminUid, reason) {
