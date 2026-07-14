@@ -145,17 +145,65 @@ const MiraiMyPage = (function () {
     return DEFAULT_UNLOCKED_CARD_THEMES[0] || 'kaito';
   }
 
+  const MAX_PROFILE_CARD_DISPLAY_TITLES = 5;
+
   function resolveGrantedTitles(rewards) {
     if (!rewards || !Array.isArray(rewards.grantedTitles)) return [];
     return rewards.grantedTitles.map((t) => String(t || '').trim()).filter(Boolean);
   }
 
-  function resolveProfileCardTitle(hub, rewards) {
+  function normalizeProfileCardDisplayTitles(raw, granted) {
+    const grantedSet = new Set(granted);
+    const list = (Array.isArray(raw) ? raw : [])
+      .map((t) => String(t || '').trim())
+      .filter((t) => grantedSet.has(t));
+    return [...new Set(list)].slice(0, MAX_PROFILE_CARD_DISPLAY_TITLES);
+  }
+
+  function resolveProfileCardDisplayTitles(hub, rewards) {
     const granted = resolveGrantedTitles(rewards);
-    const picked = String((hub && hub.profileCardTitle) || '').trim();
-    if (picked && granted.includes(picked)) return picked;
-    if (granted.length === 1) return granted[0];
-    return '';
+    if (Array.isArray(hub && hub.profileCardDisplayTitles)) {
+      return normalizeProfileCardDisplayTitles(hub.profileCardDisplayTitles, granted);
+    }
+    const legacy = String((hub && hub.profileCardTitle) || '').trim();
+    if (legacy && granted.includes(legacy)) return [legacy];
+    return [];
+  }
+
+  function resolvePublicProfileCardDisplayTitles(hub) {
+    if (Array.isArray(hub && hub.profileCardDisplayTitles)) {
+      return hub.profileCardDisplayTitles
+        .map((t) => String(t || '').trim())
+        .filter(Boolean)
+        .slice(0, MAX_PROFILE_CARD_DISPLAY_TITLES);
+    }
+    const legacy = String((hub && hub.profileCardTitle) || '').trim();
+    return legacy ? [legacy] : [];
+  }
+
+  /** @deprecated 互換用。表示称号は resolveProfileCardDisplayTitles を使用 */
+  function resolveProfileCardTitle(hub, rewards) {
+    const titles = resolveProfileCardDisplayTitles(hub, rewards);
+    return titles[0] || '';
+  }
+
+  function profileCardTitlePickerHtml(grantedTitles, selectedTitles) {
+    const selected = new Set(selectedTitles || []);
+    const atMax = selected.size >= MAX_PROFILE_CARD_DISPLAY_TITLES;
+    return (
+      '<div class="pc-title-checklist">' +
+      grantedTitles.map((t) => {
+        const isChecked = selected.has(t);
+        const disabled = atMax && !isChecked ? ' disabled' : '';
+        const checked = isChecked ? ' checked' : '';
+        return (
+          '<label class="pc-title-check">' +
+          '<input type="checkbox" name="profileCardTitle" value="' + esc(t) + '"' + checked + disabled + '>' +
+          '<span>' + esc(t) + '</span></label>'
+        );
+      }).join('') +
+      '</div>'
+    );
   }
 
   function profileCardThemePickerHtml(selected, unlockedSpecialKeys) {
@@ -1108,32 +1156,36 @@ const MiraiMyPage = (function () {
   function profileCardHtml(hub, rewards) {
     const theme = resolveCardTheme(hub, rewards);
     const vars = cardThemeStyleVars(theme);
-    const title = rewards
-      ? (resolveProfileCardTitle(hub, rewards) || 'MEMBERS CARD')
-      : (String(hub.profileCardTitle || '').trim() || 'MEMBERS CARD');
-    return `
-      <div class="profile-card-meishi" style="${vars}">
-        <div class="profile-card-meishi__accent" aria-hidden="true"></div>
-        <div class="profile-card-meishi__glow" aria-hidden="true"></div>
-        <div class="profile-card-meishi__inner">
-          <header class="profile-card-meishi__head">
-            <img src="img/icon.png" alt="" class="profile-card-meishi__logo" width="48" height="48" decoding="async" crossorigin="anonymous">
-            <div class="profile-card-meishi__head-text">
-              <span class="profile-card-meishi__site">未来喫茶</span>
-              <p class="profile-card-meishi__label">${esc(title)}</p>
-            </div>
-          </header>
-          <div class="profile-card-meishi__rule" aria-hidden="true"></div>
-          <div class="profile-card-meishi__member">
-            <p class="profile-card-meishi__name">${esc(hub.displayName || '未設定')}</p>
-            <div class="profile-card-meishi__id-box">
-              <span class="profile-card-meishi__id-label">未来喫茶ID</span>
-              <span class="profile-card-meishi__id">${esc(hub.publicId || '—')}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+    const displayTitles = rewards
+      ? resolveProfileCardDisplayTitles(hub, rewards)
+      : resolvePublicProfileCardDisplayTitles(hub);
+    const titleBadges = displayTitles.map((t) =>
+      '<span class="profile-card-meishi__title-badge">' + esc(t) + '</span>'
+    ).join('');
+    return (
+      '<div class="profile-card-meishi" style="' + vars + '">' +
+      '<div class="profile-card-meishi__accent" aria-hidden="true"></div>' +
+      '<div class="profile-card-meishi__glow" aria-hidden="true"></div>' +
+      '<div class="profile-card-meishi__inner">' +
+      '<header class="profile-card-meishi__head">' +
+      '<img src="img/icon.png" alt="" class="profile-card-meishi__logo" width="48" height="48" decoding="async" crossorigin="anonymous">' +
+      '<div class="profile-card-meishi__head-text">' +
+      '<span class="profile-card-meishi__site">未来喫茶</span>' +
+      '<p class="profile-card-meishi__label">MEMBERS CARD</p>' +
+      '</div></header>' +
+      '<div class="profile-card-meishi__rule" aria-hidden="true"></div>' +
+      '<div class="profile-card-meishi__foot">' +
+      '<div class="profile-card-meishi__member">' +
+      '<p class="profile-card-meishi__name">' + esc(hub.displayName || '未設定') + '</p>' +
+      '<div class="profile-card-meishi__id-box">' +
+      '<span class="profile-card-meishi__id-label">未来喫茶ID</span>' +
+      '<span class="profile-card-meishi__id">' + esc(hub.publicId || '—') + '</span>' +
+      '</div></div>' +
+      (titleBadges
+        ? '<div class="profile-card-meishi__titles" aria-label="称号">' + titleBadges + '</div>'
+        : '<div class="profile-card-meishi__titles profile-card-meishi__titles--empty" aria-hidden="true"></div>') +
+      '</div></div></div>'
+    );
   }
 
   function refreshProfileCardPreview(box, hub, rewards) {
@@ -1223,19 +1275,17 @@ const MiraiMyPage = (function () {
     const grantedTitles = resolveGrantedTitles(rewards);
     const unlockedSpecial = resolveUnlockedSpecialThemeKeys(rewards);
     const cardTheme = resolveEffectiveProfileCardThemeKey(hub, rewards);
-    hub.profileCardTitle = resolveProfileCardTitle(hub, rewards);
+    const displayTitles = resolveProfileCardDisplayTitles(hub, rewards);
+    hub.profileCardDisplayTitles = displayTitles;
 
     const titlePickerHtml = grantedTitles.length
-      ? `<section class="card profile-card-customize">
-          <h3 class="profile-card-customize__title">称号</h3>
-          <label class="form-label" for="profileCardTitleSelect">カードに表示する称号</label>
-          <select id="profileCardTitleSelect" class="form-input">
-            <option value="">MEMBERS CARD（デフォルト）</option>
-            ${grantedTitles.map((t) => `<option value="${esc(t)}"${hub.profileCardTitle === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}
-          </select>
-          <p class="form-hint mt-1">管理者から付与された称号のみ選べます。</p>
-          <p id="profileCardTitleSaved" class="community-saved mt-2" hidden>称号を保存しました ✓</p>
-        </section>`
+      ? '<section class="card profile-card-customize">' +
+        '<h3 class="profile-card-customize__title">称号</h3>' +
+        '<p class="form-hint">カード右下に表示する称号を選べます（最大' + MAX_PROFILE_CARD_DISPLAY_TITLES + 'つ）。「MEMBERS CARD」の表記は変わりません。</p>' +
+        profileCardTitlePickerHtml(grantedTitles, displayTitles) +
+        '<p id="profileCardTitleLimit" class="form-hint mt-2" hidden>称号は最大' + MAX_PROFILE_CARD_DISPLAY_TITLES + 'つまでです。</p>' +
+        '<p id="profileCardTitleSaved" class="community-saved mt-2" hidden>称号を保存しました ✓</p>' +
+        '</section>'
       : '';
 
     box.innerHTML = `
@@ -1294,13 +1344,36 @@ const MiraiMyPage = (function () {
       });
     });
 
-    const titleSelect = box.querySelector('#profileCardTitleSelect');
     const titleSavedEl = box.querySelector('#profileCardTitleSaved');
+    const titleLimitEl = box.querySelector('#profileCardTitleLimit');
     let titleSaveTimer = null;
-    if (titleSelect) {
-      titleSelect.addEventListener('change', () => {
-        const next = String(titleSelect.value || '').trim();
-        hub.profileCardTitle = next && grantedTitles.includes(next) ? next : '';
+
+    function syncTitleCheckboxStates() {
+      const checked = box.querySelectorAll('input[name="profileCardTitle"]:checked');
+      const atMax = checked.length >= MAX_PROFILE_CARD_DISPLAY_TITLES;
+      box.querySelectorAll('input[name="profileCardTitle"]').forEach((el) => {
+        if (!el.checked) el.disabled = atMax;
+      });
+      if (titleLimitEl) titleLimitEl.hidden = !atMax;
+    }
+
+    function readSelectedDisplayTitles() {
+      return [...box.querySelectorAll('input[name="profileCardTitle"]:checked')]
+        .map((el) => el.value)
+        .filter((t) => grantedTitles.includes(t))
+        .slice(0, MAX_PROFILE_CARD_DISPLAY_TITLES);
+    }
+
+    box.querySelectorAll('input[name="profileCardTitle"]').forEach((el) => {
+      el.addEventListener('change', () => {
+        const selected = readSelectedDisplayTitles();
+        if (el.checked && selected.length > MAX_PROFILE_CARD_DISPLAY_TITLES) {
+          el.checked = false;
+          if (titleLimitEl) titleLimitEl.hidden = false;
+          return;
+        }
+        hub.profileCardDisplayTitles = selected;
+        syncTitleCheckboxStates();
         refreshProfileCardPreview(box, hub, rewards);
         persistCardSettings().then(() => {
           if (titleSavedEl) {
@@ -1310,7 +1383,8 @@ const MiraiMyPage = (function () {
           }
         }).catch((e) => console.error(e));
       });
-    }
+    });
+    syncTitleCheckboxStates();
 
     saveBtn.addEventListener('click', async () => {
       if (!confirm('画像を保存しますか？')) return;
@@ -1442,6 +1516,7 @@ const MiraiMyPage = (function () {
     resolveUnlockedSpecialThemeKeys,
     resolveEffectiveProfileCardThemeKey,
     resolveGrantedTitles,
+    resolveProfileCardDisplayTitles,
     resolveProfileCardTitle,
     profileCardHtml,
     normalizeCardThemeKey,
