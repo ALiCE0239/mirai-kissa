@@ -84,8 +84,8 @@ const MiraiMyPage = (function () {
     return LEGACY_CARD_THEME_KEYS[k] || k;
   }
 
-  function resolveCardTheme(hub, rewards) {
-    const key = resolveEffectiveProfileCardThemeKey(hub, rewards);
+  function resolveCardTheme(hub) {
+    const key = resolveEffectiveProfileCardThemeKey(hub);
     return CARD_THEMES[key] || CARD_THEMES.kaito;
   }
 
@@ -111,13 +111,11 @@ const MiraiMyPage = (function () {
     return [...new Set(keys.filter((k) => CARD_THEMES[k]))];
   }
 
-  function resolveEffectiveProfileCardThemeKey(hub, rewards) {
-    const unlocked = resolveUnlockedThemeKeys(rewards, hub);
+  function resolveEffectiveProfileCardThemeKey(hub) {
     const preferred = normalizeCardThemeKey(
       (hub && hub.profileCardTheme) || (hub && hub.theme) || 'kaito'
     );
-    if (unlocked.includes(preferred)) return preferred;
-    return unlocked[0] || 'kaito';
+    return CARD_THEMES[preferred] ? preferred : 'kaito';
   }
 
   function resolveGrantedTitles(rewards) {
@@ -133,10 +131,9 @@ const MiraiMyPage = (function () {
     return '';
   }
 
-  function profileCardThemePickerHtml(selected, unlockedKeys) {
-    const unlocked = new Set((unlockedKeys || DEFAULT_UNLOCKED_CARD_THEMES).map(normalizeCardThemeKey));
+  function profileCardThemePickerHtml(selected) {
     return CARD_THEME_GROUPS.map((g) => {
-      const items = Object.keys(CARD_THEMES).filter((k) => CARD_THEMES[k].group === g.id && unlocked.has(k));
+      const items = Object.keys(CARD_THEMES).filter((k) => CARD_THEMES[k].group === g.id);
       if (!items.length) return '';
       return `
         <div class="pc-theme-group">
@@ -1064,7 +1061,7 @@ const MiraiMyPage = (function () {
   // ================= プロフィールカード =================
 
   function profileCardHtml(hub, rewards) {
-    const theme = resolveCardTheme(hub, rewards);
+    const theme = resolveCardTheme(hub);
     const vars = cardThemeStyleVars(theme);
     const title = resolveProfileCardTitle(hub, rewards) || 'MEMBERS CARD';
     return `
@@ -1176,9 +1173,8 @@ const MiraiMyPage = (function () {
 
     const { hub } = await prepareHub(user);
     const rewards = await loadUserRewards(user.uid);
-    const unlockedThemes = resolveUnlockedThemeKeys(rewards, hub);
     const grantedTitles = resolveGrantedTitles(rewards);
-    const cardTheme = resolveEffectiveProfileCardThemeKey(hub, rewards);
+    const cardTheme = resolveEffectiveProfileCardThemeKey(hub);
     hub.profileCardTitle = resolveProfileCardTitle(hub, rewards);
 
     const titlePickerHtml = grantedTitles.length
@@ -1201,10 +1197,7 @@ const MiraiMyPage = (function () {
 
         <section class="card profile-card-customize">
           <h3 class="profile-card-customize__title">カラー・デザイン</h3>
-          <div class="profile-card-theme-picker">${profileCardThemePickerHtml(cardTheme, unlockedThemes)}</div>
-          ${unlockedThemes.length < Object.keys(CARD_THEMES).length
-            ? '<p class="form-hint mt-2">キャラクターカラーは管理者から解放されると追加で選べます。</p>'
-            : ''}
+          <div class="profile-card-theme-picker">${profileCardThemePickerHtml(cardTheme)}</div>
           <p id="profileCardThemeSaved" class="community-saved mt-2" hidden>カラー設定を保存しました ✓</p>
         </section>
 
@@ -1244,7 +1237,7 @@ const MiraiMyPage = (function () {
     box.querySelectorAll('.pc-theme-swatch').forEach((btn) => {
       btn.addEventListener('click', () => {
         const next = normalizeCardThemeKey(btn.dataset.theme);
-        if (!unlockedThemes.includes(next)) return;
+        if (!CARD_THEMES[next]) return;
         hub.profileCardTheme = next;
         box.querySelectorAll('.pc-theme-swatch').forEach((b) => b.classList.toggle('is-active', b === btn));
         refreshProfileCardPreview(box, hub, rewards);
