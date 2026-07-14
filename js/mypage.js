@@ -1377,6 +1377,7 @@ const MiraiMyPage = (function () {
     getDefaultUnlockedCardThemes: () => DEFAULT_UNLOCKED_CARD_THEMES.slice(),
     resolveUnlockedThemeKeys,
     resolveGrantedTitles,
+    resolveProfileCardTitle,
     profileCardHtml,
     normalizeCardThemeKey,
   };
