@@ -482,16 +482,55 @@
 }
 .profile-card-meishi__rule {
   height: 0.35mm;
-  margin: 2.5mm 0 3mm;
+  margin: 2.5mm 0 2mm;
   background: linear-gradient(90deg, var(--pc-accent), transparent 85%);
   border-radius: 1mm;
   opacity: 0.75;
+}
+.profile-card-meishi__foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 3mm;
+  flex: 1;
+  min-height: 0;
 }
 .profile-card-meishi__member {
   display: flex;
   flex-direction: column;
   gap: 2mm;
   min-width: 0;
+  flex: 1;
+}
+.profile-card-meishi__titles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.7mm;
+  flex-shrink: 0;
+  max-width: 44%;
+  min-height: 12mm;
+}
+.profile-card-meishi__titles--empty {
+  visibility: hidden;
+}
+.profile-card-meishi__title-badge {
+  display: block;
+  max-width: 100%;
+  font-size: 2.3mm;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: right;
+  color: var(--pc-accent-text, var(--pc-accent));
+  padding: 0.55mm 1.2mm;
+  border-radius: 0.8mm;
+  background: rgba(255, 255, 255, 0.78);
+  border: 0.2mm solid var(--pc-id-border, rgba(15, 23, 42, 0.12));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 0.5px 2px rgba(15, 23, 42, 0.05);
 }
 .profile-card-meishi__name {
   font-size: 5.8mm;
@@ -588,6 +627,26 @@
 .pc-theme-swatch.is-active {
   border-color: var(--swatch-accent);
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04), inset 0 0 0 1px var(--swatch-accent);
+}
+.pc-title-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+.pc-title-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.pc-title-check input {
+  flex-shrink: 0;
+  margin: 0;
+}
+.pc-title-check span {
+  line-height: 1.35;
 }
 
 .mp-avatar-upload {

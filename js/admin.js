@@ -539,7 +539,7 @@ const AdminPage = (function () {
     const cardThemeKey = mp ? mp.resolveEffectiveProfileCardThemeKey(hub, rewards) : 'kaito';
     const cardThemeName = themes[cardThemeKey] ? themes[cardThemeKey].name : cardThemeKey;
     const grantedTitles = mp ? mp.resolveGrantedTitles(rewards) : [];
-    const activeTitle = mp ? mp.resolveProfileCardTitle(hub, rewards) : '';
+    const displayTitles = mp ? mp.resolveProfileCardDisplayTitles(hub, rewards) : [];
 
     const rewardsBlock = isAdmin
       ? '<form id="adminRewardsForm" class="card admin-card mt-3">' +
@@ -582,7 +582,7 @@ const AdminPage = (function () {
       '<div><dt>リンク数</dt><dd>' + formatNum((hub.links || []).length) + '</dd></div>' +
       '<div><dt>ノート数</dt><dd>' + formatNum((hub.notes || []).length) + '</dd></div>' +
       '<div><dt>現在のカードカラー</dt><dd>' + esc(cardThemeName) + '</dd></div>' +
-      '<div><dt>現在の称号</dt><dd>' + esc(activeTitle || 'MEMBERS CARD') + '</dd></div>' +
+      '<div><dt>表示中の称号</dt><dd>' + esc(displayTitles.length ? displayTitles.join(' / ') : 'なし（MEMBERS CARD のみ）') + '</dd></div>' +
       '</dl></section>' +
       rewardsBlock;
 
