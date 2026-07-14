@@ -499,30 +499,30 @@ const AdminPage = (function () {
     }
   }
 
-  function themeCheckboxGroups(rewards, hub) {
+  function themeCheckboxGroups(rewards) {
     const mp = window.MiraiMyPage;
     if (!mp) return '<p class="text-muted">MiraiMyPage が読み込まれていません。</p>';
 
-    const themes = mp.getCardThemes();
-    const groups = mp.getCardThemeGroups();
-    const defaults = new Set(mp.getDefaultUnlockedCardThemes());
-    const granted = new Set(mp.resolveUnlockedThemeKeys(rewards || null, hub || null));
-    const extraGranted = [...granted].filter((k) => !defaults.has(k));
+    const themes = mp.getSpecialCardThemes();
+    const keys = Object.keys(themes);
+    if (!keys.length) {
+      return '<p class="form-hint">特殊カラーはまだ登録されていません（準備中）。キャラクターカラーは全ユーザーが標準で利用できます。</p>';
+    }
+
+    const groups = mp.getSpecialCardThemeGroups();
+    const granted = new Set(mp.resolveUnlockedSpecialThemeKeys(rewards || null));
 
     return groups.map((g) => {
-      const keys = Object.keys(themes).filter((k) => themes[k].group === g.id);
-      if (!keys.length) return '';
-      const items = keys.map((k) => {
+      const groupKeys = keys.filter((k) => themes[k].group === g.id);
+      if (!groupKeys.length) return '';
+      const items = groupKeys.map((k) => {
         const t = themes[k];
-        const isDefault = defaults.has(k);
-        const checked = isDefault || extraGranted.includes(k);
-        const disabled = isDefault ? ' disabled' : '';
-        const checkedAttr = checked ? ' checked' : '';
+        const checked = granted.has(k) ? ' checked' : '';
         return (
-          '<label class="admin-theme-check' + (isDefault ? ' admin-theme-check--default' : '') + '">' +
-          '<input type="checkbox" name="adminTheme" value="' + esc(k) + '"' + checkedAttr + disabled + '>' +
+          '<label class="admin-theme-check">' +
+          '<input type="checkbox" name="adminTheme" value="' + esc(k) + '"' + checked + '>' +
           '<span class="admin-theme-check__swatch" style="--swatch-bg:' + esc(t.bg) + ';--swatch-accent:' + esc(t.accent) + '"></span>' +
-          '<span>' + esc(t.name) + (isDefault ? ' <span class="text-muted">（標準）</span>' : '') + '</span>' +
+          '<span>' + esc(t.name) + '</span>' +
           '</label>'
         );
       }).join('');
@@ -535,8 +535,8 @@ const AdminPage = (function () {
     if (!detail) return;
 
     const mp = window.MiraiMyPage;
-    const themes = mp ? mp.getCardThemes() : {};
-    const cardThemeKey = mp ? mp.resolveEffectiveProfileCardThemeKey(hub) : 'kaito';
+    const themes = mp ? mp.getAllCardThemes() : {};
+    const cardThemeKey = mp ? mp.resolveEffectiveProfileCardThemeKey(hub, rewards) : 'kaito';
     const cardThemeName = themes[cardThemeKey] ? themes[cardThemeKey].name : cardThemeKey;
     const grantedTitles = mp ? mp.resolveGrantedTitles(rewards) : [];
     const activeTitle = mp ? mp.resolveProfileCardTitle(hub, rewards) : '';
@@ -544,8 +544,8 @@ const AdminPage = (function () {
     const rewardsBlock = isAdmin
       ? '<form id="adminRewardsForm" class="card admin-card mt-3">' +
         '<h2 class="admin-card__heading">特典を配布</h2>' +
-        '<p class="form-hint">VIRTUAL SINGER の6色は全員が標準で利用できます。チェックを付けたキャラクターカラーが追加で使えるようになります。</p>' +
-        '<div class="admin-theme-groups mt-2">' + themeCheckboxGroups(rewards, hub) + '</div>' +
+        '<p class="form-hint">キャラクターカラーは全員が標準で利用できます。特殊カラーのみ個別に付与できます。</p>' +
+        '<div class="admin-theme-groups mt-2">' + themeCheckboxGroups(rewards) + '</div>' +
         '<div class="mt-3">' +
         '<label class="form-label" for="adminGrantedTitles">称号（1行に1つ）</label>' +
         '<textarea id="adminGrantedTitles" class="form-input" rows="4" placeholder="例: 未来喫茶常連&#10;イベラン王者">' + esc(grantedTitles.join('\n')) + '</textarea>' +
@@ -613,9 +613,9 @@ const AdminPage = (function () {
           throw new Error('保存機能が利用できません。');
         }
 
-        const defaults = new Set(mp.getDefaultUnlockedCardThemes());
+        const specialThemes = mp.getSpecialCardThemes();
         const checked = [...form.querySelectorAll('input[name="adminTheme"]:checked')].map((el) => el.value);
-        const unlockedCardThemes = checked.filter((k) => !defaults.has(k));
+        const unlockedCardThemes = checked.filter((k) => specialThemes[k]);
         const grantedTitles = String(form.querySelector('#adminGrantedTitles').value || '')
           .split(/\r?\n/)
           .map((line) => line.trim())
