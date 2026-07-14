@@ -15,6 +15,7 @@ const MiraiRanking = (function () {
 
   const COLLECTION = 'rankingEntries';
   const MODERATION_QUEUE = 'rankingModerationQueue';
+  const RANKING_DISPLAY_LIMIT = 100;
 
   const TYPES = {
     challenge_live: {
@@ -131,6 +132,15 @@ const MiraiRanking = (function () {
     return user;
   }
 
+  async function resolveViewer() {
+    await window.MiraiFirebaseReady;
+    let user = window.MiraiAuth && window.MiraiAuth.getUser();
+    if (!user && window.MiraiAuth && typeof window.MiraiAuth.waitForUser === 'function') {
+      user = await window.MiraiAuth.waitForUser(2000);
+    }
+    return user || null;
+  }
+
   async function fetchOwnEntry(uid, type) {
     const f = await fb();
     if (!isConfigured(f)) return null;
@@ -150,9 +160,9 @@ const MiraiRanking = (function () {
     const { collection, query, where, limit, getDocs } = f.dbFns;
     const col = collection(f.db, COLLECTION);
     const queries = [
-      () => query(col, where('type', '==', type), where('moderationStatus', '==', 'approved'), limit(200)),
-      () => query(col, where('moderationStatus', '==', 'approved'), limit(300)),
-      () => query(col, limit(300)),
+      () => query(col, where('type', '==', type), where('moderationStatus', '==', 'approved'), limit(1000)),
+      () => query(col, where('moderationStatus', '==', 'approved'), limit(1000)),
+      () => query(col, limit(1000)),
     ];
     let lastErr = null;
     for (const build of queries) {
@@ -237,18 +247,76 @@ const MiraiRanking = (function () {
     return parts.join(' · ');
   }
 
-  function entryRowHtml(entry, rank) {
+  function findRankForUid(entries, uid) {
+    if (!uid) return 0;
+    const idx = entries.findIndex((e) => e.authorUid === uid);
+    return idx >= 0 ? idx + 1 : 0;
+  }
+
+  function entryRowHtml(entry, rank, opts) {
+    opts = opts || {};
     const accent = characterAccent(entry.characterKey);
     const profile = entry.authorPublicId
       ? '<a href="#/p/' + esc(entry.authorPublicId) + '" class="ranking-row__name" data-link>' + esc(entry.playerName || entry.authorName || '匿名') + '</a>'
       : '<span class="ranking-row__name">' + esc(entry.playerName || entry.authorName || '匿名') + '</span>';
+    const selfCls = opts.isSelf ? ' ranking-row--self' : '';
     return (
-      '<li class="ranking-row" style="--ranking-accent:' + esc(accent) + '">' +
+      '<li class="ranking-row' + selfCls + '" style="--ranking-accent:' + esc(accent) + '">' +
       '<span class="ranking-row__rank">' + rank + '</span>' +
       '<span class="ranking-row__char">' + esc(entry.characterName || characterName(entry.characterKey)) + '</span>' +
       '<span class="ranking-row__player">' + profile + '</span>' +
       '<span class="ranking-row__score">' + formatScore(entry.score) + '</span>' +
       '</li>'
+    );
+  }
+
+  function ownRankHtml(type, meta, ownEntry, rank) {
+    if (!ownEntry) {
+      return (
+        '<section class="card ranking-own-rank ranking-own-rank--empty">' +
+        '<p class="ranking-own-rank__lead">あなたはまだ登録していません。</p>' +
+        '<p class="form-hint mt-1"><a href="#/mypage/ranking/' + esc(type) + '" data-link>ランキングに登録する</a></p>' +
+        '</section>'
+      );
+    }
+    const status = ownEntry.moderationStatus;
+    if (status === 'pending') {
+      return (
+        '<section class="card ranking-own-rank ranking-own-rank--pending">' +
+        '<p class="ranking-own-rank__lead">あなたの記録は<strong>審査中</strong>です。承認されると順位が表示されます。</p>' +
+        '</section>'
+      );
+    }
+    if (status === 'rejected') {
+      return (
+        '<section class="card ranking-own-rank ranking-own-rank--rejected">' +
+        '<p class="ranking-own-rank__lead">あなたの記録は<strong>却下</strong>されています。</p>' +
+        (ownEntry.rejectionReason
+          ? '<p class="form-error mt-1">理由: ' + esc(ownEntry.rejectionReason) + '</p>'
+          : '') +
+        '<p class="form-hint mt-1"><a href="#/mypage/ranking/' + esc(type) + '" data-link>再申請する</a></p>' +
+        '</section>'
+      );
+    }
+    if (!rank) {
+      return (
+        '<section class="card ranking-own-rank ranking-own-rank--empty">' +
+        '<p class="ranking-own-rank__lead">承認済みの記録が一覧に見つかりませんでした。</p>' +
+        '</section>'
+      );
+    }
+    const rankLabel = rank > RANKING_DISPLAY_LIMIT
+      ? (RANKING_DISPLAY_LIMIT + '位圏外（' + rank + '位）')
+      : (rank + '位');
+    return (
+      '<section class="card ranking-own-rank">' +
+      '<p class="ranking-own-rank__label">あなたの順位</p>' +
+      '<p class="ranking-own-rank__rank">' + esc(rankLabel) + '</p>' +
+      '<p class="form-hint ranking-own-rank__meta">' +
+      esc(meta.scoreLabel) + ' ' + esc(formatScore(ownEntry.score)) +
+      ' · ' + esc(ownEntry.characterName || characterName(ownEntry.characterKey)) +
+      '</p>' +
+      '</section>'
     );
   }
 
@@ -268,16 +336,20 @@ const MiraiRanking = (function () {
     );
   }
 
-  function panelHtml(type, entries) {
+  function panelHtml(type, entries, opts) {
+    opts = opts || {};
     const meta = typeMeta(type);
+    const viewerUid = opts.viewerUid || '';
     const list = entries.length
-      ? '<ol class="ranking-list">' + entries.map((e, i) => entryRowHtml(e, i + 1)).join('') + '</ol>'
+      ? '<ol class="ranking-list">' + entries.map((e, i) =>
+        entryRowHtml(e, i + 1, { isSelf: viewerUid && e.authorUid === viewerUid })
+      ).join('') + '</ol>'
       : '<p class="text-muted ranking-empty">まだ掲載されている記録はありません。</p>';
     return (
       '<section class="ranking-panel" data-ranking-panel="' + type + '">' +
       '<div class="ranking-panel__head">' +
       '<h2>' + esc(meta.label) + '</h2>' +
-      '<p class="form-hint">管理者承認済みの記録のみ表示しています。</p></div>' +
+      '<p class="form-hint">管理者承認済みの記録のみ表示しています。上位' + RANKING_DISPLAY_LIMIT + '名まで掲載。</p></div>' +
       '<div class="ranking-table-head" aria-hidden="true">' +
       '<span>順位</span><span>キャラ</span><span>名前</span><span>' + esc(meta.scoreLabel) + '</span></div>' +
       list +
@@ -323,12 +395,20 @@ const MiraiRanking = (function () {
     box.innerHTML = '<p class="text-muted">読み込み中…</p>';
 
     try {
-      const entries = sortEntries(await fetchApprovedByType(type), type);
+      const viewer = await resolveViewer();
+      const allSorted = sortEntries(await fetchApprovedByType(type), type);
+      const ownEntry = viewer ? await fetchOwnEntry(viewer.uid, type) : null;
+      const ownRank = ownEntry && ownEntry.moderationStatus === 'approved'
+        ? findRankForUid(allSorted, viewer.uid)
+        : 0;
+      const topEntries = allSorted.slice(0, RANKING_DISPLAY_LIMIT);
+      const ownRankBlock = viewer ? ownRankHtml(type, meta, ownEntry, ownRank) : '';
+
       box.innerHTML =
         '<div class="ranking-page ranking-page--view" data-ranking-view="' + esc(type) + '">' +
         '<p class="ranking-page__back"><a href="#/ranking" class="back-link" data-link>← ランキング一覧に戻る</a></p>' +
-        typeNavHtml(type, 'tabs') +
-        panelHtml(type, entries) +
+        ownRankBlock +
+        panelHtml(type, topEntries, { viewerUid: viewer && viewer.uid }) +
         '</div>';
     } catch (e) {
       box.innerHTML = '<div class="info-box"><p>読み込みに失敗しました。</p><p class="form-error mt-1">' + esc(e.message || String(e)) + '</p></div>';
