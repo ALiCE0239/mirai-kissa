@@ -441,7 +441,7 @@ const AdminPage = (function () {
 
     const mp = window.MiraiMyPage;
     const themes = mp ? mp.getCardThemes() : {};
-    const cardThemeKey = mp ? mp.resolveEffectiveProfileCardThemeKey(hub, rewards) : 'kaito';
+    const cardThemeKey = mp ? mp.resolveEffectiveProfileCardThemeKey(hub) : 'kaito';
     const cardThemeName = themes[cardThemeKey] ? themes[cardThemeKey].name : cardThemeKey;
     const grantedTitles = mp ? mp.resolveGrantedTitles(rewards) : [];
     const activeTitle = mp ? mp.resolveProfileCardTitle(hub, rewards) : '';
