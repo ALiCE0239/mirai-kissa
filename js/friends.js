@@ -25,6 +25,18 @@ const MiraiFriends = (function () {
     return snap.exists() ? snap.data() : null;
   }
 
+  async function loadHubByPublicId(publicId) {
+    const f = await fb();
+    if (!f || !f.configured) return null;
+    const { doc, getDoc } = f.dbFns;
+    const snap = await getDoc(doc(f.db, 'linkHubs', publicId));
+    return snap.exists() ? snap.data() : null;
+  }
+
+  function normalizePublicId(raw) {
+    return String(raw || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+  }
+
   /** @returns {'self'|'friends'|'pending_sent'|'pending_received'|'none'} */
   async function getStatus(myUid, targetUid) {
     if (!myUid || !targetUid) return 'none';
@@ -224,21 +236,21 @@ const MiraiFriends = (function () {
     }
   }
 
-  async function renderRequestsList(box, user) {
-    const requestsEl = box.querySelector('#mpFriendRequests');
-    if (!requestsEl) return;
+  async function renderRequestsList(rootEl, user, opts) {
+    opts = opts || {};
+    if (!rootEl) return;
 
-    requestsEl.innerHTML = '<p class="text-muted">読み込み中…</p>';
+    rootEl.innerHTML = '<p class="text-muted">読み込み中…</p>';
     try {
       const requests = await listIncomingRequests(user.uid);
-      updateRequestBadge(box, requests.length);
+      if (opts.badgeBox) updateRequestBadge(opts.badgeBox, requests.length);
 
       if (!requests.length) {
-        requestsEl.innerHTML = '<p class="text-muted mp-friends-empty">新しいフレンド申請はありません</p>';
+        rootEl.innerHTML = '<p class="text-muted mp-friends-empty">新しいフレンド申請はありません</p>';
         return;
       }
 
-      requestsEl.innerHTML = requests.map((req) => `
+      rootEl.innerHTML = requests.map((req) => `
         <div class="mp-friend-request card" data-from="${esc(req.fromUid)}">
           <div class="mp-friend-request__main">
             ${friendAvatar({ displayName: req.fromDisplayName, avatarURL: req.fromAvatarURL })}
@@ -254,16 +266,13 @@ const MiraiFriends = (function () {
         </div>
       `).join('');
 
-      requestsEl.querySelectorAll('.mp-friend-request').forEach((row) => {
+      rootEl.querySelectorAll('.mp-friend-request').forEach((row) => {
         const fromUid = row.dataset.from;
         row.querySelector('.mpFriendAccept').addEventListener('click', async () => {
           row.querySelector('.mpFriendAccept').disabled = true;
           try {
             await acceptRequest(user.uid, fromUid);
-            await renderRequestsList(box, user);
-            if (box.querySelector('#mpFriendsListPanel') && !box.querySelector('#mpFriendsListPanel').hidden) {
-              await renderFriendsList(box, user);
-            }
+            await renderRequestsList(rootEl, user, opts);
           } catch (e) {
             alert(e.message || String(e));
             row.querySelector('.mpFriendAccept').disabled = false;
@@ -272,32 +281,31 @@ const MiraiFriends = (function () {
         row.querySelector('.mpFriendReject').addEventListener('click', async () => {
           try {
             await rejectRequest(user.uid, fromUid);
-            await renderRequestsList(box, user);
+            await renderRequestsList(rootEl, user, opts);
           } catch (e) {
             alert(e.message || String(e));
           }
         });
       });
     } catch (e) {
-      requestsEl.innerHTML = '<p class="form-error">読み込みに失敗しました</p>';
+      rootEl.innerHTML = '<p class="form-error">読み込みに失敗しました</p>';
       console.error(e);
     }
   }
 
-  async function renderFriendsList(box, user) {
-    const friendsEl = box.querySelector('#mpFriendsList');
-    if (!friendsEl) return;
+  async function renderFriendsList(rootEl, user) {
+    if (!rootEl) return;
 
-    friendsEl.innerHTML = '<p class="text-muted">読み込み中…</p>';
+    rootEl.innerHTML = '<p class="text-muted">読み込み中…</p>';
     try {
       const friends = await listFriends(user.uid);
 
       if (!friends.length) {
-        friendsEl.innerHTML = '<p class="text-muted mp-friends-empty">フレンドはまだいません。セカイノートを読み取って申請できます</p>';
+        rootEl.innerHTML = '<p class="text-muted mp-friends-empty">フレンドはまだいません。ID検索またはセカイノートから申請できます</p>';
         return;
       }
 
-      friendsEl.innerHTML = friends.map((fr) => `
+      rootEl.innerHTML = friends.map((fr) => `
         <a href="#/p/${esc(fr.publicId)}" class="mp-friend-row card" data-link>
           ${friendAvatar(fr)}
           <div class="mp-friend-row__text">
@@ -308,55 +316,94 @@ const MiraiFriends = (function () {
         </a>
       `).join('');
     } catch (e) {
-      friendsEl.innerHTML = '<p class="form-error">読み込みに失敗しました</p>';
+      rootEl.innerHTML = '<p class="form-error">読み込みに失敗しました</p>';
       console.error(e);
     }
   }
 
+  async function initFriendRequestsPage() {
+    const box = document.getElementById('app').querySelector('#friendRequestsRoot');
+    if (!box) return;
+    await window.MiraiFirebaseReady;
+    const user = window.MiraiAuth ? await window.MiraiAuth.requireUser('#/mypage/friend-requests') : null;
+    if (!user) return;
+    await renderRequestsList(box, user);
+  }
+
+  async function initFriendsPage() {
+    const box = document.getElementById('app').querySelector('#friendsListRoot');
+    if (!box) return;
+    await window.MiraiFirebaseReady;
+    const user = window.MiraiAuth ? await window.MiraiAuth.requireUser('#/mypage/friends') : null;
+    if (!user) return;
+    await renderFriendsList(box, user);
+  }
+
+  function initFriendIdSearch(box, user) {
+    const input = box.querySelector('#mpFriendIdSearch');
+    const btn = box.querySelector('#mpFriendIdSearchBtn');
+    const resultEl = box.querySelector('#mpFriendIdSearchResult');
+    if (!input || !btn || !resultEl) return;
+
+    async function runSearch() {
+      resultEl.innerHTML = '';
+      const id = normalizePublicId(input.value);
+      if (!id) {
+        resultEl.innerHTML = '<p class="form-error">IDを入力してください。</p>';
+        return;
+      }
+      if (id.length < 4) {
+        resultEl.innerHTML = '<p class="form-error">IDの形式が正しくありません。</p>';
+        return;
+      }
+
+      resultEl.innerHTML = '<p class="text-muted">検索中…</p>';
+      btn.disabled = true;
+      try {
+        const hub = await loadHubByPublicId(id);
+        if (!hub || !hub.uid) {
+          resultEl.innerHTML = '<p class="form-error">該当するユーザーが見つかりませんでした。</p>';
+          return;
+        }
+        if (hub.uid === user.uid) {
+          resultEl.innerHTML = '<p class="text-muted mp-friends-empty">これはあなた自身のIDです。</p>';
+          return;
+        }
+
+        resultEl.innerHTML = `
+          <div class="mp-friend-search-result card">
+            <div class="mp-friend-search-result__main">
+              ${friendAvatar(hub)}
+              <div class="mp-friend-search-result__text">
+                <p class="mp-friend-search-result__name">${esc(hub.displayName || 'ユーザー')}</p>
+                <p class="form-hint">未来喫茶ID: ${esc(hub.publicId || id)}</p>
+              </div>
+            </div>
+            <div class="mp-friend-search-result__actions">
+              <a href="#/p/${esc(hub.publicId || id)}" class="btn btn-secondary btn-sm" data-link>セカイノートを見る</a>
+              <div id="mpFriendIdSearchAction"></div>
+            </div>
+          </div>
+        `;
+        const actionEl = resultEl.querySelector('#mpFriendIdSearchAction');
+        await renderActionButton(actionEl, user.uid, hub, () => runSearch());
+      } catch (e) {
+        resultEl.innerHTML = '<p class="form-error">検索に失敗しました</p>';
+        console.error(e);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    btn.addEventListener('click', runSearch);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runSearch();
+    });
+  }
+
   function initMypageFriends(box, user) {
-    const requestsToggle = box.querySelector('#mpFriendRequestsToggle');
-    const friendsToggle = box.querySelector('#mpFriendsListToggle');
-    const requestsPanel = box.querySelector('#mpFriendRequestsPanel');
-    const friendsPanel = box.querySelector('#mpFriendsListPanel');
-    if (!requestsToggle || !friendsToggle || !requestsPanel || !friendsPanel) return;
-
-    requestsToggle.dataset.labelDefault = 'フレンド申請';
-    friendsToggle.dataset.labelDefault = 'フレンド一覧';
-
-    function closePanel(toggle, panel) {
-      panel.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.textContent = toggle.dataset.labelDefault;
-    }
-
-    function openPanel(toggle, panel, otherToggle, otherPanel) {
-      if (otherPanel && !otherPanel.hidden) closePanel(otherToggle, otherPanel);
-      panel.hidden = false;
-      toggle.setAttribute('aria-expanded', 'true');
-      toggle.textContent = toggle.dataset.labelDefault + 'を閉じる';
-    }
-
-    requestsToggle.addEventListener('click', async () => {
-      const open = requestsToggle.getAttribute('aria-expanded') === 'true';
-      if (open) {
-        closePanel(requestsToggle, requestsPanel);
-        return;
-      }
-      openPanel(requestsToggle, requestsPanel, friendsToggle, friendsPanel);
-      await renderRequestsList(box, user);
-    });
-
-    friendsToggle.addEventListener('click', async () => {
-      const open = friendsToggle.getAttribute('aria-expanded') === 'true';
-      if (open) {
-        closePanel(friendsToggle, friendsPanel);
-        return;
-      }
-      openPanel(friendsToggle, friendsPanel, requestsToggle, requestsPanel);
-      await renderFriendsList(box, user);
-    });
-
     refreshRequestBadge(box, user);
+    initFriendIdSearch(box, user);
   }
 
   return {
@@ -367,8 +414,12 @@ const MiraiFriends = (function () {
     rejectRequest,
     listIncomingRequests,
     listFriends,
+    loadHubByPublicId,
+    normalizePublicId,
     renderActionButton,
     initMypageFriends,
+    initFriendRequestsPage,
+    initFriendsPage,
   };
 })();
 

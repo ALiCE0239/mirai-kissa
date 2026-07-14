@@ -1,0 +1,32 @@
+未来喫茶 — ランキング機能
+========================
+
+■ 概要
+  - チャレンジライブスコア / キャラクターランク の2種類
+  - 1アカウント・種別1件まで（更新は再申請 → 審査中に戻る）
+  - 掲載は管理者承認後のみ
+  - 証拠画像は Firebase に保存せず、外部URL（X・Imgur等）のみ
+
+■ ページ
+  - #/ranking                 … 公開ランキング
+  - #/mypage/ranking          … 登録メニュー（要ログイン）
+  - #/mypage/ranking/challenge_live   … チャレンジライブ申請
+  - #/mypage/ranking/character_rank   … キャラランク申請
+  - #/admin → ランキング審査タブ … 承認・却下（Firebase 管理者）
+
+■ Firestore
+  コレクション: rankingEntries
+  ドキュメントID: {uid}_challenge_live / {uid}_character_rank
+
+  data/firestore.rules を Firebase Console にデプロイしてください。
+
+■ 管理者の審査手順
+  1. #/admin にログイン（Supabase パスワード）
+  2. 「ランキング審査」タブ
+  3. Google で Firebase 管理者ログイン（config/admins 登録済みアカウント）
+  4. 証拠URLを開いて確認 → 承認 or 却下
+
+■ 証拠画像について
+  ユーザーには X や Imgur にスクリーンショットを投稿し、
+  その公開URLをフォームに貼ってもらう運用を想定しています。
+  サイト内アップロードは Firebase Storage 料金回避のため未実装です。

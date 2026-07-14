@@ -95,6 +95,15 @@
     };
   }
 
+  function homeToolCard(opts) {
+    return (
+      '<a href="' + opts.href + '" class="tool-card tool-card--' + opts.variant + '" data-link style="--card-delay:' + opts.delay + '">' +
+      '<span class="tool-card__stripe" aria-hidden="true"></span>' +
+      '<div class="tool-card__main">' +
+      '<h3>' + opts.title + '</h3><p>' + opts.desc + '</p></div></a>'
+    );
+  }
+
   function renderHomeCommunity() {
     const content = document.getElementById('homeCommunityContent');
     const lead = document.getElementById('homeCommunityLead');
@@ -110,21 +119,9 @@
 
     content.innerHTML =
       '<div class="card-grid">' +
-      '<a href="#/board/event" class="tool-card tool-card--blue" data-link data-category="掲示板" style="--card-delay: 0ms">' +
-      '<div class="tool-card-content"><div class="tool-card-icon blue">📣</div>' +
-      '<h3>イベラン広告</h3><p>一緒に走る仲間・Discord募集を探す（閲覧のみ）</p></div>' +
-      '<span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">見る</span>' +
-      '<svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></a>' +
-      '<a href="#/board/mysekai" class="tool-card tool-card--green" data-link data-category="掲示板" style="--card-delay: 60ms">' +
-      '<div class="tool-card-content"><div class="tool-card-icon green">🌿</div>' +
-      '<h3>マイセカイ宣伝</h3><p>みんなの百景を見る（閲覧のみ）</p></div>' +
-      '<span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">見る</span>' +
-      '<svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></a>' +
-      '<a href="#/sekainote/read" class="tool-card tool-card--yellow" data-link data-category="セカイノート" style="--card-delay: 120ms">' +
-      '<div class="tool-card-content"><div class="tool-card-icon yellow">📓</div>' +
-      '<h3>セカイノート</h3><p>IDまたはQRコードで他の人のノートを読み取る</p></div>' +
-      '<span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">読み取る</span>' +
-      '<svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></a>' +
+      homeToolCard({ href: '#/board/event', variant: 'board-event', title: 'イベラン広告', desc: '一緒に走る仲間・Discord募集を探す（閲覧のみ）', delay: '0ms' }) +
+      homeToolCard({ href: '#/board/mysekai', variant: 'board-mysekai', title: 'マイセカイ宣伝', desc: 'みんなの百景を見る（閲覧のみ）', delay: '60ms' }) +
+      homeToolCard({ href: '#/sekainote/read', variant: 'sekainote', title: 'セカイノート', desc: 'IDまたはQRコードで他の人のノートを読み取る', delay: '120ms' }) +
       '</div>';
   }
 
@@ -133,6 +130,7 @@
       { toggle: document.getElementById('homeToolsToggle'), panel: document.getElementById('homeToolsPanel') },
       { toggle: document.getElementById('homeIberanToggle'), panel: document.getElementById('homeIberanPanel') },
       { toggle: document.getElementById('homeCommunityToggle'), panel: document.getElementById('homeCommunityPanel') },
+      { toggle: document.getElementById('homeRankingToggle'), panel: document.getElementById('homeRankingPanel') },
     ].filter((p) => p.toggle && p.panel);
 
     const apis = [];
@@ -178,8 +176,14 @@
       .add('/admin',    'tmpl-admin',     () => AdminPage.init())
       .add('/login',    'tmpl-login',     () => MiraiMyPage.initLogin())
       .add('/mypage',   'tmpl-mypage',    () => guardCommunity(() => MiraiMyPage.initMyPage())())
+      .add('/mypage/friend-requests', 'tmpl-mypage-friend-requests', () => guardCommunity(() => MiraiFriends.initFriendRequestsPage())())
+      .add('/mypage/friends', 'tmpl-mypage-friends', () => guardCommunity(() => MiraiFriends.initFriendsPage())())
       .add('/mypage/sekainote', 'tmpl-mypage-sekainote', () => guardCommunity(() => MiraiMyPage.initSekaiNoteEdit())())
       .add('/mypage/profile-card', 'tmpl-profile-card', () => guardCommunity(() => MiraiMyPage.initProfileCard())())
+      .add('/mypage/ranking', 'tmpl-ranking-hub', () => guardCommunity(() => MiraiRanking.initMypageHub())())
+      .add('/mypage/ranking/:type', 'tmpl-ranking-edit', (params) => guardCommunity(() => MiraiRanking.initEdit(params))())
+      .add('/ranking', 'tmpl-ranking', () => MiraiRanking.initHub())
+      .add('/ranking/:type', 'tmpl-ranking', (params) => MiraiRanking.initView(params))
       .add('/sekainote/read', 'tmpl-sekainote-read', () => MiraiMyPage.initSekaiNoteRead())
       .add('/p/:id',    'tmpl-public',    (params) => MiraiMyPage.initPublic(params))
       .add('/board/event',       'tmpl-board-event',       () => MiraiBoard.initEventList())
@@ -205,8 +209,12 @@
         '/admin':     '管理者 — 未来喫茶',
         '/login':     'ログイン — 未来喫茶',
         '/mypage':    'マイページ — 未来喫茶',
+        '/mypage/friend-requests': 'フレンド申請 — 未来喫茶',
+        '/mypage/friends': 'フレンド一覧 — 未来喫茶',
         '/mypage/sekainote': 'セカイノートを編集 — 未来喫茶',
         '/mypage/profile-card': 'プロフィールカード — 未来喫茶',
+        '/mypage/ranking': 'ランキング登録 — 未来喫茶',
+        '/ranking': 'ランキング — 未来喫茶',
         '/sekainote/read': 'セカイノートを読み取る — 未来喫茶',
         '/board/event':        'イベラン広告 — 未来喫茶',
         '/board/event/edit':   'イベラン広告を編集 — 未来喫茶',

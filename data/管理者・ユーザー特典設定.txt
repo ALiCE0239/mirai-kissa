@@ -1,0 +1,56 @@
+未来喫茶 — 管理者・ユーザー特典設定
+====================================
+
+■ できること
+  - 管理者ページ（#/admin）の「ユーザー管理」タブ
+  - 未来喫茶ID（8文字）でユーザーを検索
+  - プロフィール情報の閲覧
+  - カードデザイン（キャラクターカラー）の個別解放
+  - 称号の付与（ユーザーがカードに表示する称号を選択可能）
+
+■ 初回セットアップ（必須）
+
+1. Firestore ルールをデプロイ
+   data/firestore.rules を Firebase Console に貼り付けて公開
+   （userRewards / config/admins が追加されています）
+
+2. 管理者 UID を登録
+   a. https://39cafe.fictionscale.jp/#/admin を開く
+   b. 「ユーザー管理」タブ →「Google でログイン」
+   c. Firebase Console → Authentication → Users で自分の UID をコピー
+      https://console.firebase.google.com/project/cafe-9d3b7/authentication/users
+   d. Firestore → データ → コレクションを開始
+      - コレクションID: config
+      - ドキュメントID: admins
+      - フィールド: uids（配列）→ 文字列で UID を1件追加
+        例: uids = ["AbCdEf1234567890"]
+
+   ※ js/admin-config.js の firebaseAdminUids にも同じ UID を入れると
+     画面表示の判定が早くなります（ルール上の権限は Firestore 側が正）
+
+3. 動作確認
+   - 管理者ページで ID 検索 → ユーザー情報が表示される
+   - キャラクターカラーにチェック →「特典を保存」
+   - 対象ユーザーで #/mypage/profile-card を開く → 解放した色が選べる
+
+■ データ構造
+
+  userRewards/{uid}
+    unlockedCardThemes: string[]  … 追加解放したテーマキー（例: ichika, kohane）
+    grantedTitles: string[]       … 付与した称号（例: 未来喫茶常連）
+    adminNote: string              … 管理者メモ（ユーザーには非表示）
+    updatedAt / updatedBy
+
+  ※ VIRTUAL SINGER 6色（ミク/リン/レン/ルカ/MEIKO/KAITO）は全員標準利用可
+
+■ ユーザー側の挙動
+
+  - プロフィールカード画面で、解放済みのカラーのみ選択可能
+  - 称号が付与されている場合、ドロップダウンで表示する称号を選択
+  - 称号未選択時は「MEMBERS CARD」と表示
+
+■ セキュリティ
+
+  - 特典の書き込みは config/admins.uids に登録された Firebase UID のみ
+  - 一般ユーザーは自分の userRewards を読めるが書き込めない
+  - アナリティクス用の Supabase パスワードとは別に、Firebase Google ログインが必要

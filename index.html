@@ -39,8 +39,8 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=34">
-  <link rel="stylesheet" href="css/community.css?v=1">
+  <link rel="stylesheet" href="css/style.css?v=40">
+  <link rel="stylesheet" href="css/community.css?v=5">
   <link rel="stylesheet" href="css/ads.css?v=1">
 </head>
 <body>
@@ -105,6 +105,10 @@
             <span class="hero-cta__label">コミュニティ</span>
             <svg class="hero-cta__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
+          <button type="button" class="btn btn-primary hero-cta hero-cta--ranking" id="homeRankingToggle" aria-expanded="false" aria-controls="homeRankingPanel">
+            <span class="hero-cta__label">ランキング</span>
+            <svg class="hero-cta__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
           <a href="#/guides" class="btn btn-primary hero-cta hero-cta--guides" data-link>
             <span class="hero-cta__label">攻略図書館</span>
           </a>
@@ -118,37 +122,33 @@
           <p>使いたいツールを選んでください</p>
         </div>
         <div class="card-grid">
-          <a href="#/amatsuyu" class="tool-card tool-card--green" data-link data-category="マイセカイ" style="--card-delay: 0ms">
-            <div class="tool-card-content">
-              <div class="tool-card-icon green">💧</div>
+          <a href="#/amatsuyu" class="tool-card tool-card--amatsuyu" data-link style="--card-delay: 0ms">
+            <span class="tool-card__stripe" aria-hidden="true"></span>
+            <div class="tool-card__main">
               <h3>あまつゆ計算機</h3>
               <p>目標フラワーから必要あまつゆ・周回数・双葉数を計算</p>
             </div>
-            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
-          <a href="#/event" class="tool-card tool-card--blue" data-link data-category="イベント" style="--card-delay: 60ms">
-            <div class="tool-card-content">
-              <div class="tool-card-icon blue">🏆</div>
+          <a href="#/event" class="tool-card tool-card--event" data-link style="--card-delay: 60ms">
+            <span class="tool-card__stripe" aria-hidden="true"></span>
+            <div class="tool-card__main">
               <h3>イベントポイント計算</h3>
               <p>目標Pt・1周あたりPtから必要周回数・クリスタル・時間を算出</p>
             </div>
-            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
-          <a href="#/exec" class="tool-card tool-card--cyan" data-link data-category="編成" style="--card-delay: 120ms">
-            <div class="tool-card-content">
-              <div class="tool-card-icon cyan">📐</div>
+          <a href="#/exec" class="tool-card tool-card--exec" data-link style="--card-delay: 120ms">
+            <span class="tool-card__stripe" aria-hidden="true"></span>
+            <div class="tool-card__main">
               <h3>実効値計算</h3>
               <p>リーダー・サブから実行値・内部値を算出</p>
             </div>
-            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
-          <a href="#/kizuna" class="tool-card tool-card--green" data-link data-category="キズナ" style="--card-delay: 180ms">
-            <div class="tool-card-content">
-              <div class="tool-card-icon green">💕</div>
+          <a href="#/kizuna" class="tool-card tool-card--kizuna" data-link style="--card-delay: 180ms">
+            <span class="tool-card__stripe" aria-hidden="true"></span>
+            <div class="tool-card__main">
               <h3>キズナ計算</h3>
               <p>目標LvまでのEXP・プレイ回数・クリスタルを計算</p>
             </div>
-            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
         </div>
       </section>
@@ -161,29 +161,26 @@
           <p>使いたいツールを選んでください</p>
         </div>
         <div class="card-grid card-grid--iberan">
-          <a href="#/diagnosis" class="tool-card tool-card--blue" data-link data-category="診断" style="--card-delay: 0ms">
-            <div class="tool-card-content">
-              <div class="tool-card-icon blue">📈</div>
+          <a href="#/diagnosis" class="tool-card tool-card--diagnosis" data-link style="--card-delay: 0ms">
+            <span class="tool-card__stripe" aria-hidden="true"></span>
+            <div class="tool-card__main">
               <h3>イベラン診断</h3>
               <p>ボーダー参考データから推定Ptを算出し、達成度をS〜Dで診断</p>
             </div>
-            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
-          <a href="#/adjust" class="tool-card tool-card--yellow" data-link data-category="ポ調" style="--card-delay: 60ms">
-            <div class="tool-card-content">
-              <div class="tool-card-icon yellow">🦐</div>
+          <a href="#/adjust" class="tool-card tool-card--adjust" data-link style="--card-delay: 60ms">
+            <span class="tool-card__stripe" aria-hidden="true"></span>
+            <div class="tool-card__main">
               <h3>ポイント調整</h3>
               <p>目標Ptに一致するスコア・ボーナス・炊き数を検索（基礎点100固定）</p>
             </div>
-            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
-          <a href="#/adjust-next" class="tool-card tool-card--yellow tool-card--adjust-next" data-link data-category="ポ調" style="--card-delay: 120ms">
-            <div class="tool-card-content">
-              <div class="tool-card-icon yellow">⭐️</div>
+          <a href="#/adjust-next" class="tool-card tool-card--adjust-next" data-link style="--card-delay: 120ms">
+            <span class="tool-card__stripe" aria-hidden="true"></span>
+            <div class="tool-card__main">
               <h3>ポイント調整NEXT</h3>
               <p>楽曲ごとの基礎点で目標Ptに合う組み合わせを検索（基礎点表対応）</p>
             </div>
-            <span class="tool-card-arrow" aria-hidden="true"><span class="tool-card-cta">開く</span><svg class="tool-card-arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
           </a>
         </div>
       </section>
@@ -196,6 +193,24 @@
           <p id="homeCommunityLead">掲示板はログインなしで閲覧できます。セカイノートはIDで読み取れます</p>
         </div>
         <div id="homeCommunityContent"></div>
+      </section>
+      </div>
+
+      <div class="home-tools-panel" id="homeRankingPanel" hidden>
+      <section class="home-tools" aria-labelledby="homeRankingHeading">
+        <div class="section-heading">
+          <h2 id="homeRankingHeading">🏆 ランキング</h2>
+          <p>チャレンジライブスコア・キャラクターランクの記録</p>
+        </div>
+        <div class="card-grid">
+          <a href="#/ranking" class="tool-card tool-card--ranking-challenge" data-link style="--card-delay: 0ms">
+            <span class="tool-card__stripe" aria-hidden="true"></span>
+            <div class="tool-card__main">
+              <h3>ランキングを見る</h3>
+              <p>チャレンジライブスコア・キャラクターランクの記録を表示</p>
+            </div>
+          </a>
+        </div>
       </section>
       </div>
 
@@ -541,8 +556,8 @@
   <template id="tmpl-admin">
     <div class="page-content page-enter admin-page">
       <div class="calc-page admin-page__inner">
-        <h1 class="admin-page__title">📊 管理者</h1>
-        <p class="text-muted admin-page__lead">アクセス数・計算機の利用回数（Supabase 連携）</p>
+        <h1 class="admin-page__title">管理者</h1>
+        <p class="text-muted admin-page__lead">アクセス分析とユーザー特典の管理</p>
 
         <div id="adminSetup" class="info-box admin-setup" hidden>
           <p><strong>アナリティクスが未設定です。</strong></p>
@@ -550,7 +565,7 @@
         </div>
 
         <div id="adminLogin" class="card admin-card" hidden>
-          <h2 class="admin-card__heading">ログイン</h2>
+          <h2 class="admin-card__heading">ログイン（アナリティクス）</h2>
           <form id="adminLoginForm" class="admin-login-form">
             <label class="form-label" for="adminPassword">パスワード</label>
             <input type="password" id="adminPassword" class="form-input" autocomplete="current-password" required>
@@ -560,46 +575,105 @@
         </div>
 
         <div id="adminDashboard" class="admin-dashboard" hidden>
-          <div class="admin-dashboard__toolbar">
-            <button type="button" class="btn btn-secondary btn-sm" id="adminRefreshBtn">再読み込み</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="adminLogoutBtn">ログアウト</button>
-          </div>
-          <p id="adminError" class="form-error mt-2" hidden></p>
+          <div class="admin-layout">
+            <aside class="admin-sidebar" aria-label="管理メニュー">
+              <div class="admin-sidebar__brand">
+                <p class="admin-sidebar__title">管理者</p>
+                <p class="admin-sidebar__lead">未来喫茶</p>
+              </div>
+              <nav class="admin-sidebar__nav" id="adminTabs">
+                <button type="button" class="admin-sidebar__item is-active" data-admin-tab="analytics">
+                  <span class="admin-sidebar__item-label">アナリティクス</span>
+                </button>
+                <button type="button" class="admin-sidebar__item" data-admin-tab="users">
+                  <span class="admin-sidebar__item-label">ユーザー管理</span>
+                </button>
+                <button type="button" class="admin-sidebar__item" data-admin-tab="rankings">
+                  <span class="admin-sidebar__item-label">ランキング審査</span>
+                  <span class="admin-sidebar__badge" id="adminRankingsBadge" hidden>0</span>
+                </button>
+              </nav>
+              <div class="admin-sidebar__footer">
+                <button type="button" class="btn btn-secondary btn-sm btn-block" id="adminRefreshBtn">再読み込み</button>
+                <button type="button" class="btn btn-secondary btn-sm btn-block" id="adminLogoutBtn">ログアウト</button>
+                <a href="#/" class="btn btn-secondary btn-sm btn-block" data-link>ホームに戻る</a>
+              </div>
+            </aside>
 
-          <h2 class="admin-section-title">ページビュー</h2>
-          <div class="admin-stat-grid">
-            <div class="admin-stat-card"><span class="admin-stat-label">今日</span><span class="admin-stat-value" id="statPvToday">—</span></div>
-            <div class="admin-stat-card"><span class="admin-stat-label">7日間</span><span class="admin-stat-value" id="statPv7">—</span></div>
-            <div class="admin-stat-card"><span class="admin-stat-label">30日間</span><span class="admin-stat-value" id="statPv30">—</span></div>
-            <div class="admin-stat-card"><span class="admin-stat-label">累計</span><span class="admin-stat-value" id="statPvAll">—</span></div>
-          </div>
+            <div class="admin-main">
+              <p id="adminError" class="form-error mb-2" hidden></p>
 
-          <h2 class="admin-section-title">ツール利用（計算実行）</h2>
-          <div class="admin-stat-grid admin-stat-grid--3">
-            <div class="admin-stat-card"><span class="admin-stat-label">今日</span><span class="admin-stat-value" id="statToolToday">—</span></div>
-            <div class="admin-stat-card"><span class="admin-stat-label">7日間</span><span class="admin-stat-value" id="statTool7">—</span></div>
-            <div class="admin-stat-card"><span class="admin-stat-label">累計</span><span class="admin-stat-value" id="statToolAll">—</span></div>
-          </div>
-          <p class="form-hint">7日間ユニーク訪問者（目安）: <strong id="statUv7">—</strong></p>
+              <div id="adminAnalyticsPanel" class="admin-panel">
+                <h2 class="admin-main__title">アナリティクス</h2>
+                <h3 class="admin-section-title">ページビュー</h3>
+                <div class="admin-stat-grid">
+                  <div class="admin-stat-card"><span class="admin-stat-label">今日</span><span class="admin-stat-value" id="statPvToday">—</span></div>
+                  <div class="admin-stat-card"><span class="admin-stat-label">7日間</span><span class="admin-stat-value" id="statPv7">—</span></div>
+                  <div class="admin-stat-card"><span class="admin-stat-label">30日間</span><span class="admin-stat-value" id="statPv30">—</span></div>
+                  <div class="admin-stat-card"><span class="admin-stat-label">累計</span><span class="admin-stat-value" id="statPvAll">—</span></div>
+                </div>
 
-          <h2 class="admin-section-title">ページ別（7日間）</h2>
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr><th>ページ</th><th>回数</th></tr></thead>
-              <tbody id="adminPagesBody"></tbody>
-            </table>
-          </div>
+                <h3 class="admin-section-title">ツール利用（計算実行）</h3>
+                <div class="admin-stat-grid admin-stat-grid--3">
+                  <div class="admin-stat-card"><span class="admin-stat-label">今日</span><span class="admin-stat-value" id="statToolToday">—</span></div>
+                  <div class="admin-stat-card"><span class="admin-stat-label">7日間</span><span class="admin-stat-value" id="statTool7">—</span></div>
+                  <div class="admin-stat-card"><span class="admin-stat-label">累計</span><span class="admin-stat-value" id="statToolAll">—</span></div>
+                </div>
+                <p class="form-hint">7日間ユニーク訪問者（目安）: <strong id="statUv7">—</strong></p>
 
-          <h2 class="admin-section-title">ツール別（7日間）</h2>
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr><th>ツール</th><th>利用回数</th></tr></thead>
-              <tbody id="adminToolsBody"></tbody>
-            </table>
+                <h3 class="admin-section-title">ページ別（7日間）</h3>
+                <div class="admin-table-wrap">
+                  <table class="admin-table">
+                    <thead><tr><th>ページ</th><th>回数</th></tr></thead>
+                    <tbody id="adminPagesBody"></tbody>
+                  </table>
+                </div>
+
+                <h3 class="admin-section-title">ツール別（7日間）</h3>
+                <div class="admin-table-wrap">
+                  <table class="admin-table">
+                    <thead><tr><th>ツール</th><th>利用回数</th></tr></thead>
+                    <tbody id="adminToolsBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div id="adminUsersPanel" class="admin-panel" hidden>
+                <h2 class="admin-main__title">ユーザー管理</h2>
+                <section class="card admin-card">
+                  <h3 class="admin-card__heading">ID でユーザー検索</h3>
+                  <form id="adminUserSearchForm" class="admin-user-search">
+                    <label class="form-label" for="adminUserSearchId">未来喫茶ID（8文字）</label>
+                    <div class="admin-user-search__row">
+                      <input type="text" id="adminUserSearchId" class="form-input" maxlength="8" placeholder="例: a1b2c3d4" autocomplete="off" spellcheck="false">
+                      <button type="submit" class="btn btn-primary">検索</button>
+                    </div>
+                  </form>
+                  <p id="adminUserSearchError" class="form-error mt-2" hidden></p>
+                </section>
+                <div id="adminUserDetail" hidden></div>
+              </div>
+
+              <div id="adminRankingsPanel" class="admin-panel" hidden>
+                <h2 class="admin-main__title">ランキング審査</h2>
+                <div id="adminFirebaseGate" class="card admin-card admin-firebase-gate" hidden>
+                  <h3 class="admin-card__heading">Firebase 管理者ログイン</h3>
+                  <p class="form-hint">ランキング審査・特典の保存には、管理者用 Google アカウントでの Firebase ログインが必要です。</p>
+                  <p class="form-hint mt-1">初回は Firestore の <code>config/admins</code> に UID を登録してください。</p>
+                  <button type="button" class="btn btn-primary mt-3" id="adminFirebaseLoginBtn">Google でログイン</button>
+                  <p id="adminFirebaseLoginError" class="form-error mt-2" hidden></p>
+                </div>
+                <div id="adminRankingsContent">
+                  <h3 class="admin-section-title">審査待ちの申請</h3>
+                  <p id="adminRankingsError" class="form-error mt-2" hidden></p>
+                  <div id="adminRankingsList"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <a href="#/" class="btn btn-secondary mt-4" data-link>ホームに戻る</a>
+        <a href="#/" class="btn btn-secondary mt-4 admin-page__home-link" data-link hidden>ホームに戻る</a>
       </div>
     </div>
   </template>
@@ -659,6 +733,34 @@
     </div>
   </template>
 
+  <!-- ==================== フレンド申請 ==================== -->
+  <template id="tmpl-mypage-friend-requests">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
+          <h1>👥 フレンド申請</h1>
+          <p>届いた申請を確認して承認・拒否できます</p>
+        </div>
+        <div id="friendRequestsRoot" class="mp-friends-page-list"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== フレンド一覧 ==================== -->
+  <template id="tmpl-mypage-friends">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
+          <h1>👥 フレンド一覧</h1>
+          <p>フレンドのセカイノートへ移動できます</p>
+        </div>
+        <div id="friendsListRoot" class="mp-friends-page-list"></div>
+      </div>
+    </div>
+  </template>
+
   <!-- ==================== セカイノート編集 ==================== -->
   <template id="tmpl-mypage-sekainote">
     <div class="page-content page-enter">
@@ -679,6 +781,45 @@
       <div class="community-narrow community-public">
         <div id="publicProfileRoot"></div>
         <p class="community-public__foot"><a href="#/" data-link>未来喫茶で作る</a></p>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== ランキング ==================== -->
+  <template id="tmpl-ranking">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>🏆 ランキング</h1>
+          <p>チャレンジライブスコア・キャラクターランク</p>
+        </div>
+        <div id="rankingRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-ranking-hub">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
+          <h1>🏆 ランキングに登録</h1>
+          <p>実績を申請してランキングへの掲載を申し込めます</p>
+        </div>
+        <div id="rankingHubRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-ranking-edit">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/mypage/ranking" class="back-link" data-link>← 登録メニューに戻る</a>
+          <h1>🏆 ランキング申請</h1>
+        </div>
+        <div id="rankingEditRoot"></div>
       </div>
     </div>
   </template>
@@ -777,15 +918,17 @@
   <script src="js/analytics.js?v=1"></script>
   <script src="js/ads-config.js?v=1"></script>
   <script src="js/ads.js?v=1"></script>
-  <script src="js/admin.js?v=3"></script>
   <script src="js/firebase-config.js?v=1"></script>
   <script type="module" src="js/firebase.js?v=1"></script>
   <script src="js/auth.js?v=1"></script>
   <script src="js/qrcode.min.js"></script>
   <script src="js/qr-utils.js?v=1"></script>
-  <script src="js/friends.js?v=1"></script>
-  <script src="js/mypage.js?v=1"></script>
-  <script src="js/board.js?v=2"></script>
+  <script src="js/friends.js?v=3"></script>
+  <script src="js/mypage.js?v=5"></script>
+  <script src="js/admin-config.js?v=1"></script>
+  <script src="js/admin.js?v=6"></script>
+  <script src="js/board.js?v=3"></script>
+  <script src="js/ranking.js?v=2"></script>
   <script src="js/guides.js?v=1"></script>
   <script src="js/router.js?v=15"></script>
   <script src="js/border-rankings-data.js?v=1"></script>
@@ -793,6 +936,6 @@
   <script src="js/song-kiso.js?v=3"></script>
   <script src="js/pjsk-engine.js?v=33"></script>
   <script src="js/calculators.js?v=56"></script>
-  <script src="js/app.js?v=17"></script>
+  <script src="js/app.js?v=22"></script>
 </body>
 </html>
