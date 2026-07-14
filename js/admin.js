@@ -677,7 +677,11 @@ const AdminPage = (function () {
     const userErr = root.querySelector('#adminUserSearchError');
     if (errEl) errEl.hidden = true;
     try {
-      await signInWithPopup();
+      if (typeof MiraiAuth !== 'undefined' && typeof MiraiAuth.signInWithGoogle === 'function') {
+        await MiraiAuth.signInWithGoogle();
+      } else {
+        await signInWithPopup();
+      }
       await refreshFirebaseState(root);
     } catch (err) {
       const msg = err.message || String(err);

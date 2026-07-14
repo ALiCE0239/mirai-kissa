@@ -6,5 +6,5 @@
  */
 window.MIRAI_ADMIN_CONFIG = {
   /** @type {string[]} Firebase Auth UID（Google ログイン後にコンソールで確認） */
-  firebaseAdminUids: [],
+  firebaseAdminUids: ['gImXr5Q4jVVoL31rl6SOl9jaYOz2'],
 };
