@@ -404,14 +404,14 @@ const AdminPage = (function () {
     }
   }
 
-  function themeCheckboxGroups(rewards) {
+  function themeCheckboxGroups(rewards, hub) {
     const mp = window.MiraiMyPage;
     if (!mp) return '<p class="text-muted">MiraiMyPage が読み込まれていません。</p>';
 
     const themes = mp.getCardThemes();
     const groups = mp.getCardThemeGroups();
     const defaults = new Set(mp.getDefaultUnlockedCardThemes());
-    const granted = new Set(mp.resolveUnlockedThemeKeys(rewards || null));
+    const granted = new Set(mp.resolveUnlockedThemeKeys(rewards || null, hub || null));
     const extraGranted = [...granted].filter((k) => !defaults.has(k));
 
     return groups.map((g) => {
@@ -441,7 +441,7 @@ const AdminPage = (function () {
 
     const mp = window.MiraiMyPage;
     const themes = mp ? mp.getCardThemes() : {};
-    const cardThemeKey = mp ? mp.normalizeCardThemeKey(hub.profileCardTheme || hub.theme || 'kaito') : 'kaito';
+    const cardThemeKey = mp ? mp.resolveEffectiveProfileCardThemeKey(hub, rewards) : 'kaito';
     const cardThemeName = themes[cardThemeKey] ? themes[cardThemeKey].name : cardThemeKey;
     const grantedTitles = mp ? mp.resolveGrantedTitles(rewards) : [];
     const activeTitle = mp ? mp.resolveProfileCardTitle(hub, rewards) : '';
@@ -450,7 +450,7 @@ const AdminPage = (function () {
       ? '<form id="adminRewardsForm" class="card admin-card mt-3">' +
         '<h2 class="admin-card__heading">特典を配布</h2>' +
         '<p class="form-hint">VIRTUAL SINGER の6色は全員が標準で利用できます。チェックを付けたキャラクターカラーが追加で使えるようになります。</p>' +
-        '<div class="admin-theme-groups mt-2">' + themeCheckboxGroups(rewards) + '</div>' +
+        '<div class="admin-theme-groups mt-2">' + themeCheckboxGroups(rewards, hub) + '</div>' +
         '<div class="mt-3">' +
         '<label class="form-label" for="adminGrantedTitles">称号（1行に1つ）</label>' +
         '<textarea id="adminGrantedTitles" class="form-input" rows="4" placeholder="例: 未来喫茶常連&#10;イベラン王者">' + esc(grantedTitles.join('\n')) + '</textarea>' +
@@ -530,8 +530,12 @@ const AdminPage = (function () {
         await mp.saveUserRewards(hub.uid, { unlockedCardThemes, grantedTitles, adminNote }, adminUser.uid);
         const freshRewards = await mp.loadUserRewards(hub.uid);
         currentUserCtx.rewards = freshRewards || {};
-        savedEl.hidden = false;
-        setTimeout(() => { savedEl.hidden = true; }, 2400);
+        renderUserDetail(root, hub, freshRewards, await checkFirebaseAdmin());
+        const savedElFresh = root.querySelector('#adminRewardsSaved');
+        if (savedElFresh) {
+          savedElFresh.hidden = false;
+          setTimeout(() => { savedElFresh.hidden = true; }, 2400);
+        }
       } catch (err) {
         errEl.textContent = err.message || String(err);
         errEl.hidden = false;
