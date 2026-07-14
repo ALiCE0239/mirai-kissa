@@ -71,6 +71,15 @@
 .linkhub--full { padding: 2.5rem 1.5rem; min-height: 60vh; }
 .community-public { max-width: 480px; padding-top: 1.5rem; }
 .community-public__foot { text-align: center; margin-top: 1.25rem; font-size: 0.85rem; }
+.public-profile-card-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  padding-top: 0.25rem;
+}
+.public-profile-card-wrap .profile-card-meishi {
+  transform: rotate(-1.2deg);
+}
 
 .linkhub-avatar {
   width: 84px; height: 84px; margin: 0 auto 1rem;

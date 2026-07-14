@@ -1063,7 +1063,9 @@ const MiraiMyPage = (function () {
   function profileCardHtml(hub, rewards) {
     const theme = resolveCardTheme(hub);
     const vars = cardThemeStyleVars(theme);
-    const title = resolveProfileCardTitle(hub, rewards) || 'MEMBERS CARD';
+    const title = rewards
+      ? (resolveProfileCardTitle(hub, rewards) || 'MEMBERS CARD')
+      : (String(hub.profileCardTitle || '').trim() || 'MEMBERS CARD');
     return `
       <div class="profile-card-meishi" style="${vars}">
         <div class="profile-card-meishi__accent" aria-hidden="true"></div>
@@ -1360,6 +1362,9 @@ const MiraiMyPage = (function () {
     const notesSection = notesHtml(hub, opts);
 
     return `
+      <div class="public-profile-card-wrap">
+        ${profileCardHtml(hub, null)}
+      </div>
       ${avatarHtml(hub)}
       <h1 class="linkhub-name">${esc(hub.displayName || '名無し')}</h1>
       ${hub.headline ? `<p class="linkhub-headline">${esc(hub.headline)}</p>` : ''}
