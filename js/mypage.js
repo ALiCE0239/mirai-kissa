@@ -74,6 +74,11 @@ const MiraiMyPage = (function () {
     mfy:     { name: 'まふゆ', group: 'n25', bg: '#eef0f8', accent: '#8888CC', ink: '#1e293b', muted: '#64748b', accentText: '#6666aa' },
   };
 
+  /** 全員が最初から使えるカードカラー（VIRTUAL SINGER） */
+  const DEFAULT_UNLOCKED_CARD_THEMES = Object.keys(CARD_THEMES).filter(
+    (k) => CARD_THEMES[k].group === 'basic'
+  );
+
   function normalizeCardThemeKey(key) {
     const k = String(key || '').trim();
     return LEGACY_CARD_THEME_KEYS[k] || k;
@@ -96,9 +101,29 @@ const MiraiMyPage = (function () {
     ].join(';');
   }
 
-  function profileCardThemePickerHtml(selected) {
+  function resolveUnlockedThemeKeys(rewards) {
+    const extra = rewards && Array.isArray(rewards.unlockedCardThemes) ? rewards.unlockedCardThemes : [];
+    const keys = DEFAULT_UNLOCKED_CARD_THEMES.concat(extra.map(normalizeCardThemeKey));
+    return [...new Set(keys.filter((k) => CARD_THEMES[k]))];
+  }
+
+  function resolveGrantedTitles(rewards) {
+    if (!rewards || !Array.isArray(rewards.grantedTitles)) return [];
+    return rewards.grantedTitles.map((t) => String(t || '').trim()).filter(Boolean);
+  }
+
+  function resolveProfileCardTitle(hub, rewards) {
+    const granted = resolveGrantedTitles(rewards);
+    const picked = String((hub && hub.profileCardTitle) || '').trim();
+    if (picked && granted.includes(picked)) return picked;
+    if (granted.length === 1) return granted[0];
+    return '';
+  }
+
+  function profileCardThemePickerHtml(selected, unlockedKeys) {
+    const unlocked = new Set((unlockedKeys || DEFAULT_UNLOCKED_CARD_THEMES).map(normalizeCardThemeKey));
     return CARD_THEME_GROUPS.map((g) => {
-      const items = Object.keys(CARD_THEMES).filter((k) => CARD_THEMES[k].group === g.id);
+      const items = Object.keys(CARD_THEMES).filter((k) => CARD_THEMES[k].group === g.id && unlocked.has(k));
       if (!items.length) return '';
       return `
         <div class="pc-theme-group">
@@ -167,6 +192,29 @@ const MiraiMyPage = (function () {
     return snap.exists() ? snap.data() : null;
   }
 
+  async function loadUserRewards(uid) {
+    const f = await fb();
+    if (!f || !f.configured || !uid) return null;
+    const { doc, getDoc } = f.dbFns;
+    const snap = await getDoc(doc(f.db, 'userRewards', uid));
+    return snap.exists() ? snap.data() : null;
+  }
+
+  async function saveUserRewards(uid, rewards, adminUid) {
+    const f = await fb();
+    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
+    const { doc, setDoc, serverTimestamp } = f.dbFns;
+    const data = {
+      unlockedCardThemes: Array.isArray(rewards.unlockedCardThemes) ? rewards.unlockedCardThemes : [],
+      grantedTitles: Array.isArray(rewards.grantedTitles) ? rewards.grantedTitles : [],
+      adminNote: String(rewards.adminNote || '').trim(),
+      updatedAt: serverTimestamp(),
+      updatedBy: adminUid,
+    };
+    await setDoc(doc(f.db, 'userRewards', uid), data, { merge: true });
+    return data;
+  }
+
   function avatarHtml(hub, className) {
     const cls = 'linkhub-avatar' + (className ? ' ' + className : '');
     if (hub.avatarURL) {
@@ -228,8 +276,8 @@ const MiraiMyPage = (function () {
 
     box.innerHTML =
       '<p class="text-muted community-login__lead">ログインすると、セカイノートからプロフィール・イベラン広告・マイセカイ宣伝を編集できます。</p>' +
-      '<button type="button" class="btn community-btn-x btn-block" id="loginX">𝕏 でログイン / 登録</button>' +
-      '<button type="button" class="btn btn-secondary btn-block mt-2" id="loginGoogle">Google でログイン</button>' +
+      '<button type="button" class="btn btn-primary btn-block" id="loginGoogle">Google でログイン</button>' +
+      '<p class="form-hint mt-2">𝕏 ログインは現在準備中です</p>' +
       '<p id="loginError" class="form-error mt-3" hidden></p>' +
       '<p class="form-hint mt-3">初めての方は自動で新規登録されます。</p>';
 
@@ -246,7 +294,6 @@ const MiraiMyPage = (function () {
       }
     };
 
-    box.querySelector('#loginX').addEventListener('click', () => run(() => window.MiraiAuth.signInWithX()));
     box.querySelector('#loginGoogle').addEventListener('click', () => run(() => window.MiraiAuth.signInWithGoogle()));
 
     // ログイン状態が変わったら自動遷移
@@ -299,6 +346,8 @@ const MiraiMyPage = (function () {
 
     renderDashboard(box, user, hub, sekaiSaved);
     loadBoardSummaries(box, user);
+    loadRankingSummaries(box, user);
+    loadEventBookmarksSummary(box, user);
   }
 
   async function initSekaiNoteEdit() {
@@ -487,20 +536,33 @@ const MiraiMyPage = (function () {
         <section class="mp-friends-section">
           <p class="adjust-filters__title">👥 フレンド</p>
           <p class="form-hint">フレンド申請の確認と、フレンドのセカイノートへのリンク</p>
+          <div class="mp-friend-id-search">
+            <label for="mpFriendIdSearch">未来喫茶IDで検索</label>
+            <div class="mp-friend-id-search__row">
+              <input type="text" class="form-input" id="mpFriendIdSearch" maxlength="12" placeholder="例: a1b2c3d4" autocapitalize="off" autocomplete="off" spellcheck="false">
+              <button type="button" class="btn btn-secondary" id="mpFriendIdSearchBtn">検索</button>
+            </div>
+            <p class="form-hint">IDが分かれば、ここからセカイノートを開いてフレンド申請できます</p>
+            <div id="mpFriendIdSearchResult" class="mp-friend-id-search__result"></div>
+          </div>
           <div class="mp-friends-actions">
             <div class="mp-friends-btn-wrap">
-              <button type="button" class="btn btn-secondary" id="mpFriendRequestsToggle" aria-expanded="false" aria-controls="mpFriendRequestsPanel">フレンド申請</button>
+              <a href="#/mypage/friend-requests" class="btn btn-secondary" data-link id="mpFriendRequestsLink">フレンド申請</a>
               <span id="mpFriendRequestBadge" class="mp-friend-notify-badge" hidden aria-label="未確認のフレンド申請"></span>
             </div>
-            <button type="button" class="btn btn-secondary" id="mpFriendsListToggle" aria-expanded="false" aria-controls="mpFriendsListPanel">フレンド一覧</button>
-          </div>
-          <div id="mpFriendRequestsPanel" class="mp-friends-panel" hidden>
-            <div id="mpFriendRequests" class="mp-friend-requests"></div>
-          </div>
-          <div id="mpFriendsListPanel" class="mp-friends-panel" hidden>
-            <div id="mpFriendsList" class="mp-friends-list"></div>
+            <a href="#/mypage/friends" class="btn btn-secondary" data-link>フレンド一覧</a>
           </div>
         </section>
+
+        <div class="divider"></div>
+        <div class="mp-board-block">
+          <div class="community-links-head">
+            <p class="adjust-filters__title">🏆 ランキング</p>
+            <a href="#/mypage/ranking" class="btn btn-secondary btn-sm" data-link id="mpRankingBtn">ランキングに登録</a>
+          </div>
+          <p id="mpRankingSummary" class="mp-board-summary text-muted">読み込み中…</p>
+          <p class="form-hint"><a href="#/ranking" data-link>ランキングを見る</a> · 各項目1件 · 更新は再申請</p>
+        </div>
 
         <div class="divider"></div>
         <div class="mp-board-block">
@@ -509,6 +571,7 @@ const MiraiMyPage = (function () {
             <a href="#/board/event/edit" class="btn btn-secondary btn-sm" data-link id="mpEventBtn">作成する</a>
           </div>
           <p id="mpEventSummary" class="mp-board-summary text-muted">読み込み中…</p>
+          <p id="mpEventBookmarks" class="form-hint">ブックマークを読み込み中…</p>
           <p class="form-hint"><a href="#/board/event" data-link>掲示板で見る</a> · 1アカウント1件</p>
         </div>
 
@@ -869,6 +932,29 @@ const MiraiMyPage = (function () {
     return '「' + post.title + '」' + pub + vis;
   }
 
+  function loadEventBookmarksSummary(box, user) {
+    const el = box.querySelector('#mpEventBookmarks');
+    if (!el || !window.MiraiBoard || !MiraiBoard.listEventBookmarks) return;
+    MiraiBoard.listEventBookmarks(user.uid).then((items) => {
+      if (!items.length) {
+        el.innerHTML = 'ブックマークはまだありません。掲示板の★から保存できます';
+        return;
+      }
+      el.innerHTML =
+        `${items.length}件をブックマーク中 · ` +
+        `<a href="#/board/event" data-link id="mpEventBookmarksLink">ブックマーク一覧を見る</a>`;
+      const link = el.querySelector('#mpEventBookmarksLink');
+      if (link) {
+        link.addEventListener('click', () => {
+          try { sessionStorage.setItem('miraiBoardEventFilter', 'bookmark'); } catch (e) { /* ignore */ }
+        });
+      }
+    }).catch((e) => {
+      console.error(e);
+      el.textContent = '';
+    });
+  }
+
   function loadBoardSummaries(box, user) {
     if (!window.MiraiBoard) return;
     const eventSummary = box.querySelector('#mpEventSummary');
@@ -884,6 +970,25 @@ const MiraiMyPage = (function () {
       if (mysekaiSummary) mysekaiSummary.textContent = mysekaiSummaryText(ms);
       if (eventBtn) eventBtn.textContent = (ev && ev.eventName) ? '編集する' : '作成する';
       if (mysekaiBtn) mysekaiBtn.textContent = (ms && ms.title) ? '編集する' : '作成する';
+    }).catch((e) => console.error(e));
+  }
+
+  function loadRankingSummaries(box, user) {
+    if (!window.MiraiRanking) return;
+    const el = box.querySelector('#mpRankingSummary');
+    const btn = box.querySelector('#mpRankingBtn');
+    if (!el) return;
+    Promise.all([
+      MiraiRanking.fetchOwnEntry(user.uid, 'challenge_live'),
+      MiraiRanking.fetchOwnEntry(user.uid, 'character_rank'),
+    ]).then(([cl, cr]) => {
+      const parts = [];
+      if (cl) parts.push('チャレンジライブ: ' + MiraiRanking.summaryText(cl, 'challenge_live'));
+      else parts.push('チャレンジライブ: 未登録');
+      if (cr) parts.push('キャラランク: ' + MiraiRanking.summaryText(cr, 'character_rank'));
+      else parts.push('キャラランク: 未登録');
+      el.textContent = parts.join(' / ');
+      if (btn) btn.textContent = (cl || cr) ? '登録・再申請' : 'ランキングに登録';
     }).catch((e) => console.error(e));
   }
 
@@ -945,9 +1050,10 @@ const MiraiMyPage = (function () {
 
   // ================= プロフィールカード =================
 
-  function profileCardHtml(hub) {
+  function profileCardHtml(hub, rewards) {
     const theme = resolveCardTheme(hub);
     const vars = cardThemeStyleVars(theme);
+    const title = resolveProfileCardTitle(hub, rewards) || 'MEMBERS CARD';
     return `
       <div class="profile-card-meishi" style="${vars}">
         <div class="profile-card-meishi__accent" aria-hidden="true"></div>
@@ -957,7 +1063,7 @@ const MiraiMyPage = (function () {
             <img src="img/icon.png" alt="" class="profile-card-meishi__logo" width="48" height="48" decoding="async" crossorigin="anonymous">
             <div class="profile-card-meishi__head-text">
               <span class="profile-card-meishi__site">未来喫茶</span>
-              <p class="profile-card-meishi__label">MEMBERS CARD</p>
+              <p class="profile-card-meishi__label">${esc(title)}</p>
             </div>
           </header>
           <div class="profile-card-meishi__rule" aria-hidden="true"></div>
@@ -973,9 +1079,9 @@ const MiraiMyPage = (function () {
     `;
   }
 
-  function refreshProfileCardPreview(box, hub) {
+  function refreshProfileCardPreview(box, hub, rewards) {
     const wrap = box.querySelector('#profileCardPreviewWrap');
-    if (wrap) wrap.innerHTML = profileCardHtml(hub);
+    if (wrap) wrap.innerHTML = profileCardHtml(hub, rewards);
   }
 
   function loadHtml2Canvas() {
@@ -1056,7 +1162,28 @@ const MiraiMyPage = (function () {
     }
 
     const { hub } = await prepareHub(user);
-    const cardTheme = normalizeCardThemeKey(hub.profileCardTheme || hub.theme || 'kaito');
+    const rewards = await loadUserRewards(user.uid);
+    const unlockedThemes = resolveUnlockedThemeKeys(rewards);
+    const grantedTitles = resolveGrantedTitles(rewards);
+    let cardTheme = normalizeCardThemeKey(hub.profileCardTheme || hub.theme || 'kaito');
+    if (!unlockedThemes.includes(cardTheme)) {
+      cardTheme = unlockedThemes[0] || 'kaito';
+      hub.profileCardTheme = cardTheme;
+    }
+    hub.profileCardTitle = resolveProfileCardTitle(hub, rewards);
+
+    const titlePickerHtml = grantedTitles.length
+      ? `<section class="card profile-card-customize">
+          <h3 class="profile-card-customize__title">称号</h3>
+          <label class="form-label" for="profileCardTitleSelect">カードに表示する称号</label>
+          <select id="profileCardTitleSelect" class="form-input">
+            <option value="">MEMBERS CARD（デフォルト）</option>
+            ${grantedTitles.map((t) => `<option value="${esc(t)}"${hub.profileCardTitle === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}
+          </select>
+          <p class="form-hint mt-1">管理者から付与された称号のみ選べます。</p>
+          <p id="profileCardTitleSaved" class="community-saved mt-2" hidden>称号を保存しました ✓</p>
+        </section>`
+      : '';
 
     box.innerHTML = `
       <div class="profile-card-page">
@@ -1065,12 +1192,17 @@ const MiraiMyPage = (function () {
 
         <section class="card profile-card-customize">
           <h3 class="profile-card-customize__title">カラー・デザイン</h3>
-          <div class="profile-card-theme-picker">${profileCardThemePickerHtml(cardTheme)}</div>
+          <div class="profile-card-theme-picker">${profileCardThemePickerHtml(cardTheme, unlockedThemes)}</div>
+          ${unlockedThemes.length < Object.keys(CARD_THEMES).length
+            ? '<p class="form-hint mt-2">キャラクターカラーは管理者から解放されると追加で選べます。</p>'
+            : ''}
           <p id="profileCardThemeSaved" class="community-saved mt-2" hidden>カラー設定を保存しました ✓</p>
         </section>
 
+        ${titlePickerHtml}
+
         <div class="profile-card-page__preview" id="profileCardPreviewWrap">
-          ${profileCardHtml(hub)}
+          ${profileCardHtml(hub, rewards)}
         </div>
         <div class="profile-card-page__actions">
           <button type="button" class="btn btn-primary" id="profileCardSave">画像を保存</button>
@@ -1096,12 +1228,32 @@ const MiraiMyPage = (function () {
 
     box.querySelectorAll('.pc-theme-swatch').forEach((btn) => {
       btn.addEventListener('click', () => {
-        hub.profileCardTheme = btn.dataset.theme;
+        const next = normalizeCardThemeKey(btn.dataset.theme);
+        if (!unlockedThemes.includes(next)) return;
+        hub.profileCardTheme = next;
         box.querySelectorAll('.pc-theme-swatch').forEach((b) => b.classList.toggle('is-active', b === btn));
-        refreshProfileCardPreview(box, hub);
+        refreshProfileCardPreview(box, hub, rewards);
         persistCardSettings().catch((e) => console.error(e));
       });
     });
+
+    const titleSelect = box.querySelector('#profileCardTitleSelect');
+    const titleSavedEl = box.querySelector('#profileCardTitleSaved');
+    let titleSaveTimer = null;
+    if (titleSelect) {
+      titleSelect.addEventListener('change', () => {
+        const next = String(titleSelect.value || '').trim();
+        hub.profileCardTitle = next && grantedTitles.includes(next) ? next : '';
+        refreshProfileCardPreview(box, hub, rewards);
+        persistCardSettings().then(() => {
+          if (titleSavedEl) {
+            titleSavedEl.hidden = false;
+            clearTimeout(titleSaveTimer);
+            titleSaveTimer = setTimeout(() => { titleSavedEl.hidden = true; }, 2200);
+          }
+        }).catch((e) => console.error(e));
+      });
+    }
 
     saveBtn.addEventListener('click', async () => {
       if (!confirm('画像を保存しますか？')) return;
@@ -1210,7 +1362,24 @@ const MiraiMyPage = (function () {
     `;
   }
 
-  return { initLogin, initMyPage, initSekaiNoteEdit, initSekaiNoteRead, initProfileCard, initPublic };
+  return {
+    initLogin,
+    initMyPage,
+    initSekaiNoteEdit,
+    initSekaiNoteRead,
+    initProfileCard,
+    initPublic,
+    loadHub,
+    loadUserRewards,
+    saveUserRewards,
+    getCardThemes: () => CARD_THEMES,
+    getCardThemeGroups: () => CARD_THEME_GROUPS,
+    getDefaultUnlockedCardThemes: () => DEFAULT_UNLOCKED_CARD_THEMES.slice(),
+    resolveUnlockedThemeKeys,
+    resolveGrantedTitles,
+    profileCardHtml,
+    normalizeCardThemeKey,
+  };
 })();
 
 window.MiraiMyPage = MiraiMyPage;

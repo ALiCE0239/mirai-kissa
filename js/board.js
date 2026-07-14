@@ -19,6 +19,7 @@ const MiraiBoard = (function () {
     'ゆるラン', 'ガチラン', 'Discord周回', '初心者歓迎', '高速周回',
     'シフト制', 'リアクション制', '内部値重視', '速度重視', 'オープンチャット周回',
   ];
+  const BOOKMARK_TAG = '__bookmark__';
   const TARGET_RANKS = [10, 50, 100, 500, 1000, 2000, 3000, 4000, 5000, 10000];
   const PAGE_SIZE = 30;
 
@@ -270,6 +271,61 @@ const MiraiBoard = (function () {
   // イベラン広告
   // ========================================================
 
+  function bookmarkMs(b) {
+    const t = b && b.createdAt;
+    if (!t) return 0;
+    if (typeof t.toMillis === 'function') return t.toMillis();
+    if (typeof t === 'number') return t;
+    if (typeof t === 'string') return Date.parse(t) || 0;
+    if (t.seconds) return t.seconds * 1000;
+    return 0;
+  }
+
+  async function loadBookmarkedUids(uid) {
+    const f = await fb();
+    if (!f || !uid) return new Set();
+    const { collection, getDocs } = f.dbFns;
+    const snap = await getDocs(collection(f.db, 'users', uid, 'eventBookmarks'));
+    return new Set(snap.docs.map((d) => d.id));
+  }
+
+  async function listEventBookmarks(uid) {
+    const f = await fb();
+    if (!f || !uid) return [];
+    const { collection, getDocs } = f.dbFns;
+    const snap = await getDocs(collection(f.db, 'users', uid, 'eventBookmarks'));
+    return snap.docs
+      .map((d) => Object.assign({ authorUid: d.id }, d.data()))
+      .sort((a, b) => bookmarkMs(b) - bookmarkMs(a));
+  }
+
+  async function toggleEventBookmark(uid, post) {
+    const f = await fb();
+    if (!f || !uid || !post || !post.authorUid) throw new Error('ブックマークできません');
+    const { doc, getDoc, setDoc, deleteDoc, serverTimestamp } = f.dbFns;
+    const ref = doc(f.db, 'users', uid, 'eventBookmarks', post.authorUid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      await deleteDoc(ref);
+      return false;
+    }
+    await setDoc(ref, {
+      authorUid: post.authorUid,
+      eventName: post.eventName || '',
+      authorName: post.authorName || '',
+      authorPublicId: post.authorPublicId || '',
+      createdAt: serverTimestamp(),
+    });
+    return true;
+  }
+
+  function eventBookmarkBtnHtml(p, isActive) {
+    return `<button type="button" class="board-bookmark${isActive ? ' is-bookmarked' : ''}" data-uid="${esc(p.authorUid)}" aria-pressed="${isActive ? 'true' : 'false'}">
+      <span class="board-bookmark__icon" aria-hidden="true">${isActive ? '★' : '☆'}</span>
+      <span class="board-bookmark__label">${isActive ? 'ブックマーク済み' : 'ブックマーク'}</span>
+    </button>`;
+  }
+
   async function initEventList() {
     const box = document.getElementById('app').querySelector('#boardEventRoot');
     if (!box) return;
@@ -286,11 +342,29 @@ const MiraiBoard = (function () {
 
     const tagWrap = box.querySelector('#boardEventTags');
     let activeTag = '';
-    tagWrap.innerHTML = ['', ...CONDITION_TAGS].map((t) =>
-      `<button type="button" class="board-tag${t === '' ? ' is-active' : ''}" data-tag="${esc(t)}">${t === '' ? 'すべて' : esc(t)}</button>`
-    ).join('');
 
     const { user: viewer, friendUids } = await loadViewerContext();
+    let bookmarkUids = viewer ? await loadBookmarkedUids(viewer.uid) : new Set();
+    const canBookmark = !!viewer;
+
+    if (viewer) {
+      try {
+        if (sessionStorage.getItem('miraiBoardEventFilter') === 'bookmark') {
+          sessionStorage.removeItem('miraiBoardEventFilter');
+          activeTag = BOOKMARK_TAG;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    const tagButtons = ['<button type="button" class="board-tag' + (activeTag === '' ? ' is-active' : '') + '" data-tag="">すべて</button>'];
+    if (canBookmark) {
+      tagButtons.push(`<button type="button" class="board-tag board-tag--bookmark${activeTag === BOOKMARK_TAG ? ' is-active' : ''}" data-tag="${BOOKMARK_TAG}">★ ブックマーク</button>`);
+    }
+    tagButtons.push(...CONDITION_TAGS.map((t) =>
+      `<button type="button" class="board-tag${t === activeTag ? ' is-active' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`
+    ));
+    tagWrap.innerHTML = tagButtons.join('');
+
     let all = [];
     try {
       all = await enrichPostsWithAvatars(await fetchEventAds());
@@ -313,14 +387,18 @@ const MiraiBoard = (function () {
       const q = searchEl.value.trim().toLowerCase();
       const items = all.filter((p) => {
         if (!isPostVisible(p, viewer && viewer.uid, friendUids)) return false;
-        if (activeTag && !(p.conditionTags || []).includes(activeTag)) return false;
+        if (activeTag === BOOKMARK_TAG) {
+          if (!bookmarkUids.has(p.authorUid)) return false;
+        } else if (activeTag && !(p.conditionTags || []).includes(activeTag)) return false;
         if (!q) return true;
         return [(p.eventName || ''), (p.body || ''), (p.authorName || ''), (p.eventBanner || '')]
           .some((s) => String(s).toLowerCase().includes(q));
       });
       listEl.innerHTML = items.length
-        ? `<div class="board-feed">${items.map(eventCardHtml).join('')}</div>`
-        : '<p class="text-muted board-empty">該当する広告はまだありません。</p>';
+        ? `<div class="board-feed">${items.map((p) => eventCardHtml(p, bookmarkUids, canBookmark)).join('')}</div>`
+        : (activeTag === BOOKMARK_TAG
+          ? '<p class="text-muted board-empty">ブックマークした広告はまだありません。</p>'
+          : '<p class="text-muted board-empty">該当する広告はまだありません。</p>');
     }
 
     searchEl.addEventListener('input', render);
@@ -331,6 +409,26 @@ const MiraiBoard = (function () {
       tagWrap.querySelectorAll('.board-tag').forEach((x) => x.classList.toggle('is-active', x === b));
       render();
     });
+    listEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.board-bookmark');
+      if (!btn) return;
+      e.preventDefault();
+      if (!viewer) { location.hash = '#/login'; return; }
+      const authorUid = btn.dataset.uid;
+      const post = all.find((p) => p.authorUid === authorUid);
+      if (!post) return;
+      btn.disabled = true;
+      try {
+        const added = await toggleEventBookmark(viewer.uid, post);
+        if (added) bookmarkUids.add(authorUid);
+        else bookmarkUids.delete(authorUid);
+        render();
+      } catch (err) {
+        console.error(err);
+        alert(err.message || 'ブックマークに失敗しました');
+        btn.disabled = false;
+      }
+    });
     render();
   }
 
@@ -338,11 +436,13 @@ const MiraiBoard = (function () {
     return fetchBoardPosts('boardEventAds');
   }
 
-  function eventCardHtml(p) {
+  function eventCardHtml(p, bookmarkUids, canBookmark) {
     const tags = (p.conditionTags || []).map((t) => `<span class="board-chip">${esc(t)}</span>`).join('');
     const rank = p.targetRank ? `<span class="board-meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
     const banner = p.eventBanner ? `<span class="board-meta-item">${esc(p.eventBanner)}</span>` : '';
     const detailUrl = `#/board/event/${encodeURIComponent(p.authorUid)}`;
+    const bookmarked = bookmarkUids && bookmarkUids.has(p.authorUid);
+    const bookmarkBtn = canBookmark ? eventBookmarkBtnHtml(p, bookmarked) : '';
 
     return `
       <article class="board-feed-card board-feed-card--event">
@@ -351,7 +451,10 @@ const MiraiBoard = (function () {
           ${authorRowHtml(p)}
           <div class="board-meta">${rank}${banner}</div>
           ${tags ? `<div class="board-chips">${tags}</div>` : ''}
-          <a href="${detailUrl}" class="btn btn-secondary btn-sm btn-block board-detail-link" data-link>詳細を見る</a>
+          <div class="board-card__actions board-card__actions--event">
+            ${bookmarkBtn}
+            <a href="${detailUrl}" class="btn btn-secondary btn-sm board-detail-link" data-link>詳細を見る</a>
+          </div>
         </div>
       </article>
     `;
@@ -394,11 +497,33 @@ const MiraiBoard = (function () {
     }
 
     const enriched = (await enrichPostsWithAvatars([post]))[0];
-    box.innerHTML = eventDetailHtml(enriched);
+    const bookmarked = viewer ? (await loadBookmarkedUids(viewer.uid)).has(authorUid) : false;
+    box.innerHTML = eventDetailHtml(enriched, { canBookmark: !!viewer, bookmarked });
     document.title = (enriched.eventName || 'イベラン広告') + ' — 未来喫茶';
+
+    const bookmarkBtn = box.querySelector('.board-bookmark');
+    if (bookmarkBtn && viewer) {
+      bookmarkBtn.addEventListener('click', async () => {
+        bookmarkBtn.disabled = true;
+        try {
+          const added = await toggleEventBookmark(viewer.uid, enriched);
+          const active = added;
+          bookmarkBtn.classList.toggle('is-bookmarked', active);
+          bookmarkBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+          bookmarkBtn.querySelector('.board-bookmark__icon').textContent = active ? '★' : '☆';
+          bookmarkBtn.querySelector('.board-bookmark__label').textContent = active ? 'ブックマーク済み' : 'ブックマーク';
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'ブックマークに失敗しました');
+        } finally {
+          bookmarkBtn.disabled = false;
+        }
+      });
+    }
   }
 
-  function eventDetailHtml(p) {
+  function eventDetailHtml(p, opts) {
+    opts = opts || {};
     const tags = (p.conditionTags || []).map((t) => `<span class="board-chip">${esc(t)}</span>`).join('');
     const rank = p.targetRank ? `<span class="board-meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
     const banner = p.eventBanner ? `<span class="board-meta-item">${esc(p.eventBanner)}</span>` : '';
@@ -406,11 +531,14 @@ const MiraiBoard = (function () {
       ? `<a class="btn btn-secondary btn-sm" href="${esc(normalizeUrl(p.discordURL))}" target="_blank" rel="noopener noreferrer">${esc(p.discordLabel || 'Discord')}</a>` : '';
     const run = p.runLocationURL
       ? `<a class="btn btn-secondary btn-sm" href="${esc(normalizeUrl(p.runLocationURL))}" target="_blank" rel="noopener noreferrer">周回場所</a>` : '';
+    const bookmarkBtn = opts.canBookmark
+      ? `<div class="board-detail-page__bookmark">${eventBookmarkBtnHtml(p, !!opts.bookmarked)}</div>` : '';
 
     return `
       <article class="board-detail-page">
         ${eventHeroHtml(p, { detail: true })}
         <div class="board-detail-page__body">
+          ${bookmarkBtn}
           ${authorRowHtml(p)}
           <div class="board-meta">${rank}${banner}</div>
           ${tags ? `<div class="board-chips">${tags}</div>` : ''}
@@ -821,6 +949,7 @@ const MiraiBoard = (function () {
     initEventList, initEventDetail, initEventEdit, initMysekaiList, initMysekaiEdit,
     mountEventEditor, mountMysekaiEditor,
     fetchOwnEventAd, fetchOwnMysekai,
+    listEventBookmarks, loadBookmarkedUids, toggleEventBookmark,
   };
 })();
 
