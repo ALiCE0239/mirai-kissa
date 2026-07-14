@@ -748,6 +748,11 @@ input, select {
   --tool-bg-tint: rgba(234, 88, 12, 0.08);
 }
 
+.tool-card--ranking-character {
+  --tool-accent: #2563eb;
+  --tool-bg-tint: rgba(37, 99, 235, 0.08);
+}
+
 .tool-card--ranking-register {
   --tool-accent: #ca8a04;
   --tool-bg-tint: rgba(202, 138, 4, 0.08);

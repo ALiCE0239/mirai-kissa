@@ -252,17 +252,17 @@ const MiraiRanking = (function () {
     );
   }
 
-  function typeNavHtml(activeType, linkMode) {
+  function typeNavHtml(activeType, mode) {
+    const isHub = mode === 'hub';
+    const wrapClass = isHub ? 'ranking-picker' : 'ranking-tabs';
+    const itemClass = isHub ? 'ranking-picker__btn' : 'ranking-tab';
     return (
-      '<nav class="ranking-picker" aria-label="ランキング種別">' +
+      '<nav class="' + wrapClass + '" aria-label="ランキング種別">' +
       Object.keys(TYPES).map((t) => {
         const m = TYPES[t];
         const label = m.shortLabel || m.label;
         const active = t === activeType ? ' is-active' : '';
-        if (linkMode) {
-          return '<a href="#/ranking/' + t + '" class="ranking-picker__btn' + active + '" data-link>' + esc(label) + '</a>';
-        }
-        return '<button type="button" class="ranking-picker__btn' + active + '" data-ranking-go="' + t + '">' + esc(label) + '</button>';
+        return '<a href="#/ranking/' + t + '" class="' + itemClass + active + '" data-link>' + esc(label) + '</a>';
       }).join('') +
       '</nav>'
     );
@@ -295,15 +295,9 @@ const MiraiRanking = (function () {
 
     box.innerHTML =
       '<div class="ranking-page ranking-page--hub">' +
-      '<p class="form-hint ranking-page__lead">チャレンジライブスコアとキャラクターランクの記録を閲覧できます。</p>' +
-      typeNavHtml(null, false) +
+      '<p class="form-hint ranking-page__lead">見たいランキングを選んでください。</p>' +
+      typeNavHtml(null, 'hub') +
       '</div>';
-
-    box.querySelectorAll('[data-ranking-go]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        location.hash = '#/ranking/' + btn.dataset.rankingGo;
-      });
-    });
   }
 
   async function initView(params) {
@@ -331,9 +325,9 @@ const MiraiRanking = (function () {
     try {
       const entries = sortEntries(await fetchApprovedByType(type), type);
       box.innerHTML =
-        '<div class="ranking-page">' +
+        '<div class="ranking-page ranking-page--view" data-ranking-view="' + esc(type) + '">' +
         '<p class="ranking-page__back"><a href="#/ranking" class="back-link" data-link>← ランキング一覧に戻る</a></p>' +
-        typeNavHtml(type, true) +
+        typeNavHtml(type, 'tabs') +
         panelHtml(type, entries) +
         '</div>';
     } catch (e) {

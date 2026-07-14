@@ -418,6 +418,21 @@
 .profile-card-page__preview .profile-card-meishi {
   transform: rotate(-1.2deg);
 }
+.profile-card-export-stage {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.profile-card-meishi--export {
+  transform: none !important;
+  width: 91mm;
+  height: 55mm;
+  max-width: none;
+  margin: 0;
+}
 .profile-card-meishi__accent {
   position: absolute;
   left: 0;
@@ -1178,6 +1193,11 @@
   font-size: 0.88rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+.ranking-tabs a.ranking-tab {
+  text-decoration: none;
+  color: var(--text-secondary);
 }
 
 .ranking-tab.is-active {

@@ -146,6 +146,17 @@ const MiraiMyPage = (function () {
   }
 
   const MAX_PROFILE_CARD_DISPLAY_TITLES = 5;
+  const PROFILE_CARD_WIDTH_MM = 91;
+  const PROFILE_CARD_HEIGHT_MM = 55;
+  const PROFILE_CARD_EXPORT_DPI = 300;
+
+  function profileCardExportPixelSize() {
+    const pxPerMm = PROFILE_CARD_EXPORT_DPI / 25.4;
+    return {
+      width: Math.round(PROFILE_CARD_WIDTH_MM * pxPerMm),
+      height: Math.round(PROFILE_CARD_HEIGHT_MM * pxPerMm),
+    };
+  }
 
   function resolveGrantedTitles(rewards) {
     if (!rewards || !Array.isArray(rewards.grantedTitles)) return [];
@@ -1392,9 +1403,7 @@ const MiraiMyPage = (function () {
       saveBtn.disabled = true;
       saveBtn.textContent = '保存中…';
       try {
-        const card = box.querySelector('.profile-card-meishi');
-        if (!card) throw new Error('カードが見つかりません');
-        await saveProfileCardImage(card, hub.publicId);
+        await saveProfileCardImage(hub, rewards, hub.publicId);
       } catch (e) {
         errEl.textContent = e.message || String(e);
         errEl.hidden = false;
