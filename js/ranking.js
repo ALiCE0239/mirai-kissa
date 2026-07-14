@@ -14,6 +14,7 @@ const MiraiRanking = (function () {
   'use strict';
 
   const COLLECTION = 'rankingEntries';
+  const MODERATION_QUEUE = 'rankingModerationQueue';
 
   const TYPES = {
     challenge_live: {
@@ -174,16 +175,41 @@ const MiraiRanking = (function () {
     const f = await fb();
     if (!isConfigured(f)) return [];
     const { collection, query, where, limit, getDocs } = f.dbFns;
-    const col = collection(f.db, COLLECTION);
+    const permissionHint =
+      'Firestore の config/admins に管理者 UID が登録されているか、Google ログインのアカウントが一致しているか確認してください。ルール（data/firestore.rules）も Console で公開し直してください。';
+
+    let fromQueue = null;
+    let queueDenied = false;
     try {
-      const snap = await getDocs(query(col, where('moderationStatus', '==', 'pending'), limit(100)));
-      return snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+      const snap = await getDocs(query(collection(f.db, MODERATION_QUEUE), limit(100)));
+      fromQueue = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
     } catch (e) {
-      const snap = await getDocs(query(col, limit(200)));
-      return snap.docs
-        .map((d) => Object.assign({ id: d.id }, d.data()))
-        .filter((row) => row.moderationStatus === 'pending');
+      console.warn('[ranking] moderation queue fetch failed:', e);
+      if (e.code === 'permission-denied') queueDenied = true;
+      else if (e.code !== 'failed-precondition') throw e;
     }
+
+    let fromLegacy = [];
+    let legacyDenied = false;
+    try {
+      const snap = await getDocs(
+        query(collection(f.db, COLLECTION), where('moderationStatus', '==', 'pending'), limit(100))
+      );
+      fromLegacy = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+    } catch (e) {
+      console.warn('[ranking] pending entries fetch failed:', e);
+      if (e.code === 'permission-denied') legacyDenied = true;
+      else if (e.code !== 'failed-precondition') throw e;
+    }
+
+    if (queueDenied && legacyDenied) {
+      throw new Error('審査待ち一覧の取得が拒否されました。' + permissionHint);
+    }
+
+    const merged = new Map();
+    fromLegacy.forEach((entry) => merged.set(entry.id, entry));
+    (fromQueue || []).forEach((entry) => merged.set(entry.id, entry));
+    return [...merged.values()];
   }
 
   function sortEntries(entries, type) {
@@ -462,7 +488,9 @@ const MiraiRanking = (function () {
             submittedAt: serverTimestamp(),
           };
           if (!existing) data.createdAt = serverTimestamp();
-          await setDoc(doc(f.db, COLLECTION, docId(user.uid, type)), data, { merge: true });
+          const entryKey = docId(user.uid, type);
+          await setDoc(doc(f.db, COLLECTION, entryKey), data, { merge: true });
+          await setDoc(doc(f.db, MODERATION_QUEUE, entryKey), Object.assign({}, data, { entryId: entryKey }), { merge: true });
           savedEl.hidden = false;
           setTimeout(() => { location.hash = '#/mypage/ranking'; }, 1600);
         } catch (e) {
@@ -484,7 +512,7 @@ const MiraiRanking = (function () {
   async function moderateEntry(entryId, action, adminUid, reason) {
     const f = await fb();
     if (!isConfigured(f)) throw new Error('Firebase 未設定');
-    const { doc, updateDoc, serverTimestamp } = f.dbFns;
+    const { doc, updateDoc, deleteDoc, serverTimestamp } = f.dbFns;
     const payload = {
       updatedAt: serverTimestamp(),
       approvedBy: adminUid,
@@ -498,6 +526,11 @@ const MiraiRanking = (function () {
       payload.rejectionReason = String(reason || '').trim() || '内容を確認できませんでした';
     }
     await updateDoc(doc(f.db, COLLECTION, entryId), payload);
+    try {
+      await deleteDoc(doc(f.db, MODERATION_QUEUE, entryId));
+    } catch (e) {
+      console.warn('[ranking] moderation queue delete failed:', entryId, e);
+    }
   }
 
   return {

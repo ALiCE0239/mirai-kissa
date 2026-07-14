@@ -27,9 +27,11 @@ service cloud.firestore {
     }
 
     match /rankingEntries/{entryId} {
-      allow read: if isFirebaseAdmin()
+      allow get: if isFirebaseAdmin()
         || (resource != null && resource.data.moderationStatus == 'approved')
         || isOwnRankingEntry(entryId);
+      allow list: if isFirebaseAdmin()
+        || (resource.data.moderationStatus == 'approved');
       allow create, update: if request.auth != null
         && request.resource.data.authorUid == request.auth.uid
         && entryId == request.auth.uid + '_' + request.resource.data.type
@@ -37,6 +39,15 @@ service cloud.firestore {
         && request.resource.data.moderationStatus == 'pending';
       allow update: if isFirebaseAdmin();
       allow delete: if isFirebaseAdmin();
+    }
+
+    match /rankingModerationQueue/{entryId} {
+      allow read, delete: if isFirebaseAdmin();
+      allow create, update: if request.auth != null
+        && request.resource.data.authorUid == request.auth.uid
+        && entryId == request.auth.uid + '_' + request.resource.data.type
+        && request.resource.data.type in ['challenge_live', 'character_rank']
+        && request.resource.data.moderationStatus == 'pending';
     }
 
     match /users/{userId}/{document=**} {
