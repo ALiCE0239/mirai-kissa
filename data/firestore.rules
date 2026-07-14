@@ -7,6 +7,12 @@ service cloud.firestore {
         && request.auth.uid in get(/databases/$(database)/documents/config/admins).data.uids;
     }
 
+    function isOwnRankingEntry(entryId) {
+      return request.auth != null
+        && (entryId == request.auth.uid + '_challenge_live'
+          || entryId == request.auth.uid + '_character_rank');
+    }
+
     match /config/admins {
       allow read: if request.auth != null;
       allow write: if false;
@@ -21,9 +27,9 @@ service cloud.firestore {
     }
 
     match /rankingEntries/{entryId} {
-      allow read: if resource.data.moderationStatus == 'approved'
-        || (request.auth != null && resource.data.authorUid == request.auth.uid)
-        || isFirebaseAdmin();
+      allow read: if isFirebaseAdmin()
+        || (resource != null && resource.data.moderationStatus == 'approved')
+        || isOwnRankingEntry(entryId);
       allow create, update: if request.auth != null
         && request.resource.data.authorUid == request.auth.uid
         && entryId == request.auth.uid + '_' + request.resource.data.type
