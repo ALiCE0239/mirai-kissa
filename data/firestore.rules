@@ -1,10 +1,16 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function defaultAdminUids() {
+      return ['gImXr5Q4jVVoL31rl6SOl9jaYOz2'];
+    }
+
     function isFirebaseAdmin() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/config/admins)
-        && request.auth.uid in get(/databases/$(database)/documents/config/admins).data.uids;
+      return request.auth != null && (
+        (exists(/databases/$(database)/documents/config/admins)
+          && request.auth.uid in get(/databases/$(database)/documents/config/admins).data.uids)
+        || request.auth.uid in defaultAdminUids()
+      );
     }
 
     function isOwnRankingEntry(entryId) {

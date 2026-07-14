@@ -110,6 +110,83 @@ const AdminPage = (function () {
     return String(raw || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
   }
 
+  async function fetchFirestoreAdminUidsOnly() {
+    const f = await fb();
+    if (!f || !f.configured) {
+      return { uids: [], exists: false, formatError: null };
+    }
+    try {
+      const { doc, getDoc } = f.dbFns;
+      const snap = await getDoc(doc(f.db, 'config', 'admins'));
+      if (!snap.exists()) return { uids: [], exists: false, formatError: null };
+      const uids = snap.data().uids;
+      if (Array.isArray(uids)) return { uids, exists: true, formatError: null };
+      return { uids: [], exists: true, formatError: 'uids フィールドが配列ではありません（Console で array 型にしてください）' };
+    } catch (e) {
+      return { uids: [], exists: false, formatError: e.message || String(e) };
+    }
+  }
+
+  async function getAdminDiagnosticState() {
+    const user = await getFirebaseUser();
+    const firestore = await fetchFirestoreAdminUidsOnly();
+    const fallback = Array.isArray(adminCfg().firebaseAdminUids) ? adminCfg().firebaseAdminUids : [];
+    const uid = user ? user.uid : '';
+    const inFirestore = !!(user && firestore.exists && isFirebaseAdminUid(uid, firestore.uids));
+    const inFallback = !!(user && isFirebaseAdminUid(uid, fallback));
+    return {
+      user,
+      firestore,
+      fallback,
+      inFirestore,
+      inFallback,
+      isAdmin: inFirestore || inFallback,
+    };
+  }
+
+  function adminDiagnosticHtml(state) {
+    if (!state || !state.user) return '';
+    const uid = state.user.uid;
+    const email = state.user.email || '（メールなし）';
+    const firestoreUids = state.firestore.exists ? state.firestore.uids.join(', ') : '（ドキュメントなし）';
+    const status = state.inFirestore
+      ? 'Firestore config/admins に登録済み ✓'
+      : state.inFallback
+        ? 'js/admin-config.js の UID で一致（Firestore 未登録）'
+        : 'どちらにも未登録 ✗';
+    return (
+      '<div class="card admin-card mt-2 admin-diagnostic">' +
+      '<h3 class="admin-card__heading">管理者 UID 診断</h3>' +
+      '<dl class="admin-user-meta">' +
+      '<div><dt>Google ログイン</dt><dd>' + esc(email) + '</dd></div>' +
+      '<div><dt>Firebase UID</dt><dd><code id="adminDiagUid">' + esc(uid) + '</code> ' +
+      '<button type="button" class="btn btn-secondary btn-sm" id="adminCopyUidBtn">コピー</button></dd></div>' +
+      '<div><dt>config/admins</dt><dd>' + esc(state.firestore.exists ? 'あり' : 'なし') +
+      (state.firestore.formatError ? ' — ' + esc(state.firestore.formatError) : '') + '</dd></div>' +
+      '<div><dt>登録 UID 一覧</dt><dd><code>' + esc(firestoreUids || '—') + '</code></dd></div>' +
+      '<div><dt>判定</dt><dd><strong>' + esc(status) + '</strong></dd></div>' +
+      '</dl>' +
+      (!state.inFirestore
+        ? '<p class="form-hint mt-2">Firestore → データ → コレクション <code>config</code> → ドキュメント <code>admins</code> → フィールド <code>uids</code>（配列）に上の UID を追加してください。</p>'
+        : '') +
+      '</div>'
+    );
+  }
+
+  function bindAdminDiagnostic(root) {
+    const btn = root.querySelector('#adminCopyUidBtn');
+    const code = root.querySelector('#adminDiagUid');
+    if (!btn || !code || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const text = code.textContent || '';
+      try { navigator.clipboard.writeText(text); } catch (e) { /* ignore */ }
+      const label = btn.textContent;
+      btn.textContent = 'コピー済';
+      setTimeout(() => { btn.textContent = label; }, 1200);
+    });
+  }
+
   async function fetchFirebaseAdminUids() {
     const f = await fb();
     const fallback = Array.isArray(adminCfg().firebaseAdminUids) ? adminCfg().firebaseAdminUids : [];
@@ -251,11 +328,8 @@ const AdminPage = (function () {
   }
 
   async function checkFirebaseAdmin() {
-    const f = await fb();
-    if (!f || !f.configured) return false;
-    const user = await getFirebaseUser();
-    const adminUids = await fetchFirebaseAdminUids();
-    return !!(user && isFirebaseAdminUid(user.uid, adminUids));
+    const state = await getAdminDiagnosticState();
+    return state.isAdmin;
   }
 
   function switchTab(root, tab) {
@@ -305,23 +379,38 @@ const AdminPage = (function () {
     const gate = root.querySelector('#adminFirebaseGate');
     const rankingsList = root.querySelector('#adminRankingsList');
     const errEl = root.querySelector('#adminFirebaseLoginError');
-    const isAdmin = await checkFirebaseAdmin();
+    const diagHost = root.querySelector('#adminFirebaseDiagnostic');
+    const state = await getAdminDiagnosticState();
 
     if (activeTab === 'rankings') {
-      if (gate) gate.hidden = isAdmin;
-      if (errEl && isAdmin) errEl.hidden = true;
-      if (isAdmin) {
-        const user = await getFirebaseUser();
-        if (user) await loadRankingsQueue(root, user.uid);
-      } else if (rankingsList) {
-        rankingsList.innerHTML = '<p class="text-muted">審査を行うには、上の「Google でログイン」が必要です。</p>';
+      if (gate) {
+        if (!state.user) {
+          gate.hidden = false;
+          if (diagHost) diagHost.innerHTML = '';
+        } else if (!state.isAdmin) {
+          gate.hidden = false;
+          if (diagHost) {
+            diagHost.innerHTML = adminDiagnosticHtml(state);
+            bindAdminDiagnostic(root);
+          }
+          if (rankingsList) {
+            rankingsList.innerHTML = '<p class="text-muted">上の UID を Firestore の config/admins に登録するか、登録済みの Google アカウントでログインし直してください。</p>';
+          }
+        } else {
+          gate.hidden = true;
+          if (diagHost) diagHost.innerHTML = '';
+          const user = state.user;
+          if (user) await loadRankingsQueue(root, user.uid);
+        }
       }
+      if (errEl && state.isAdmin) errEl.hidden = true;
     } else if (gate) {
       gate.hidden = true;
+      if (diagHost) diagHost.innerHTML = '';
     }
 
     if (activeTab === 'users' && currentUserCtx) {
-      renderUserDetail(root, currentUserCtx.hub, currentUserCtx.rewards, isAdmin);
+      renderUserDetail(root, currentUserCtx.hub, currentUserCtx.rewards, state.isAdmin);
     }
 
     updateRankingsBadge(root);
@@ -336,6 +425,7 @@ const AdminPage = (function () {
     const errEl = root.querySelector('#adminRankingsError');
     if (!listEl || !window.MiraiRanking) return;
     errEl.hidden = true;
+    root.querySelectorAll('#adminRankingsContent .admin-diagnostic').forEach((node) => node.remove());
     listEl.innerHTML = '<p class="text-muted">読み込み中…</p>';
     try {
       const pending = await MiraiRanking.fetchPendingEntries();
@@ -401,6 +491,11 @@ const AdminPage = (function () {
       listEl.innerHTML = '';
       errEl.textContent = e.message || String(e);
       errEl.hidden = false;
+      const state = await getAdminDiagnosticState();
+      if (state.user) {
+        errEl.insertAdjacentHTML('afterend', adminDiagnosticHtml(state));
+        bindAdminDiagnostic(root);
+      }
     }
   }
 
