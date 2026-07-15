@@ -932,6 +932,115 @@
 .linkhub-link__emoji { font-size: 1.1rem; }
 .linkhub-empty { color: #64748b; font-size: 0.85rem; }
 
+/* ---------- セカイノート — 掲示板引用 ---------- */
+.linkhub-embeds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1rem;
+  text-align: left;
+}
+.linkhub-embed {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 0.75rem;
+  align-items: stretch;
+  padding: 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(var(--rgb-teal), 0.2);
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.linkhub-embed:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--rgb-teal), 0.38);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+.linkhub-embed--event { border-color: rgba(14, 165, 233, 0.22); }
+.linkhub-embed--mysekai { border-color: rgba(16, 185, 129, 0.22); }
+.linkhub-embed__thumb {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #0f172a;
+  min-height: 0;
+}
+.linkhub-embed__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.linkhub-embed__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 63px;
+  font-size: 1.5rem;
+  background: rgba(var(--rgb-teal), 0.08);
+}
+.linkhub-embed__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  gap: 0.2rem;
+}
+.linkhub-embed__label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.linkhub-embed__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+.linkhub-embed__meta {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.linkhub-embed__meta-item + .linkhub-embed__meta-item::before {
+  content: ' · ';
+}
+.linkhub-embed__likes {
+  margin: 0;
+  font-size: 0.78rem;
+}
+.linkhub-embed__cta {
+  margin-top: 0.15rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--brand-teal);
+}
+.mp-sekai-pins {
+  margin-top: 0.25rem;
+}
+.mp-sekai-pins-lead {
+  margin: 0 0 0.65rem;
+}
+.mp-sekai-pin {
+  margin-bottom: 0.35rem;
+}
+.mp-sekai-pin-hint {
+  margin: -0.15rem 0 0.65rem 2.6rem;
+}
+.board-bookmarks-count {
+  margin: 0 0 0.75rem;
+}
+.board-bookmarks-empty {
+  text-align: center;
+}
+
 /* ---------- 掲示板 ---------- */
 .board-toolbar {
   display: flex; gap: 0.75rem; align-items: center;
@@ -1989,6 +2098,18 @@
 
   .board-mysekai-detail__id-row .btn {
     width: 100%;
+  }
+
+  .linkhub-embed {
+    grid-template-columns: 1fr;
+  }
+
+  .linkhub-embed__thumb {
+    aspect-ratio: 16 / 9;
+  }
+
+  .mp-sekai-pin-hint {
+    margin-left: 0;
   }
 }
 

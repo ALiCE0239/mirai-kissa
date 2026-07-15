@@ -575,7 +575,19 @@ const MiraiMyPage = (function () {
     }
 
     const { hub, hubExisted } = await prepareHub(user);
-    renderSekaiEditor(box, user, hub, hubExisted);
+    let ownEvent = null;
+    let ownMysekai = null;
+    if (window.MiraiBoard) {
+      try {
+        [ownEvent, ownMysekai] = await Promise.all([
+          MiraiBoard.fetchOwnEventAd(user.uid),
+          MiraiBoard.fetchOwnMysekai(user.uid),
+        ]);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    renderSekaiEditor(box, user, hub, hubExisted, { ownEvent, ownMysekai });
   }
 
   async function initSettings() {
@@ -777,6 +789,7 @@ const MiraiMyPage = (function () {
           </div>
           <p id="mpEventListingAction" class="mp-board-listing-action" hidden></p>
           <p id="mpEventBookmarks" class="form-hint">ブックマークを読み込み中…</p>
+          <p class="form-hint"><a href="#/board/event/bookmarks" data-link>★ ブックマーク一覧ページ</a></p>
           <p class="form-hint"><a href="#/board/event" data-link>掲示板で見る</a> · 1アカウント1件</p>
         </div>
 
@@ -944,18 +957,18 @@ const MiraiMyPage = (function () {
             <p class="form-hint">JPEG / PNG / WebP / GIF・2MBまで</p>
           </div>
         </div>
-        <div class="form-group">
-          <label for="mpName">表示名</label>
-          <input type="text" class="form-input" id="mpName" maxlength="30" value="${esc(hub.displayName)}" placeholder="例: みくちゃん">
-        </div>
-        <div class="form-group">
+          <div class="form-group">
+            <label for="mpName">表示名</label>
+            <input type="text" class="form-input" id="mpName" maxlength="30" value="${esc(hub.displayName)}" placeholder="例: みくちゃん">
+          </div>
+          <div class="form-group">
           <label for="mpHeadline">一言</label>
-          <input type="text" class="form-input" id="mpHeadline" maxlength="40" value="${esc(hub.headline)}" placeholder="例: 25時、ナイトコードで。推し">
-        </div>
-        <div class="form-group">
-          <label for="mpBio">自己紹介</label>
-          <textarea class="form-input" id="mpBio" rows="3" maxlength="200" placeholder="プロフィールや活動内容など">${esc(hub.bio)}</textarea>
-        </div>
+            <input type="text" class="form-input" id="mpHeadline" maxlength="40" value="${esc(hub.headline)}" placeholder="例: 25時、ナイトコードで。推し">
+          </div>
+          <div class="form-group">
+            <label for="mpBio">自己紹介</label>
+            <textarea class="form-input" id="mpBio" rows="3" maxlength="200" placeholder="プロフィールや活動内容など">${esc(hub.bio)}</textarea>
+          </div>
 
         <div class="divider"></div>
         <div class="community-links-head">
@@ -1059,7 +1072,54 @@ const MiraiMyPage = (function () {
     });
   }
 
-  function renderSekaiEditor(box, user, hub, hubExisted) {
+  function renderSekaiEditor(box, user, hub, hubExisted, boardCtx) {
+    boardCtx = boardCtx || {};
+    const ownEvent = boardCtx.ownEvent || null;
+    const ownMysekai = boardCtx.ownMysekai || null;
+
+    function canPinEvent() {
+      return window.MiraiBoard && MiraiBoard.canEmbedBoardPost
+        ? MiraiBoard.canEmbedBoardPost(ownEvent, 'eventName')
+        : !!(ownEvent && ownEvent.eventName && ownEvent.isPublished !== false);
+    }
+
+    function canPinMysekai() {
+      return window.MiraiBoard && MiraiBoard.canEmbedBoardPost
+        ? MiraiBoard.canEmbedBoardPost(ownMysekai, 'title')
+        : !!(ownMysekai && ownMysekai.title && ownMysekai.isPublished !== false);
+    }
+
+    function sekaiPinsSectionHtml() {
+      if (!canPinEvent() && !canPinMysekai()) return '';
+      let html = '<div class="divider"></div><div class="mp-sekai-pins">';
+      html += '<p class="adjust-filters__title">📌 掲示板の引用</p>';
+      html += '<p class="form-hint mp-sekai-pins-lead">公開中の投稿をセカイノートにカード形式で載せられます</p>';
+      if (canPinEvent()) {
+        html +=
+          '<label class="form-toggle mp-sekai-pin">' +
+          '<input type="checkbox" id="mpPinEventAd"' + (hub.pinEventAd ? ' checked' : '') + '>' +
+          '<span class="toggle-track"></span>' +
+          '<span class="toggle-label">イベラン広告を載せる</span></label>' +
+          '<p class="form-hint mp-sekai-pin-hint">「' + esc(ownEvent.eventName) + '」</p>';
+      }
+      if (canPinMysekai()) {
+        html +=
+          '<label class="form-toggle mp-sekai-pin">' +
+          '<input type="checkbox" id="mpPinMysekai"' + (hub.pinMysekai ? ' checked' : '') + '>' +
+          '<span class="toggle-track"></span>' +
+          '<span class="toggle-label">マイセカイ宣伝を載せる</span></label>' +
+          '<p class="form-hint mp-sekai-pin-hint">「' + esc(ownMysekai.title) + '」</p>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function embedPostsForPreview() {
+      const eventPost = hub.pinEventAd && canPinEvent() ? ownEvent : null;
+      const mysekaiPost = hub.pinMysekai && canPinMysekai() ? ownMysekai : null;
+      return { eventPost, mysekaiPost };
+    }
+
     let sekaiSaved = hubExisted;
 
     box.innerHTML = `
@@ -1068,18 +1128,20 @@ const MiraiMyPage = (function () {
         <p class="form-hint mp-sekai-lead">テーマカラー・リンク・記事を設定して、公開ページを作れます</p>
         <div class="mp-sekai-grid">
           <div class="mp-sekai-editor card community-editor">
-            <div class="form-group">
+          <div class="form-group">
               <label for="mpTheme">テーマカラー</label>
               <select class="form-select" id="mpTheme">${Object.keys(THEMES)
                 .map((k) => `<option value="${k}"${hub.theme === k ? ' selected' : ''}>${THEMES[k].name}</option>`)
                 .join('')}</select>
-            </div>
+          </div>
 
-            <div class="community-links-head">
+          <div class="community-links-head">
               <p class="adjust-filters__title">🔗 リンク</p>
-              <button type="button" class="btn btn-secondary btn-sm" id="mpAddLink">＋ 追加</button>
-            </div>
-            <div id="mpLinks" class="community-links-edit"></div>
+            <button type="button" class="btn btn-secondary btn-sm" id="mpAddLink">＋ 追加</button>
+          </div>
+          <div id="mpLinks" class="community-links-edit"></div>
+
+          ${sekaiPinsSectionHtml()}
 
             <div class="divider"></div>
             <div class="community-links-head">
@@ -1095,16 +1157,16 @@ const MiraiMyPage = (function () {
           </div>
 
           <aside class="mp-sekai-preview-wrap">
-            <p class="community-preview__label">プレビュー</p>
-            <div id="mpPreview" class="linkhub"></div>
-            <div class="community-share">
-              <p class="form-hint">公開URL（このリンクを共有）</p>
-              <div class="community-share__row">
-                <input type="text" class="form-input" id="mpShareUrl" readonly>
-                <button type="button" class="btn btn-secondary" id="mpCopyUrl">コピー</button>
-              </div>
-              <a href="#/p/${esc(hub.publicId)}" class="btn btn-secondary btn-block mt-2" data-link>公開ページを開く</a>
+          <p class="community-preview__label">プレビュー</p>
+          <div id="mpPreview" class="linkhub"></div>
+          <div class="community-share">
+            <p class="form-hint">公開URL（このリンクを共有）</p>
+            <div class="community-share__row">
+              <input type="text" class="form-input" id="mpShareUrl" readonly>
+              <button type="button" class="btn btn-secondary" id="mpCopyUrl">コピー</button>
             </div>
+            <a href="#/p/${esc(hub.publicId)}" class="btn btn-secondary btn-block mt-2" data-link>公開ページを開く</a>
+          </div>
           </aside>
         </div>
       </div>
@@ -1140,6 +1202,12 @@ const MiraiMyPage = (function () {
           });
         }
       });
+      const pinEventEl = box.querySelector('#mpPinEventAd');
+      const pinMysekaiEl = box.querySelector('#mpPinMysekai');
+      if (pinEventEl) hub.pinEventAd = pinEventEl.checked;
+      else hub.pinEventAd = false;
+      if (pinMysekaiEl) hub.pinMysekai = pinMysekaiEl.checked;
+      else hub.pinMysekai = false;
     }
 
     function noteRow(note) {
@@ -1200,13 +1268,17 @@ const MiraiMyPage = (function () {
     }
 
     function renderPreview() {
-      preview.innerHTML = publicHtml(hub, { showDrafts: true });
+      preview.innerHTML = publicHtml(hub, Object.assign({ showDrafts: true }, embedPostsForPreview()));
       preview.setAttribute('style', themeStyle(hub.theme));
     }
 
     renderLinks();
     renderNotes();
     renderPreview();
+
+    box.querySelectorAll('#mpPinEventAd, #mpPinMysekai').forEach((el) => {
+      el.addEventListener('change', () => { readSekaiForm(); renderPreview(); });
+    });
 
     box.querySelector('#mpTheme').addEventListener('change', () => { readSekaiForm(); renderPreview(); });
 
@@ -1342,13 +1414,7 @@ const MiraiMyPage = (function () {
       }
       el.innerHTML =
         `${items.length}件をブックマーク中 · ` +
-        `<a href="#/board/event" data-link id="mpEventBookmarksLink">ブックマーク一覧を見る</a>`;
-      const link = el.querySelector('#mpEventBookmarksLink');
-      if (link) {
-        link.addEventListener('click', () => {
-          try { sessionStorage.setItem('miraiBoardEventFilter', 'bookmark'); } catch (e) { /* ignore */ }
-        });
-      }
+        `<a href="#/board/event/bookmarks" data-link id="mpEventBookmarksLink">ブックマーク一覧を見る</a>`;
     }).catch((e) => {
       console.error(e);
       el.textContent = '';
@@ -1815,9 +1881,18 @@ const MiraiMyPage = (function () {
       const viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
       const showFriendBar = viewer && hub.uid && viewer.uid !== hub.uid && window.MiraiFriends;
 
+      let embedOpts = {};
+      if (hub.uid && (hub.pinEventAd || hub.pinMysekai) && window.MiraiBoard && MiraiBoard.fetchSekaiEmbedPosts) {
+        try {
+          embedOpts = await MiraiBoard.fetchSekaiEmbedPosts(hub.uid, viewer && viewer.uid);
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+
       box.innerHTML =
         (showFriendBar ? '<div id="publicFriendBar" class="friend-action-bar card"></div>' : '') +
-        '<div class="linkhub linkhub--full" style="' + themeStyle(hub.theme) + '">' + publicHtml(hub) + '</div>';
+        '<div class="linkhub linkhub--full" style="' + themeStyle(hub.theme) + '">' + publicHtml(hub, embedOpts) + '</div>';
 
       if (showFriendBar) {
         const frSource = window.MiraiFriends.parseFriendSourceFromHash
@@ -1854,6 +1929,19 @@ const MiraiMyPage = (function () {
     return `<section class="sekai-notes"><h2 class="sekai-notes__heading">📓 セカイノート</h2><div class="sekai-notes__list">${items}</div></section>`;
   }
 
+  function boardEmbedsHtml(hub, opts) {
+    opts = opts || {};
+    const parts = [];
+    if (hub.pinEventAd && opts.eventPost && window.MiraiBoard && MiraiBoard.eventSekaiEmbedHtml) {
+      parts.push(MiraiBoard.eventSekaiEmbedHtml(opts.eventPost));
+    }
+    if (hub.pinMysekai && opts.mysekaiPost && window.MiraiBoard && MiraiBoard.mysekaiSekaiEmbedHtml) {
+      parts.push(MiraiBoard.mysekaiSekaiEmbedHtml(opts.mysekaiPost));
+    }
+    if (!parts.length) return '';
+    return '<section class="linkhub-embeds" aria-label="掲示板の引用">' + parts.join('') + '</section>';
+  }
+
   function publicHtml(hub, opts) {
     const links = Array.isArray(hub.links) ? hub.links : [];
     const linksHtml = links.filter((l) => l.url).map((l) => {
@@ -1861,14 +1949,7 @@ const MiraiMyPage = (function () {
       return `<a class="linkhub-link" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${emoji}<span>${esc(l.title || l.url)}</span></a>`;
     }).join('');
 
-    const pins = [];
-    if (hub.pinEventAd && hub.uid) {
-      pins.push(`<a class="linkhub-link linkhub-link--pin" href="#/board/event" data-link><span class="linkhub-link__emoji">📣</span><span>イベラン広告を見る</span></a>`);
-    }
-    if (hub.pinMysekai && hub.uid) {
-      pins.push(`<a class="linkhub-link linkhub-link--pin" href="#/board/mysekai" data-link><span class="linkhub-link__emoji">🌿</span><span>マイセカイ宣伝を見る</span></a>`);
-    }
-
+    const embedsSection = boardEmbedsHtml(hub, opts);
     const notesSection = notesHtml(hub, opts);
 
     return `
@@ -1879,8 +1960,8 @@ const MiraiMyPage = (function () {
       <h1 class="linkhub-name">${esc(hub.displayName || '名無し')}</h1>
       ${hub.headline ? `<p class="linkhub-headline">${esc(hub.headline)}</p>` : ''}
       ${hub.bio ? `<p class="linkhub-bio">${esc(hub.bio)}</p>` : ''}
+      ${embedsSection}
       <div class="linkhub-links">${linksHtml || '<p class="linkhub-empty">リンクはまだありません</p>'}</div>
-      ${pins.length ? `<div class="linkhub-links linkhub-links--pins">${pins.join('')}</div>` : ''}
       ${notesSection}
     `;
   }
