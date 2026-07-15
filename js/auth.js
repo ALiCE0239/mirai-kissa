@@ -25,8 +25,6 @@ const MiraiAuth = (function () {
   }
 
   function updateNav() {
-    const board = document.getElementById('navBoard');
-    if (board) board.hidden = false;
     updateNavAuth();
   }
 
