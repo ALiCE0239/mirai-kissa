@@ -1458,9 +1458,53 @@ const MiraiMyPage = (function () {
     });
   }
 
-  async function saveProfileCardImage(cardEl, publicId) {
-    const logo = cardEl.querySelector('.profile-card-meishi__logo');
+  function isMobileSaveDevice() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (navigator.maxTouchPoints > 1 && window.matchMedia('(max-width: 900px)').matches);
+  }
+
+  async function deliverProfileCardBlob(blob, filename) {
+    const file = new File([blob], filename, { type: 'image/png' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'メンバーズカード' });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  async function saveProfileCardImage(previewWrap, publicId) {
+    const sourceCard = previewWrap && previewWrap.querySelector('.profile-card-meishi');
+    if (!sourceCard) throw new Error('カードが見つかりません');
+
+    let stage = document.getElementById('profileCardExportStage');
+    if (!stage) {
+      stage = document.createElement('div');
+      stage.id = 'profileCardExportStage';
+      stage.className = 'profile-card-export-stage';
+      document.body.appendChild(stage);
+    }
+    stage.innerHTML = '';
+    const exportCard = sourceCard.cloneNode(true);
+    exportCard.classList.add('profile-card-meishi--export');
+    stage.appendChild(exportCard);
+
+    const logo = exportCard.querySelector('.profile-card-meishi__logo');
     if (logo) {
+      const src = logo.getAttribute('src') || 'img/icon.png';
+      logo.src = new URL(src, location.href).href;
+      logo.crossOrigin = 'anonymous';
       await new Promise((resolve) => {
         if (logo.complete) { resolve(); return; }
         logo.onload = () => resolve();
@@ -1470,26 +1514,34 @@ const MiraiMyPage = (function () {
     await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
 
     const html2canvas = await loadHtml2Canvas();
-    const canvas = await html2canvas(cardEl, {
-      scale: 3,
+    const { width: targetW, height: targetH } = profileCardExportPixelSize();
+    const rect = exportCard.getBoundingClientRect();
+    const scale = Math.max(targetW / Math.max(rect.width, 1), targetH / Math.max(rect.height, 1), 2);
+
+    const canvas = await html2canvas(exportCard, {
+      scale: scale,
       backgroundColor: null,
       useCORS: true,
       logging: false,
     });
 
+    const out = document.createElement('canvas');
+    out.width = targetW;
+    out.height = targetH;
+    const ctx = out.getContext('2d');
+    if (!ctx) throw new Error('画像の生成に失敗しました');
+    ctx.drawImage(canvas, 0, 0, targetW, targetH);
+
     const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob((b) => {
+      out.toBlob((b) => {
         if (b) resolve(b);
         else reject(new Error('画像の生成に失敗しました'));
       }, 'image/png');
     });
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'members-card-' + (publicId || 'mirai-kissa') + '.png';
-    a.click();
-    URL.revokeObjectURL(url);
+    stage.innerHTML = '';
+    const filename = 'members-card-' + (publicId || 'mirai-kissa') + '.png';
+    await deliverProfileCardBlob(blob, filename);
   }
 
   async function initProfileCard() {
@@ -1629,13 +1681,17 @@ const MiraiMyPage = (function () {
     syncTitleCheckboxStates();
 
     saveBtn.addEventListener('click', async () => {
-      if (!confirm('画像を保存しますか？')) return;
+      const mobile = isMobileSaveDevice();
+      const msg = mobile ? 'カメラロールに保存しますか？' : '画像を保存しますか？';
+      if (!confirm(msg)) return;
       errEl.hidden = true;
       saveBtn.disabled = true;
       saveBtn.textContent = '保存中…';
       try {
-        await saveProfileCardImage(hub, rewards, hub.publicId);
+        const previewWrap = box.querySelector('#profileCardPreviewWrap');
+        await saveProfileCardImage(previewWrap, hub.publicId);
       } catch (e) {
+        if (e && e.name === 'AbortError') return;
         errEl.textContent = e.message || String(e);
         errEl.hidden = false;
       } finally {
