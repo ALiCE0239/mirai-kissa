@@ -179,6 +179,7 @@
       .add('/mypage/settings', 'tmpl-mypage-settings', () => guardCommunity(() => MiraiMyPage.initSettings())())
       .add('/mypage/friend-requests', 'tmpl-mypage-friend-requests', () => guardCommunity(() => MiraiFriends.initFriendRequestsPage())())
       .add('/mypage/friends', 'tmpl-mypage-friends', () => guardCommunity(() => MiraiFriends.initFriendsPage())())
+      .add('/mypage/friend-settings', 'tmpl-mypage-friend-settings', () => guardCommunity(() => MiraiFriends.initFriendRequestSettingsPage())())
       .add('/mypage/sekainote', 'tmpl-mypage-sekainote', () => guardCommunity(() => MiraiMyPage.initSekaiNoteEdit())())
       .add('/mypage/profile-card', 'tmpl-profile-card', () => guardCommunity(() => MiraiMyPage.initProfileCard())())
       .add('/mypage/ranking', 'tmpl-ranking-hub', () => guardCommunity(() => MiraiRanking.initMypageHub())())
@@ -191,6 +192,7 @@
       .add('/board/event/:uid',  'tmpl-board-event-detail', (params) => MiraiBoard.initEventDetail(params))
       .add('/board/event/edit',  'tmpl-board-event-edit',  () => guardCommunity(() => MiraiBoard.initEventEdit())())
       .add('/board/mysekai',     'tmpl-board-mysekai',     () => MiraiBoard.initMysekaiList())
+      .add('/board/mysekai/:uid','tmpl-board-mysekai-detail', (params) => MiraiBoard.initMysekaiDetail(params))
       .add('/board/mysekai/edit','tmpl-board-mysekai-edit',() => guardCommunity(() => MiraiBoard.initMysekaiEdit())())
       .add('404',       'tmpl-404',       null);
 
@@ -213,6 +215,7 @@
         '/mypage/settings': 'マイページ設定 — 未来喫茶',
         '/mypage/friend-requests': 'フレンド申請 — 未来喫茶',
         '/mypage/friends': 'フレンド一覧 — 未来喫茶',
+        '/mypage/friend-settings': '拒否設定 — 未来喫茶',
         '/mypage/sekainote': 'セカイノートを編集 — 未来喫茶',
         '/mypage/profile-card': 'プロフィールカード — 未来喫茶',
         '/mypage/ranking': 'ランキング登録 — 未来喫茶',

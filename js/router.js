@@ -36,7 +36,8 @@ class Router {
   }
 
   resolve() {
-    const hash = location.hash.slice(1) || '/';
+    const rawHash = location.hash.slice(1) || '/';
+    const hash = rawHash.split('?')[0];
 
     let route = this.routes.get(hash);
     let params = {};

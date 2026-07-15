@@ -3,14 +3,325 @@
  *
  * users/{uid}/friendRequests/{fromUid}  … 受信した申請（fromUid が申請者）
  * users/{uid}/friends/{friendUid}       … フレンド一覧
+ * users/{uid}/blocks/{blockedUid}       … ブロック一覧（本人のみ閲覧）
+ * users/{uid}/shadowFriendRequests/{targetUid} … ブロックされて届かなかった申請（送信者のみ・見かけ上の申請済み）
  */
 const MiraiFriends = (function () {
   'use strict';
+
+  const FRIEND_REQUEST_SOURCES = {
+    profile: 'セカイノート（公開ページ・QR）',
+    idSearch: 'マイページのID検索',
+    ranking: 'ランキング',
+    boardEvent: 'イベラン広告',
+    boardMysekai: 'マイセカイ宣伝',
+  };
+
+  const DEFAULT_FRIEND_REQUEST_SOURCES = {
+    profile: true,
+    idSearch: true,
+    ranking: true,
+    boardEvent: true,
+    boardMysekai: true,
+  };
 
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function normalizeFriendRequestSources(raw) {
+    const out = Object.assign({}, DEFAULT_FRIEND_REQUEST_SOURCES);
+    if (!raw || typeof raw !== 'object') return out;
+    Object.keys(DEFAULT_FRIEND_REQUEST_SOURCES).forEach((key) => {
+      if (typeof raw[key] === 'boolean') out[key] = raw[key];
+    });
+    return out;
+  }
+
+  function normalizeFriendSource(source) {
+    return source && FRIEND_REQUEST_SOURCES[source] ? source : 'profile';
+  }
+
+  async function loadFriendRequestSources(uid) {
+    const f = await fb();
+    if (!f || !uid) return normalizeFriendRequestSources(null);
+    const { doc, getDoc } = f.dbFns;
+    const snap = await getDoc(doc(f.db, 'users', uid, 'sns', 'settings'));
+    if (!snap.exists()) return normalizeFriendRequestSources(null);
+    return normalizeFriendRequestSources(snap.data().friendRequestSources);
+  }
+
+  async function saveFriendRequestSources(uid, sources) {
+    const f = await fb();
+    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
+    const { doc, setDoc, serverTimestamp } = f.dbFns;
+    await setDoc(doc(f.db, 'users', uid, 'sns', 'settings'), {
+      friendRequestSources: normalizeFriendRequestSources(sources),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }
+
+  function isFriendRequestSourceAllowed(sources, source) {
+    const normalized = normalizeFriendRequestSources(sources);
+    return normalized[normalizeFriendSource(source)] !== false;
+  }
+
+  function friendRequestSourceLabel(source) {
+    return FRIEND_REQUEST_SOURCES[normalizeFriendSource(source)];
+  }
+
+  function profileLink(publicId, source) {
+    const id = String(publicId || '').trim();
+    if (!id) return '';
+    const base = '#/p/' + encodeURIComponent(id);
+    const key = normalizeFriendSource(source);
+    return key === 'profile' ? base : base + '?fr=' + encodeURIComponent(key);
+  }
+
+  function parseFriendSourceFromHash() {
+    const raw = location.hash.slice(1) || '/';
+    const qIdx = raw.indexOf('?');
+    if (qIdx < 0) return 'profile';
+    try {
+      const params = new URLSearchParams(raw.slice(qIdx + 1));
+      return normalizeFriendSource(params.get('fr'));
+    } catch (e) {
+      return 'profile';
+    }
+  }
+
+  function readFriendRequestSourcesFromDom(root) {
+    const out = Object.assign({}, DEFAULT_FRIEND_REQUEST_SOURCES);
+    if (!root) return out;
+    root.querySelectorAll('[data-friend-request-source]').forEach((input) => {
+      const key = input.dataset.friendRequestSource;
+      if (key && Object.prototype.hasOwnProperty.call(out, key)) {
+        out[key] = input.checked;
+      }
+    });
+    return out;
+  }
+
+  function friendRequestSettingsHtml(sources) {
+    const normalized = normalizeFriendRequestSources(sources);
+    const items = Object.keys(FRIEND_REQUEST_SOURCES).map((key) =>
+      '<label class="mp-friend-request-settings__item">' +
+      '<input type="checkbox" data-friend-request-source="' + key + '"' + (normalized[key] ? ' checked' : '') + '>' +
+      '<span>' + esc(FRIEND_REQUEST_SOURCES[key]) + '</span>' +
+      '</label>'
+    ).join('');
+    return (
+      '<div class="mp-friend-request-settings">' +
+      '<p class="form-hint">チェックを外した経路からのフレンド申請を拒否します。</p>' +
+      items +
+      '</div>'
+    );
+  }
+
+  async function initFriendRequestSettingsPage() {
+    const box = document.getElementById('app').querySelector('#friendRequestSettingsRoot');
+    if (!box) return;
+    await window.MiraiFirebaseReady;
+    const user = window.MiraiAuth ? await window.MiraiAuth.requireUser('#/mypage/friend-settings') : null;
+    if (!user) return;
+
+    let blockListVisible = false;
+
+    async function renderPage(options) {
+      options = options || {};
+      if (options.showBlockList) blockListVisible = true;
+
+      box.innerHTML = '<p class="text-muted">読み込み中…</p>';
+      try {
+        const [sources, blocked] = await Promise.all([
+          loadFriendRequestSources(user.uid),
+          listBlockedUsers(user.uid),
+        ]);
+        const blockToggleLabel = blockListVisible
+          ? 'ブロックリストを隠す'
+          : blockListToggleLabel(blocked.length);
+        box.innerHTML =
+          '<section class="card community-editor mp-friend-settings-page">' +
+          '<p class="adjust-filters__title">申請の受け付け</p>' +
+          friendRequestSettingsHtml(sources) +
+          '<button type="button" class="btn btn-primary btn-block mt-3" id="friendRequestSettingsSave">受け付け設定を保存</button>' +
+          '<p id="friendRequestSettingsError" class="form-error mt-2" hidden></p>' +
+          '<p id="friendRequestSettingsSaved" class="community-saved mt-2" hidden>保存しました ✓</p>' +
+          '<div class="divider"></div>' +
+          '<p class="adjust-filters__title">ブロック</p>' +
+          '<p class="form-hint">ブロックしたユーザーからの申請は届きません（相手には申請できたように見えます）。マイセカイ宣伝・イベラン広告も非表示になります。</p>' +
+          '<div class="mp-block-add">' +
+          '<label for="blockIdInput">未来喫茶IDでブロック</label>' +
+          '<div class="mp-block-add__row">' +
+          '<input type="text" class="form-input" id="blockIdInput" maxlength="12" placeholder="例: a1b2c3d4" autocapitalize="off" autocomplete="off" spellcheck="false">' +
+          '<button type="button" class="btn btn-secondary" id="blockAddBtn">ブロック</button>' +
+          '</div>' +
+          '<p id="blockAddError" class="form-error mt-1" hidden></p>' +
+          '</div>' +
+          '<button type="button" class="btn btn-secondary btn-block mt-2" id="blockListToggle">' + esc(blockToggleLabel) + '</button>' +
+          '<div id="blockListWrap" class="mp-block-list-wrap"' + (blockListVisible ? '' : ' hidden') + '>' +
+          '<div id="blockList" class="mp-block-list">' + blockListHtml(blocked) + '</div>' +
+          '</div>' +
+          '</section>';
+
+        const errEl = box.querySelector('#friendRequestSettingsError');
+        const savedEl = box.querySelector('#friendRequestSettingsSaved');
+        box.querySelector('#friendRequestSettingsSave').addEventListener('click', async () => {
+          errEl.hidden = true;
+          savedEl.hidden = true;
+          const btn = box.querySelector('#friendRequestSettingsSave');
+          btn.disabled = true;
+          btn.textContent = '保存中…';
+          try {
+            await saveFriendRequestSources(user.uid, readFriendRequestSourcesFromDom(box));
+            savedEl.hidden = false;
+            setTimeout(() => { savedEl.hidden = true; }, 2500);
+          } catch (e) {
+            errEl.textContent = e.message || String(e);
+            errEl.hidden = false;
+          } finally {
+            btn.disabled = false;
+            btn.textContent = '受け付け設定を保存';
+          }
+        });
+
+        const blockInput = box.querySelector('#blockIdInput');
+        const blockErr = box.querySelector('#blockAddError');
+        async function runBlockAdd() {
+          blockErr.hidden = true;
+          const id = normalizePublicId(blockInput.value);
+          if (!id || id.length < 4) {
+            blockErr.textContent = 'IDを入力してください。';
+            blockErr.hidden = false;
+            return;
+          }
+          const btn = box.querySelector('#blockAddBtn');
+          btn.disabled = true;
+          try {
+            const hub = await loadHubByPublicId(id);
+            if (!hub || !hub.uid) {
+              blockErr.textContent = '該当するユーザーが見つかりませんでした。';
+              blockErr.hidden = false;
+              return;
+            }
+            if (hub.uid === user.uid) {
+              blockErr.textContent = '自分自身はブロックできません。';
+              blockErr.hidden = false;
+              return;
+            }
+            await blockUser(user.uid, hub);
+            blockInput.value = '';
+            await renderPage({ showBlockList: true });
+          } catch (e) {
+            blockErr.textContent = e.message || String(e);
+            blockErr.hidden = false;
+          } finally {
+            btn.disabled = false;
+          }
+        }
+        box.querySelector('#blockAddBtn').addEventListener('click', runBlockAdd);
+        blockInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') runBlockAdd();
+        });
+
+        const listWrap = box.querySelector('#blockListWrap');
+        const toggleBtn = box.querySelector('#blockListToggle');
+        toggleBtn.addEventListener('click', () => {
+          blockListVisible = !blockListVisible;
+          listWrap.hidden = !blockListVisible;
+          toggleBtn.textContent = blockListVisible
+            ? 'ブロックリストを隠す'
+            : blockListToggleLabel(blocked.length);
+        });
+
+        box.querySelectorAll('[data-unblock-uid]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const targetUid = btn.dataset.unblockUid;
+            btn.disabled = true;
+            try {
+              await unblockUser(user.uid, targetUid);
+              await renderPage({ showBlockList: blockListVisible });
+            } catch (e) {
+              alert(e.message || String(e));
+              btn.disabled = false;
+            }
+          });
+        });
+      } catch (e) {
+        box.innerHTML = '<p class="form-error">読み込みに失敗しました</p>';
+        console.error(e);
+      }
+    }
+
+    await renderPage();
+  }
+
+  function blockListToggleLabel(count) {
+    return count > 0 ? 'ブロックリストを表示（' + count + '人）' : 'ブロックリストを表示';
+  }
+
+  function blockListHtml(blocked) {
+    if (!blocked.length) {
+      return '<p class="text-muted mp-friends-empty">ブロックしているユーザーはいません</p>';
+    }
+    return blocked.map((b) =>
+      '<div class="mp-block-row card" data-blocked="' + esc(b.blockedUid) + '">' +
+      '<div class="mp-block-row__main">' +
+      friendAvatar({ displayName: b.displayName, avatarURL: b.avatarURL }) +
+      '<div>' +
+      '<p class="mp-block-row__name">' + esc(b.displayName || 'ユーザー') + '</p>' +
+      '<p class="form-hint">ID: ' + esc(b.publicId || '—') + '</p>' +
+      '</div></div>' +
+      '<button type="button" class="btn btn-secondary btn-sm" data-unblock-uid="' + esc(b.blockedUid) + '">解除</button>' +
+      '</div>'
+    ).join('');
+  }
+
+  async function listBlockedUsers(uid) {
+    const f = await fb();
+    if (!f || !uid) return [];
+    const { collection, getDocs } = f.dbFns;
+    const snap = await getDocs(collection(f.db, 'users', uid, 'blocks'));
+    return snap.docs.map((d) => Object.assign({ blockedUid: d.id }, d.data()));
+  }
+
+  async function listBlockedUids(uid) {
+    const list = await listBlockedUsers(uid);
+    return new Set(list.map((b) => b.blockedUid).filter(Boolean));
+  }
+
+  async function blockUser(myUid, targetHub) {
+    const f = await fb();
+    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
+    const targetUid = targetHub && targetHub.uid;
+    if (!targetUid) throw new Error('ユーザーが見つかりません。');
+    if (myUid === targetUid) throw new Error('自分自身はブロックできません。');
+
+    const { doc, setDoc, deleteDoc, serverTimestamp } = f.dbFns;
+    await setDoc(doc(f.db, 'users', myUid, 'blocks', targetUid), {
+      blockedUid: targetUid,
+      publicId: targetHub.publicId || '',
+      displayName: targetHub.displayName || 'ユーザー',
+      avatarURL: targetHub.avatarURL || '',
+      createdAt: serverTimestamp(),
+    });
+
+    await Promise.all([
+      deleteDoc(doc(f.db, 'users', myUid, 'friendRequests', targetUid)).catch(() => {}),
+      deleteDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid)).catch(() => {}),
+      deleteDoc(doc(f.db, 'users', myUid, 'friends', targetUid)).catch(() => {}),
+      deleteDoc(doc(f.db, 'users', targetUid, 'friends', myUid)).catch(() => {}),
+      deleteDoc(doc(f.db, 'users', targetUid, 'shadowFriendRequests', myUid)).catch(() => {}),
+    ]);
+  }
+
+  async function unblockUser(myUid, targetUid) {
+    const f = await fb();
+    if (!f || !f.configured) return;
+    const { doc, deleteDoc } = f.dbFns;
+    await deleteDoc(doc(f.db, 'users', myUid, 'blocks', targetUid));
   }
 
   async function fb() {
@@ -44,23 +355,31 @@ const MiraiFriends = (function () {
     const f = await fb();
     if (!f || !f.configured) return 'none';
     const { doc, getDoc } = f.dbFns;
-    const [friendSnap, sentSnap, recvSnap] = await Promise.all([
+    const [friendSnap, sentSnap, recvSnap, shadowSnap] = await Promise.all([
       getDoc(doc(f.db, 'users', myUid, 'friends', targetUid)),
       getDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid)),
       getDoc(doc(f.db, 'users', myUid, 'friendRequests', targetUid)),
+      getDoc(doc(f.db, 'users', myUid, 'shadowFriendRequests', targetUid)),
     ]);
     if (friendSnap.exists()) return 'friends';
     if (sentSnap.exists() && sentSnap.data().status === 'pending') return 'pending_sent';
+    if (shadowSnap.exists()) return 'pending_sent';
     if (recvSnap.exists() && recvSnap.data().status === 'pending') return 'pending_received';
     return 'none';
   }
 
-  async function sendRequest(myUid, targetHub) {
+  async function sendRequest(myUid, targetHub, source) {
     const f = await fb();
     if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     const targetUid = targetHub && targetHub.uid;
     if (!targetUid) throw new Error('ユーザーが見つかりません。');
     if (myUid === targetUid) throw new Error('自分自身には申請できません。');
+
+    const requestSource = normalizeFriendSource(source);
+    const targetSources = await loadFriendRequestSources(targetUid);
+    if (!isFriendRequestSourceAllowed(targetSources, requestSource)) {
+      throw new Error(friendRequestSourceLabel(requestSource) + 'からのフレンド申請は受け付けていません。');
+    }
 
     const status = await getStatus(myUid, targetUid);
     if (status === 'friends') throw new Error('すでにフレンドです。');
@@ -69,21 +388,40 @@ const MiraiFriends = (function () {
 
     const myHub = await loadHubByUid(myUid);
     const { doc, setDoc, serverTimestamp } = f.dbFns;
-    await setDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid), {
+    const payload = {
       fromUid: myUid,
       fromPublicId: (myHub && myHub.publicId) || '',
       fromDisplayName: (myHub && myHub.displayName) || 'ユーザー',
       fromAvatarURL: (myHub && myHub.avatarURL) || '',
       status: 'pending',
+      source: requestSource,
       createdAt: serverTimestamp(),
-    });
+    };
+    try {
+      await setDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid), payload);
+    } catch (e) {
+      if (e && e.code === 'permission-denied') {
+        await setDoc(doc(f.db, 'users', myUid, 'shadowFriendRequests', targetUid), {
+          targetUid,
+          targetPublicId: (targetHub && targetHub.publicId) || '',
+          targetDisplayName: (targetHub && targetHub.displayName) || '',
+          source: requestSource,
+          createdAt: serverTimestamp(),
+        });
+        return;
+      }
+      throw e;
+    }
   }
 
   async function cancelRequest(myUid, targetUid) {
     const f = await fb();
     if (!f || !f.configured) return;
     const { doc, deleteDoc } = f.dbFns;
-    await deleteDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid));
+    await Promise.all([
+      deleteDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid)).catch(() => {}),
+      deleteDoc(doc(f.db, 'users', myUid, 'shadowFriendRequests', targetUid)).catch(() => {}),
+    ]);
   }
 
   async function acceptRequest(myUid, fromUid) {
@@ -126,10 +464,13 @@ const MiraiFriends = (function () {
     const f = await fb();
     if (!f || !f.configured) return [];
     const { collection, query, where, getDocs } = f.dbFns;
-    const snap = await getDocs(
-      query(collection(f.db, 'users', uid, 'friendRequests'), where('status', '==', 'pending'))
-    );
-    return snap.docs.map((d) => Object.assign({ id: d.id, fromUid: d.id }, d.data()));
+    const [snap, blockedUids] = await Promise.all([
+      getDocs(query(collection(f.db, 'users', uid, 'friendRequests'), where('status', '==', 'pending'))),
+      listBlockedUids(uid),
+    ]);
+    return snap.docs
+      .filter((d) => !blockedUids.has(d.id))
+      .map((d) => Object.assign({ id: d.id, fromUid: d.id }, d.data()));
   }
 
   async function listFriends(uid) {
@@ -191,8 +532,18 @@ const MiraiFriends = (function () {
     }
   }
 
-  async function renderActionButton(container, myUid, targetHub, onChange) {
+  async function renderActionButton(container, myUid, targetHub, opts) {
     if (!container || !targetHub || !targetHub.uid) return;
+    let onChange;
+    let source = 'profile';
+    if (typeof opts === 'function') {
+      onChange = opts;
+    } else {
+      opts = opts || {};
+      onChange = opts.onChange;
+      source = normalizeFriendSource(opts.source);
+    }
+
     const status = await getStatus(myUid, targetHub.uid);
     if (status === 'self') {
       container.innerHTML = '';
@@ -215,7 +566,7 @@ const MiraiFriends = (function () {
         try {
           await cancelRequest(myUid, targetHub.uid);
           if (onChange) await onChange();
-          else await renderActionButton(container, myUid, targetHub, onChange);
+          else await renderActionButton(container, myUid, targetHub, opts);
         } catch (e) {
           alert(e.message || String(e));
           btn.disabled = false;
@@ -230,15 +581,24 @@ const MiraiFriends = (function () {
       return;
     }
 
+    const targetSources = await loadFriendRequestSources(targetHub.uid);
+    if (!isFriendRequestSourceAllowed(targetSources, source)) {
+      container.innerHTML =
+        '<p class="friend-action-bar__status friend-action-bar__status--blocked">' +
+        esc(friendRequestSourceLabel(source) + 'からのフレンド申請は受け付けていません。') +
+        '</p>';
+      return;
+    }
+
     container.innerHTML = '<button type="button" class="btn btn-primary" id="friendSendBtn">フレンド申請する</button>';
     container.querySelector('#friendSendBtn').addEventListener('click', async () => {
       const btn = container.querySelector('#friendSendBtn');
       btn.disabled = true;
       btn.textContent = '送信中…';
       try {
-        await sendRequest(myUid, targetHub);
+        await sendRequest(myUid, targetHub, source);
         if (onChange) await onChange();
-        else await renderActionButton(container, myUid, targetHub, onChange);
+        else await renderActionButton(container, myUid, targetHub, opts);
       } catch (e) {
         alert(e.message || String(e));
         btn.disabled = false;
@@ -413,13 +773,13 @@ const MiraiFriends = (function () {
               </div>
             </div>
             <div class="mp-friend-search-result__actions">
-              <a href="#/p/${esc(hub.publicId || id)}" class="btn btn-secondary btn-sm" data-link>セカイノートを見る</a>
+              <a href="${esc(profileLink(hub.publicId || id, 'idSearch'))}" class="btn btn-secondary btn-sm" data-link>セカイノートを見る</a>
               <div id="mpFriendIdSearchAction"></div>
             </div>
           </div>
         `;
         const actionEl = resultEl.querySelector('#mpFriendIdSearchAction');
-        await renderActionButton(actionEl, user.uid, hub, () => runSearch());
+        await renderActionButton(actionEl, user.uid, hub, { onChange: () => runSearch(), source: 'idSearch' });
       } catch (e) {
         resultEl.innerHTML = '<p class="form-error">検索に失敗しました</p>';
         console.error(e);
@@ -440,6 +800,8 @@ const MiraiFriends = (function () {
   }
 
   return {
+    FRIEND_REQUEST_SOURCES,
+    DEFAULT_FRIEND_REQUEST_SOURCES,
     getStatus,
     sendRequest,
     cancelRequest,
@@ -451,10 +813,21 @@ const MiraiFriends = (function () {
     syncFriendProfileForPeers,
     loadHubByPublicId,
     normalizePublicId,
+    loadFriendRequestSources,
+    saveFriendRequestSources,
+    listBlockedUsers,
+    listBlockedUids,
+    blockUser,
+    unblockUser,
+    friendRequestSettingsHtml,
+    readFriendRequestSourcesFromDom,
+    profileLink,
+    parseFriendSourceFromHash,
     renderActionButton,
     initMypageFriends,
     initFriendRequestsPage,
     initFriendsPage,
+    initFriendRequestSettingsPage,
   };
 })();
 

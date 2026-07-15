@@ -3,13 +3,14 @@
  *
  * - #/board/event         イベラン広告 一覧・検索（閲覧のみ）
  * - #/board/event/:uid    イベラン広告 詳細
- * - #/board/mysekai       マイセカイ宣伝 一覧・いいね（閲覧のみ）
+ * - #/board/mysekai       マイセカイ宣伝 一覧（閲覧のみ）
+ * - #/board/mysekai/:uid  マイセカイ宣伝 詳細
  * - #/board/event/edit    イベラン広告 作成/編集（要ログイン・マイページから遷移）
  * - #/board/mysekai/edit  マイセカイ宣伝 作成/編集（要ログイン・マイページから遷移）
  *
  * データ構造はアプリに準拠。
  *   boardEventAds/{authorUid}                    … 1アカウント1件
- *   boardMysekai/{authorUid}                     … 1アカウント1件
+ *   boardMysekai/{authorUid}                     … 1アカウント1件（mysekaiId 含む）
  *   boardMysekai/{authorUid}/likes/{likerUid}    … いいね
  */
 const MiraiBoard = (function () {
@@ -39,6 +40,16 @@ const MiraiBoard = (function () {
   const BOOKMARK_TAG = '__bookmark__';
   const TARGET_RANKS = [10, 50, 100, 500, 1000, 2000, 3000, 4000, 5000, 10000];
   const PAGE_SIZE = 30;
+  const MYSEKAI_FETCH_LIMIT = 120;
+  const MYSEKAI_IMAGE_MAX = 4;
+  const MYSEKAI_SORT = {
+    popular: '人気',
+    new: '新着',
+    random: 'ランダム',
+  };
+  /** 最終更新からこの日数経過で掲示板掲載を停止（listingHold は画面に出さない） */
+  const LISTING_INACTIVE_DAYS = 30;
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -284,20 +295,117 @@ const MiraiBoard = (function () {
     await window.MiraiFirebaseReady;
     const user = window.MiraiAuth ? window.MiraiAuth.getUser() : null;
     let friendUids = null;
+    let blockedUids = null;
     if (user && window.MiraiFriends) {
       try {
-        const friends = await MiraiFriends.listFriends(user.uid);
+        const [friends, blocked] = await Promise.all([
+          MiraiFriends.listFriends(user.uid),
+          MiraiFriends.listBlockedUids(user.uid),
+        ]);
         friendUids = new Set(friends.map((f) => f.friendUid));
+        blockedUids = blocked;
       } catch (e) {
         console.error(e);
         friendUids = new Set();
+        blockedUids = new Set();
       }
     }
-    return { user, friendUids };
+    return { user, friendUids, blockedUids };
   }
 
-  function isPostVisible(p, viewerUid, friendUids) {
+  function isListingHeld(post) {
+    return !!(post && (post.listingHold === 1 || post.listingHold === true));
+  }
+
+  function isListingStale(post) {
+    const ms = postUpdatedMs(post);
+    if (!ms) return false;
+    return Date.now() - ms >= LISTING_INACTIVE_DAYS * MS_PER_DAY;
+  }
+
+  function isBoardPostListed(post) {
+    if (!post) return false;
+    if (post.isPublished === false) return false;
+    if (isListingHeld(post)) return false;
+    if (isListingStale(post)) return false;
+    return true;
+  }
+
+  function boardListingPausedMessage() {
+    return LISTING_INACTIVE_DAYS + '日間更新がないため、掲示板に掲載されていません。';
+  }
+
+  function listingExtendSectionHtml(btnId) {
+    return (
+      '<div class="info-box board-listing-paused mb-2">' +
+      '<p>' + esc(boardListingPausedMessage()) + '</p>' +
+      '<p class="form-hint mt-1">「掲載を延長する」を押すと、すぐに掲示板へ再掲載されます。</p>' +
+      '<button type="button" class="btn btn-primary btn-sm mt-2" id="' + esc(btnId) + '">掲載を延長する</button>' +
+      '<p id="' + esc(btnId) + 'Done" class="community-saved mt-2" hidden>掲載を延長しました ✓</p>' +
+      '<p id="' + esc(btnId) + 'Err" class="form-error mt-2" hidden></p>' +
+      '</div>'
+    );
+  }
+
+  async function syncListingHoldIfNeeded(collectionName, uid, post) {
+    if (!post || isListingHeld(post) || !isListingStale(post)) return post;
+    try {
+      const f = await fb();
+      if (!f) return Object.assign({}, post, { listingHold: 1 });
+      const { doc, setDoc } = f.dbFns;
+      await setDoc(doc(f.db, collectionName, uid), { listingHold: 1 }, { merge: true });
+      return Object.assign({}, post, { listingHold: 1 });
+    } catch (e) {
+      console.warn('[board] listing hold sync failed:', e);
+      return Object.assign({}, post, { listingHold: 1 });
+    }
+  }
+
+  async function extendBoardListing(collectionName, uid) {
+    const f = await fb();
+    if (!f) throw new Error('Firebase 未設定');
+    const { doc, setDoc, serverTimestamp } = f.dbFns;
+    await setDoc(doc(f.db, collectionName, uid), {
+      listingHold: 0,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }
+
+  function wireListingExtendButton(box, btnId, collectionName, uid, onDone) {
+    const btn = box.querySelector('#' + btnId);
+    if (!btn) return;
+    const doneEl = box.querySelector('#' + btnId + 'Done');
+    const errEl = box.querySelector('#' + btnId + 'Err');
+    btn.addEventListener('click', async () => {
+      if (doneEl) doneEl.hidden = true;
+      if (errEl) errEl.hidden = true;
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = '処理中…';
+      try {
+        await extendBoardListing(collectionName, uid);
+        if (doneEl) doneEl.hidden = false;
+        const pausedBox = btn.closest('.board-listing-paused');
+        if (pausedBox) pausedBox.remove();
+        if (typeof onDone === 'function') onDone();
+      } catch (e) {
+        if (errEl) {
+          errEl.textContent = e.message || String(e);
+          errEl.hidden = false;
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  }
+
+  function isPostVisible(p, viewerUid, friendUids, blockedUids) {
+    if (blockedUids && p.authorUid && blockedUids.has(p.authorUid) && p.authorUid !== viewerUid) {
+      return false;
+    }
     if (p.isPublished === false) return false;
+    if (!isBoardPostListed(p)) return false;
     if (postVisibility(p) === 'public') return true;
     if (!viewerUid) return false;
     if (p.authorUid === viewerUid) return true;
@@ -305,7 +413,7 @@ const MiraiBoard = (function () {
   }
 
   function postUpdatedMs(p) {
-    const t = p && p.updatedAt;
+    const t = (p && p.updatedAt) || (p && p.createdAt);
     if (!t) return 0;
     if (typeof t.toMillis === 'function') return t.toMillis();
     if (typeof t === 'number') return t;
@@ -324,17 +432,17 @@ const MiraiBoard = (function () {
   }
 
   /** 公開投稿のみ（equality のみで取得し、並び替えはクライアント側 — 複合インデックス不要） */
-  async function fetchPublicBoardPosts(collectionName) {
+  async function fetchPublicBoardPosts(collectionName, fetchLimit) {
     const f = await fb();
     if (!f || !f.configured) return [];
     const { collection, query, limit, getDocs, where, orderBy } = f.dbFns;
     const col = collection(f.db, collectionName);
-    const fetchLimit = PAGE_SIZE * 4;
+    const queryLimit = fetchLimit || PAGE_SIZE * 4;
     const queries = [
-      () => query(col, where('visibility', '==', 'public'), limit(fetchLimit)),
-      () => query(col, where('visibility', '==', 'public'), where('isPublished', '==', true), limit(fetchLimit)),
-      () => query(col, where('isPublished', '==', true), limit(fetchLimit)),
-      () => query(col, orderBy('updatedAt', 'desc'), limit(fetchLimit)),
+      () => query(col, where('visibility', '==', 'public'), limit(queryLimit)),
+      () => query(col, where('visibility', '==', 'public'), where('isPublished', '==', true), limit(queryLimit)),
+      () => query(col, where('isPublished', '==', true), limit(queryLimit)),
+      () => query(col, orderBy('updatedAt', 'desc'), limit(queryLimit)),
     ];
 
     let lastErr = null;
@@ -354,12 +462,15 @@ const MiraiBoard = (function () {
   }
 
   /** 公開投稿 + 自分・フレンドの限定投稿 */
-  async function fetchBoardPosts(collectionName) {
+  async function fetchBoardPosts(collectionName, opts) {
+    opts = opts || {};
+    const listLimit = opts.limit || PAGE_SIZE;
+    const fetchLimit = opts.fetchLimit || Math.max(listLimit * 4, PAGE_SIZE * 4);
     const f = await fb();
     if (!f || !f.configured) return [];
     const { doc, getDoc } = f.dbFns;
-    const { user, friendUids } = await loadViewerContext();
-    const byUid = new Map((await fetchPublicBoardPosts(collectionName)).map((p) => [p.authorUid, p]));
+    const { user, friendUids, blockedUids } = await loadViewerContext();
+    const byUid = new Map((await fetchPublicBoardPosts(collectionName, fetchLimit)).map((p) => [p.authorUid, p]));
     const extraUids = new Set();
     if (user) extraUids.add(user.uid);
     if (friendUids) friendUids.forEach((uid) => extraUids.add(uid));
@@ -369,12 +480,12 @@ const MiraiBoard = (function () {
         const snap = await getDoc(doc(f.db, collectionName, uid));
         if (!snap.exists()) return;
         const p = Object.assign({ authorUid: uid }, snap.data());
-        if (isPostVisible(p, user && user.uid, friendUids)) byUid.set(uid, p);
+        if (isPostVisible(p, user && user.uid, friendUids, blockedUids)) byUid.set(uid, p);
       } catch (e) {
         console.warn('[board] extra fetch failed:', collectionName, uid, e);
       }
     }));
-    return sortPostsByUpdated(Array.from(byUid.values())).slice(0, PAGE_SIZE);
+    return sortPostsByUpdated(Array.from(byUid.values())).slice(0, listLimit);
   }
 
   function aspect16x9Html(url, emptyLabel) {
@@ -396,9 +507,16 @@ const MiraiBoard = (function () {
     return `<div class="${cls}">${esc(name.slice(0, 1))}</div>`;
   }
 
-  function authorRowHtml(p) {
-    const profileLink = p.authorPublicId
-      ? `<a href="#/p/${esc(p.authorPublicId)}" class="board-card__author-link" data-link>${esc(p.authorName || '匿名')}</a>`
+  function authorRowHtml(p, opts) {
+    opts = opts || {};
+    const profileHref = p.authorPublicId
+      ? (window.MiraiFriends && MiraiFriends.profileLink
+        ? MiraiFriends.profileLink(p.authorPublicId, opts.friendSource)
+        : '#/p/' + encodeURIComponent(p.authorPublicId) + (opts.friendSource && opts.friendSource !== 'profile'
+          ? '?fr=' + encodeURIComponent(opts.friendSource) : ''))
+      : '';
+    const profileLink = profileHref
+      ? `<a href="${esc(profileHref)}" class="board-card__author-link" data-link>${esc(p.authorName || '匿名')}</a>`
       : `<span class="board-card__author-name">${esc(p.authorName || '匿名')}</span>`;
     return `<div class="board-card__author-row">${authorAvatarHtml(p, 'board-author-avatar--sm')}${profileLink}</div>`;
   }
@@ -490,6 +608,241 @@ const MiraiBoard = (function () {
     const r = ref(f.storage, `board/${uid}/${name}`);
     await uploadBytes(r, file);
     return getDownloadURL(r);
+  }
+
+  function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('画像の読み込みに失敗しました'));
+      };
+      img.src = url;
+    });
+  }
+
+  /** マイセカイ画像を16:9に中央トリミング（余白・レターボックスを避ける） */
+  async function processMysekaiImage(file) {
+    const img = await loadImageFromFile(file);
+    const targetRatio = 16 / 9;
+    const srcRatio = img.width / img.height;
+    let sx;
+    let sy;
+    let sw;
+    let sh;
+    if (srcRatio > targetRatio) {
+      sh = img.height;
+      sw = sh * targetRatio;
+      sx = (img.width - sw) / 2;
+      sy = 0;
+    } else {
+      sw = img.width;
+      sh = sw / targetRatio;
+      sx = 0;
+      sy = (img.height - sh) / 2;
+    }
+    const outW = 1280;
+    const outH = Math.round(outW / targetRatio);
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('画像の処理に失敗しました');
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('画像の処理に失敗しました'));
+      }, 'image/jpeg', 0.9);
+    });
+  }
+
+  function mysekaiDetailUrl(uid) {
+    const base = location.href.split('#')[0];
+    return base + '#/board/mysekai/' + encodeURIComponent(uid);
+  }
+
+  function sortMysekaiPosts(posts, mode) {
+    const list = posts.slice();
+    if (mode === 'popular') {
+      return list.sort((a, b) => {
+        const la = Number(a.likeCount) || 0;
+        const lb = Number(b.likeCount) || 0;
+        if (lb !== la) return lb - la;
+        return postUpdatedMs(b) - postUpdatedMs(a);
+      });
+    }
+    if (mode === 'random') {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = list[i];
+        list[i] = list[j];
+        list[j] = tmp;
+      }
+      return list;
+    }
+    return sortPostsByUpdated(list);
+  }
+
+  function mysekaiSortNavHtml(active) {
+    return (
+      '<nav class="board-mysekai-sort" aria-label="並び替え">' +
+      Object.keys(MYSEKAI_SORT).map((key) => {
+        const cls = key === active ? ' board-mysekai-sort__btn is-active' : ' board-mysekai-sort__btn';
+        return '<button type="button" class="' + cls.trim() + '" data-mysekai-sort="' + key + '">' + esc(MYSEKAI_SORT[key]) + '</button>';
+      }).join('') +
+      '</nav>'
+    );
+  }
+
+  function mysekaiThumbHtml(url, emptyLabel) {
+    if (url) {
+      return '<div class="board-mysekai-card__thumb"><img src="' + esc(url) + '" alt="" loading="lazy"></div>';
+    }
+    return '<div class="board-mysekai-card__thumb board-mysekai-card__thumb--empty">' + esc(emptyLabel || '画像なし') + '</div>';
+  }
+
+  function mysekaiGalleryHtml(urls) {
+    const imgs = (urls || []).filter(Boolean).slice(0, MYSEKAI_IMAGE_MAX);
+    if (!imgs.length) return '';
+    const hero = imgs[0];
+    const subs = imgs.slice(1);
+    const heroHtml =
+      '<div class="board-mysekai-gallery__hero"><img src="' + esc(hero) + '" alt="" loading="lazy"></div>';
+    const subsHtml = subs.length
+      ? '<div class="board-mysekai-gallery__subs">' + subs.map((u) =>
+        '<div class="board-mysekai-gallery__sub"><img src="' + esc(u) + '" alt="" loading="lazy"></div>'
+      ).join('') + '</div>'
+      : '';
+    return '<div class="board-mysekai-gallery">' + heroHtml + subsHtml + '</div>';
+  }
+
+  function wireMysekaiImageInput(input, previewEl, hintEl, existingUrls) {
+    if (!input) return;
+    const savedUrls = (existingUrls || []).slice(0, MYSEKAI_IMAGE_MAX);
+    let previewObjectUrls = [];
+
+    function clearPreviewUrls() {
+      previewObjectUrls.forEach((u) => URL.revokeObjectURL(u));
+      previewObjectUrls = [];
+    }
+
+    function showSavedPreview() {
+      if (!previewEl) return;
+      previewEl.innerHTML = savedUrls.length ? mysekaiGalleryHtml(savedUrls) : '';
+    }
+
+    input.addEventListener('change', () => {
+      let files = Array.from(input.files || []);
+      if (files.length > MYSEKAI_IMAGE_MAX) {
+        const dt = new DataTransfer();
+        files.slice(0, MYSEKAI_IMAGE_MAX).forEach((f) => dt.items.add(f));
+        input.files = dt.files;
+        files = files.slice(0, MYSEKAI_IMAGE_MAX);
+        if (hintEl) {
+          hintEl.textContent = '画像は最大' + MYSEKAI_IMAGE_MAX + '枚までです。' + MYSEKAI_IMAGE_MAX + '枚に絞りました。';
+          hintEl.hidden = false;
+        }
+      } else if (hintEl) {
+        hintEl.hidden = true;
+        hintEl.textContent = '';
+      }
+
+      if (!previewEl) return;
+      clearPreviewUrls();
+      if (!files.length) {
+        showSavedPreview();
+        return;
+      }
+      previewObjectUrls = files.map((f) => URL.createObjectURL(f));
+      previewEl.innerHTML = mysekaiGalleryHtml(previewObjectUrls);
+    });
+  }
+
+  function mysekaiIdDetailHtml(mysekaiId) {
+    const id = (mysekaiId || '').trim();
+    if (!id) return '';
+    return (
+      '<div class="board-mysekai-detail__id">' +
+      '<p class="board-mysekai-detail__id-label">マイセカイID</p>' +
+      '<div class="board-mysekai-detail__id-row">' +
+      '<code class="board-mysekai-detail__id-code" id="boardMysekaiIdText">' + esc(id) + '</code>' +
+      '<button type="button" class="btn btn-secondary btn-sm" data-copy-mysekai-id>コピー</button>' +
+      '</div>' +
+      '<p class="form-hint">ゲーム内のマイセカイID欄に貼り付けて訪問できます。</p>' +
+      '</div>'
+    );
+  }
+
+  function wireMysekaiIdCopy(container) {
+    if (!container) return;
+    container.addEventListener('click', (e) => {
+      const copyBtn = e.target.closest('[data-copy-mysekai-id]');
+      if (!copyBtn || !container.contains(copyBtn)) return;
+      const code = container.querySelector('#boardMysekaiIdText');
+      if (!code) return;
+      const text = code.textContent || '';
+      try { navigator.clipboard.writeText(text); } catch (err) { /* ignore */ }
+      const label = copyBtn.textContent;
+      copyBtn.textContent = 'コピー済';
+      setTimeout(() => { copyBtn.textContent = label; }, 1200);
+    });
+  }
+
+  function mysekaiLikeCountHtml(count, className) {
+    const cls = 'board-mysekai-card__likes' + (className ? ' ' + className : '');
+    return '<p class="' + cls.trim() + '"><span aria-hidden="true">♥</span> <span class="board-mysekai-card__likes-count">' + esc(Number(count) || 0) + '</span></p>';
+  }
+
+  function mysekaiCompactCardHtml(p) {
+    const thumb = (p.imageURLs || [])[0];
+    const detailUrl = mysekaiDetailUrl(p.authorUid);
+    return (
+      '<article class="board-mysekai-card">' +
+      mysekaiThumbHtml(thumb) +
+      '<div class="board-mysekai-card__body">' +
+      '<h3 class="board-mysekai-card__title">' + esc(p.title || '(無題)') + visibilityChipHtml(p) + '</h3>' +
+      '<p class="board-mysekai-card__author">' + esc(p.authorName || '匿名') + '</p>' +
+      mysekaiLikeCountHtml(p.likeCount) +
+      '<a href="' + esc(detailUrl) + '" class="btn btn-secondary btn-sm btn-block board-mysekai-card__open" target="_blank" rel="noopener noreferrer">詳細を開く</a>' +
+      '</div></article>'
+    );
+  }
+
+  function mysekaiDetailHtml(p, opts) {
+    opts = opts || {};
+    const imgs = (p.imageURLs || []).slice(0, MYSEKAI_IMAGE_MAX);
+    const gallery = imgs.length
+      ? mysekaiGalleryHtml(imgs)
+      : '<p class="text-muted">画像はありません。</p>';
+    const likeBtn = opts.canLike
+      ? '<button type="button" class="board-like" data-uid="' + esc(p.authorUid) + '"><span aria-hidden="true">♥</span> <span class="board-like__count">' + esc(p.likeCount || 0) + '</span></button>'
+      : '';
+    return (
+      '<article class="board-mysekai-detail">' +
+      '<div class="board-mysekai-detail__head">' +
+      '<h2 class="board-mysekai-detail__title">' + esc(p.title || '(無題)') + visibilityChipHtml(p) + '</h2>' +
+      authorRowHtml(p, { friendSource: 'boardMysekai' }) +
+      '</div>' +
+      mysekaiIdDetailHtml(p.mysekaiId) +
+      gallery +
+      (p.body ? '<p class="board-mysekai-detail__text">' + esc(p.body) + '</p>' : '') +
+      (likeBtn ? '<div class="board-mysekai-detail__actions">' + likeBtn + '</div>' : '') +
+      '</article>'
+    );
+  }
+
+  async function fetchMysekaiPost(authorUid) {
+    const f = await fb();
+    if (!f || !authorUid) return null;
+    const { doc, getDoc } = f.dbFns;
+    const snap = await getDoc(doc(f.db, 'boardMysekai', authorUid));
+    return snap.exists() ? Object.assign({ authorUid }, snap.data()) : null;
   }
 
   // ========================================================
@@ -598,7 +951,7 @@ const MiraiBoard = (function () {
     const bannerTagWrap = box.querySelector('#boardEventBannerTags');
     let filters = createEmptyEventFilters();
 
-    const { user: viewer, friendUids } = await loadViewerContext();
+    const { user: viewer, friendUids, blockedUids } = await loadViewerContext();
     let bookmarkUids = viewer ? await loadBookmarkedUids(viewer.uid) : new Set();
     const canBookmark = !!viewer;
 
@@ -734,7 +1087,7 @@ const MiraiBoard = (function () {
     function render() {
       const q = searchEl.value.trim().toLowerCase();
       const items = all.filter((p) => {
-        if (!isPostVisible(p, viewer && viewer.uid, friendUids)) return false;
+        if (!isPostVisible(p, viewer && viewer.uid, friendUids, blockedUids)) return false;
         if (!postMatchesEventFilters(p, filters, bookmarkUids)) return false;
         if (!q) return true;
         return postSearchHaystack(p).some((s) => s.includes(q));
@@ -848,7 +1201,8 @@ const MiraiBoard = (function () {
       <article class="board-feed-card board-feed-card--event">
         ${eventHeroHtml(p)}
         <div class="board-feed-card__body">
-          ${authorRowHtml(p)}
+
+          ${authorRowHtml(p, { friendSource: 'boardEvent' })}
           <div class="board-meta">${rank}${banner}</div>
           ${chipsHtml}
           <div class="board-card__actions board-card__actions--event">
@@ -880,7 +1234,7 @@ const MiraiBoard = (function () {
     }
 
     box.innerHTML = '<p class="text-muted">読み込み中…</p>';
-    const { user: viewer, friendUids } = await loadViewerContext();
+    const { user: viewer, friendUids, blockedUids } = await loadViewerContext();
 
     let post;
     try {
@@ -891,7 +1245,7 @@ const MiraiBoard = (function () {
       return;
     }
 
-    if (!post || !isPostVisible(post, viewer && viewer.uid, friendUids)) {
+    if (!post || !isPostVisible(post, viewer && viewer.uid, friendUids, blockedUids)) {
       box.innerHTML = '<div class="info-box"><p>この広告は表示できません。</p><p class="mt-2"><a href="#/board/event" class="btn btn-secondary" data-link>一覧に戻る</a></p></div>';
       return;
     }
@@ -952,7 +1306,8 @@ const MiraiBoard = (function () {
         ${eventHeroHtml(p, { detail: true })}
         <div class="board-detail-page__body">
           ${bookmarkBtn}
-          ${authorRowHtml(p)}
+
+          ${authorRowHtml(p, { friendSource: 'boardEvent' })}
           <div class="board-meta">${rank}${banner}</div>
           ${chipsHtml}
           ${p.body ? `<p class="board-card__text">${esc(p.body)}</p>` : ''}
@@ -999,6 +1354,10 @@ const MiraiBoard = (function () {
     if (!authorAvatarURL && hub && hub.avatarURL) authorAvatarURL = hub.avatarURL;
 
     const hasPost = !!(post && post.eventName);
+    if (docExists && post) {
+      post = await syncListingHoldIfNeeded('boardEventAds', user.uid, post);
+    }
+    const listingPaused = hasPost && post.isPublished !== false && !isBoardPostListed(post);
     post = post || {
       authorUid: user.uid, authorPublicId, authorName, authorAvatarURL,
       eventName: '', body: '', imageURL: '', conditionTags: [], eventTags: [], targetRank: null,
@@ -1020,8 +1379,9 @@ const MiraiBoard = (function () {
     const rankOpts = ['<option value="">指定なし</option>']
       .concat(TARGET_RANKS.map((r) => `<option value="${r}"${post.targetRank === r ? ' selected' : ''}>${r}位</option>`)).join('');
 
-    box.innerHTML = `
-      <p class="form-hint mp-board-hint">1アカウント1件まで。保存すると既存の内容を上書き更新します。</p>
+    box.innerHTML =
+      (listingPaused ? listingExtendSectionHtml('evExtendListing') : '') +
+      `<p class="form-hint mp-board-hint">1アカウント1件まで。保存すると既存の内容を上書き更新します。</p>
       <section class="card community-editor mp-board-editor">
         <div class="form-group"><label for="evName">イベント名 / タイトル</label>
           <input type="text" class="form-input" id="evName" maxlength="60" value="${esc(post.eventName)}" placeholder="例: 〇〇イベント 一緒に走りませんか"></div>
@@ -1066,6 +1426,10 @@ const MiraiBoard = (function () {
         <p id="evSaved" class="community-saved mt-2" hidden>保存しました ✓</p>
       </section>
     `;
+
+    if (listingPaused) {
+      wireListingExtendButton(box, 'evExtendListing', 'boardEventAds', user.uid);
+    }
 
     const errEl = box.querySelector('#evError');
     const savedEl = box.querySelector('#evSaved');
@@ -1130,6 +1494,7 @@ const MiraiBoard = (function () {
           isPublished: box.querySelector('#evPublished').checked,
           visibility: box.querySelector('#evVisibility').value === 'friends' ? 'friends' : 'public',
           showSupportTeams: box.querySelector('#evShowSupportTeams').checked,
+          listingHold: 0,
         };
         await saveDoc('boardEventAds', user.uid, data, !docExists);
         docExists = true;
@@ -1154,7 +1519,9 @@ const MiraiBoard = (function () {
     if (!f) return null;
     const { doc, getDoc } = f.dbFns;
     const snap = await getDoc(doc(f.db, 'boardEventAds', uid));
-    return snap.exists() ? snap.data() : null;
+    if (!snap.exists()) return null;
+    const post = Object.assign({ authorUid: uid }, snap.data());
+    return syncListingHoldIfNeeded('boardEventAds', uid, post);
   }
 
   async function fetchOwnMysekai(uid) {
@@ -1162,7 +1529,9 @@ const MiraiBoard = (function () {
     if (!f) return null;
     const { doc, getDoc } = f.dbFns;
     const snap = await getDoc(doc(f.db, 'boardMysekai', uid));
-    return snap.exists() ? snap.data() : null;
+    if (!snap.exists()) return null;
+    const post = Object.assign({ authorUid: uid }, snap.data());
+    return syncListingHoldIfNeeded('boardMysekai', uid, post);
   }
 
   // ========================================================
@@ -1179,35 +1548,86 @@ const MiraiBoard = (function () {
         <p class="text-muted board-toolbar__note">マイセカイの百景を見る（閲覧のみ）</p>
         <p class="form-hint board-toolbar__note">投稿・編集は<a href="#/mypage" data-link>マイページ</a>から行えます（1アカウント1件）。</p>
       </div>
-      <div id="boardMysekaiList" class="board-list board-feed-wrap"><p class="text-muted">読み込み中…</p></div>
+      <div id="boardMysekaiSort"></div>
+      <div id="boardMysekaiList" class="board-list board-mysekai-wrap"><p class="text-muted">読み込み中…</p></div>
     `;
 
-    const { user: viewer, friendUids } = await loadViewerContext();
-    let all = [];
-    try { all = await fetchMysekai(); }
-    catch (e) {
+    const sortEl = box.querySelector('#boardMysekaiSort');
+    const listEl = box.querySelector('#boardMysekaiList');
+    const { user: viewer, friendUids, blockedUids } = await loadViewerContext();
+    let visiblePosts = [];
+    let currentSort = 'popular';
+
+    function renderMysekaiGrid(sort) {
+      currentSort = sort || currentSort;
+      if (!visiblePosts.length) {
+        sortEl.innerHTML = '';
+        listEl.innerHTML = '<p class="text-muted board-empty">宣伝はまだありません。</p>';
+        return;
+      }
+      const sorted = sortMysekaiPosts(visiblePosts, currentSort);
+      sortEl.innerHTML = mysekaiSortNavHtml(currentSort);
+      listEl.innerHTML = '<div class="board-mysekai-grid">' + sorted.map(mysekaiCompactCardHtml).join('') + '</div>';
+    }
+
+    box.addEventListener('click', (e) => {
+      const sortBtn = e.target.closest('[data-mysekai-sort]');
+      if (!sortBtn || !box.contains(sortBtn)) return;
+      renderMysekaiGrid(sortBtn.dataset.mysekaiSort);
+    });
+
+    try {
+      const all = await fetchMysekai();
+      visiblePosts = all.filter((p) => isPostVisible(p, viewer && viewer.uid, friendUids, blockedUids));
+      renderMysekaiGrid('popular');
+    } catch (e) {
       const hint = (e && e.code === 'permission-denied')
         ? '<p class="form-hint mt-1">Firestore のルールが未デプロイの可能性があります。<code>data/firestore.rules</code> を Firebase Console に反映してください。</p>'
         : (e && e.code === 'failed-precondition')
           ? '<p class="form-hint mt-1">Firestore インデックスの作成が必要な場合があります。<code>data/firestore.indexes.json</code> をデプロイしてください。</p>'
           : '';
-      box.querySelector('#boardMysekaiList').innerHTML =
-        '<div class="info-box"><p>読み込みに失敗しました。</p>' + hint + '</div>';
+      sortEl.innerHTML = '';
+      listEl.innerHTML = '<div class="info-box"><p>読み込みに失敗しました。</p>' + hint + '</div>';
+      console.error(e);
+    }
+  }
+
+  async function initMysekaiDetail(params) {
+    const box = document.getElementById('app').querySelector('#boardMysekaiDetailRoot');
+    if (!box) return;
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
+
+    const authorUid = params && params.uid;
+    if (!authorUid) {
+      box.innerHTML = '<div class="info-box"><p>宣伝が見つかりませんでした。</p><p class="mt-2"><a href="#/board/mysekai" class="btn btn-secondary" data-link>一覧に戻る</a></p></div>';
+      return;
+    }
+
+    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
+    const { user: viewer, friendUids, blockedUids } = await loadViewerContext();
+
+    let post;
+    try {
+      post = await fetchMysekaiPost(authorUid);
+    } catch (e) {
+      box.innerHTML = '<div class="info-box"><p>読み込みに失敗しました。</p></div>';
       console.error(e);
       return;
     }
 
-    const listEl = box.querySelector('#boardMysekaiList');
-    const visible = all.filter((p) => isPostVisible(p, viewer && viewer.uid, friendUids));
-    listEl.innerHTML = visible.length
-      ? `<div class="board-feed">${visible.map(mysekaiCardHtml).join('')}</div>`
-      : '<p class="text-muted board-empty">宣伝はまだありません。</p>';
+    if (!post || !isPostVisible(post, viewer && viewer.uid, friendUids, blockedUids)) {
+      box.innerHTML = '<div class="info-box"><p>この宣伝は表示できません。</p><p class="mt-2"><a href="#/board/mysekai" class="btn btn-secondary" data-link>一覧に戻る</a></p></div>';
+      return;
+    }
 
-    wireBoardFeed(listEl);
-    listEl.addEventListener('click', async (e) => {
+    const enriched = (await enrichPostsWithAvatars([post]))[0];
+    box.innerHTML = mysekaiDetailHtml(enriched, { canLike: true });
+    document.title = (enriched.title || 'マイセカイ宣伝') + ' — 未来喫茶';
+
+    wireMysekaiIdCopy(box);
+    box.addEventListener('click', async (e) => {
       const likeBtn = e.target.closest('.board-like');
       if (!likeBtn) return;
-      const authorUid = likeBtn.dataset.uid;
       const user = window.MiraiAuth.getUser();
       if (!user) { location.hash = '#/login'; return; }
       likeBtn.disabled = true;
@@ -1224,42 +1644,7 @@ const MiraiBoard = (function () {
   }
 
   async function fetchMysekai() {
-    return fetchBoardPosts('boardMysekai');
-  }
-
-  function mysekaiCardHtml(p) {
-    const imgs = (p.imageURLs || []).slice(0, 4);
-    const thumb = imgs[0];
-    const extraCount = imgs.length > 1 ? imgs.length - 1 : 0;
-    const thumbHtml = thumb
-      ? `<div class="board-aspect-16x9">${extraCount ? `<span class="board-photo-badge">+${extraCount}枚</span>` : ''}<img src="${esc(thumb)}" alt="" loading="lazy"></div>`
-      : aspect16x9Html('', '画像なし');
-    const extraImgs = imgs.slice(1);
-    const extraGallery = extraImgs.length
-      ? `<div class="board-detail-gallery">${extraImgs.map((u) => aspect16x9Html(u)).join('')}</div>` : '';
-    const hasDetail = !!(p.body || extraImgs.length);
-    const likeBtn = `<button type="button" class="board-like" data-uid="${esc(p.authorUid)}">
-      <span aria-hidden="true">♥</span> <span class="board-like__count">${esc(p.likeCount || 0)}</span>
-    </button>`;
-    const detailPanel = hasDetail ? `
-      <div class="board-detail-panel" hidden>
-        ${p.body ? `<p class="board-card__text">${esc(p.body)}</p>` : ''}
-        ${extraGallery}
-      </div>
-      <button type="button" class="board-detail-toggle btn btn-secondary btn-sm btn-block" aria-expanded="false" data-open-label="詳細を見る" data-close-label="詳細を閉じる">詳細を見る</button>
-    ` : '';
-
-    return `
-      <article class="board-feed-card board-feed-card--mysekai">
-        ${thumbHtml}
-        <div class="board-feed-card__body">
-          <h3 class="board-card__title">${esc(p.title || '(無題)')}${visibilityChipHtml(p)}</h3>
-          <p class="board-card__author">${esc(p.authorName || '匿名')}</p>
-          ${detailPanel}
-          <div class="board-card__actions">${likeBtn}</div>
-        </div>
-      </article>
-    `;
+    return fetchBoardPosts('boardMysekai', { limit: MYSEKAI_FETCH_LIMIT, fetchLimit: MYSEKAI_FETCH_LIMIT * 2 });
   }
 
   async function toggleLike(authorUid, likerUid) {
@@ -1314,26 +1699,35 @@ const MiraiBoard = (function () {
     }
 
     const hasPost = !!(post && post.title);
+    if (docExists && post) {
+      post = await syncListingHoldIfNeeded('boardMysekai', user.uid, post);
+    }
+    const listingPaused = hasPost && post.isPublished !== false && !isBoardPostListed(post);
     post = post || {
       authorUid: user.uid, authorPublicId, authorName,
-      title: '', body: '', imageURLs: [], likeCount: 0, isPublished: true,
+      title: '', body: '', mysekaiId: '', imageURLs: [], likeCount: 0, isPublished: true,
       visibility: 'public',
     };
 
-    const existing = (post.imageURLs || []).slice(0, 4);
-    box.innerHTML = `
-      <p class="form-hint mp-board-hint">1アカウント1件まで。保存すると既存の内容を上書き更新します。</p>
+    const existing = (post.imageURLs || []).slice(0, MYSEKAI_IMAGE_MAX);
+    box.innerHTML =
+      (listingPaused ? listingExtendSectionHtml('msExtendListing') : '') +
+      `<p class="form-hint mp-board-hint">1アカウント1件まで。保存すると既存の内容を上書き更新します。</p>
       <section class="card community-editor mp-board-editor">
         <div class="form-group"><label for="msTitle">タイトル</label>
           <input type="text" class="form-input" id="msTitle" maxlength="60" value="${esc(post.title)}" placeholder="例: 和風庭園の百景"></div>
         <div class="form-group"><label for="msAuthor">表示名</label>
           <input type="text" class="form-input" id="msAuthor" maxlength="30" value="${esc(authorName)}"></div>
+        <div class="form-group"><label for="msMysekaiId">マイセカイID</label>
+          <input type="text" class="form-input" id="msMysekaiId" maxlength="30" value="${esc(post.mysekaiId || '')}" placeholder="例: 123456789" inputmode="numeric" autocomplete="off">
+          <p class="form-hint">ゲーム内で確認できるマイセカイID。詳細ページで他の人がコピーして訪問できます。</p></div>
         <div class="form-group"><label for="msBody">紹介文</label>
           <textarea class="form-input" id="msBody" rows="4" maxlength="500" placeholder="こだわりポイントなど">${esc(post.body)}</textarea></div>
-        <div class="form-group"><label for="msImgs">画像（最大4枚）</label>
+        <div class="form-group"><label for="msImgs">画像（最大${MYSEKAI_IMAGE_MAX}枚）</label>
           <input type="file" class="form-input" id="msImgs" accept="image/*" multiple>
-          ${existing.length ? `<div class="board-detail-gallery mt-2">${existing.map((u) => aspect16x9Html(u)).join('')}</div>` : ''}
-          <p class="form-hint">新しく選ぶと、選んだ画像で置き換えます。1枚目がサムネイル、2〜4枚目は詳細で表示されます。</p></div>
+          <div id="msImgPreview" class="mt-2">${existing.length ? mysekaiGalleryHtml(existing) : ''}</div>
+          <p id="msImgsLimitHint" class="form-hint mt-1" hidden></p>
+          <p class="form-hint">新しく選ぶと、選んだ画像で置き換えます。1枚目がサムネイル、2〜${MYSEKAI_IMAGE_MAX}枚目はその下に小さく表示されます。アップロード時に16:9へ自動トリミングされます。</p></div>
         ${visibilitySelectHtml('msVisibility', post.visibility)}
         <div class="form-group"><label class="form-toggle"><input type="checkbox" id="msPublished"${post.isPublished !== false ? ' checked' : ''}><span class="toggle-track"></span><span class="toggle-label">公開する</span></label></div>
 
@@ -1342,6 +1736,17 @@ const MiraiBoard = (function () {
         <p id="msSaved" class="community-saved mt-2" hidden>保存しました ✓</p>
       </section>
     `;
+
+    if (listingPaused) {
+      wireListingExtendButton(box, 'msExtendListing', 'boardMysekai', user.uid);
+    }
+
+    wireMysekaiImageInput(
+      box.querySelector('#msImgs'),
+      box.querySelector('#msImgPreview'),
+      box.querySelector('#msImgsLimitHint'),
+      existing
+    );
 
     const errEl = box.querySelector('#msError');
     const savedEl = box.querySelector('#msSaved');
@@ -1352,12 +1757,13 @@ const MiraiBoard = (function () {
       const btn = box.querySelector('#msSave');
       btn.disabled = true; btn.textContent = '保存中…';
       try {
-        const files = Array.from(box.querySelector('#msImgs').files || []).slice(0, 4);
+        const files = Array.from(box.querySelector('#msImgs').files || []).slice(0, MYSEKAI_IMAGE_MAX);
         let imageURLs = post.imageURLs || [];
         if (files.length) {
           imageURLs = [];
           for (let i = 0; i < files.length; i++) {
-            imageURLs.push(await uploadImage(user.uid, files[i], `mysekai-${i}.jpg`));
+            const cropped = await processMysekaiImage(files[i]);
+            imageURLs.push(await uploadImage(user.uid, cropped, `mysekai-${i}.jpg`));
           }
         }
         const data = {
@@ -1365,10 +1771,12 @@ const MiraiBoard = (function () {
           authorPublicId: authorPublicId || '',
           authorName: box.querySelector('#msAuthor').value.trim() || title,
           title,
+          mysekaiId: box.querySelector('#msMysekaiId').value.trim(),
           body: box.querySelector('#msBody').value.trim(),
           imageURLs,
           isPublished: box.querySelector('#msPublished').checked,
           visibility: box.querySelector('#msVisibility').value === 'friends' ? 'friends' : 'public',
+          listingHold: 0,
         };
         if (typeof post.likeCount === 'number') data.likeCount = post.likeCount;
         await saveDoc('boardMysekai', user.uid, data, !docExists);
@@ -1376,6 +1784,12 @@ const MiraiBoard = (function () {
         post = Object.assign(post, data);
         btn.textContent = '更新する';
         savedEl.hidden = false;
+        const previewEl = box.querySelector('#msImgPreview');
+        if (previewEl) {
+          previewEl.innerHTML = imageURLs.length ? mysekaiGalleryHtml(imageURLs) : '';
+        }
+        const imgsInput = box.querySelector('#msImgs');
+        if (imgsInput) imgsInput.value = '';
         if (typeof opts.onSaved === 'function') opts.onSaved(post);
         setTimeout(() => { savedEl.hidden = true; }, 2500);
       } catch (e) {
@@ -1419,10 +1833,12 @@ const MiraiBoard = (function () {
   }
 
   return {
-    initEventList, initEventDetail, initEventEdit, initMysekaiList, initMysekaiEdit,
+    initEventList, initEventDetail, initEventEdit, initMysekaiList, initMysekaiDetail, initMysekaiEdit,
     mountEventEditor, mountMysekaiEditor,
     fetchOwnEventAd, fetchOwnMysekai,
     listEventBookmarks, loadBookmarkedUids, toggleEventBookmark,
+    isBoardPostListed, extendBoardListing, boardListingPausedMessage,
+    LISTING_INACTIVE_DAYS,
   };
 })();
 
