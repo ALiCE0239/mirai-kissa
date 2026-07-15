@@ -898,7 +898,14 @@ const MiraiBoard = (function () {
 
     const enriched = (await enrichPostsWithAvatars([post]))[0];
     const bookmarked = viewer ? (await loadBookmarkedUids(viewer.uid)).has(authorUid) : false;
-    box.innerHTML = eventDetailHtml(enriched, { canBookmark: !!viewer, bookmarked });
+    let supportTeamsHtml = '';
+    if (enriched.showSupportTeams && enriched.authorPublicId) {
+      const authorHub = await loadPublicHub(enriched.authorPublicId);
+      if (authorHub && window.MiraiMyPage && typeof MiraiMyPage.supportTeamsDetailHtml === 'function') {
+        supportTeamsHtml = MiraiMyPage.supportTeamsDetailHtml(authorHub.supportTeams);
+      }
+    }
+    box.innerHTML = eventDetailHtml(enriched, { canBookmark: !!viewer, bookmarked, supportTeamsHtml });
     document.title = (enriched.eventName || 'イベラン広告') + ' — 未来喫茶';
 
     const bookmarkBtn = box.querySelector('.board-bookmark');
@@ -934,6 +941,7 @@ const MiraiBoard = (function () {
       ? `<a class="btn btn-secondary btn-sm" href="${esc(normalizeUrl(p.runLocationURL))}" target="_blank" rel="noopener noreferrer">周回場所</a>` : '';
     const bookmarkBtn = opts.canBookmark
       ? `<div class="board-detail-page__bookmark">${eventBookmarkBtnHtml(p, !!opts.bookmarked)}</div>` : '';
+    const supportTeamsHtml = opts.supportTeamsHtml || '';
     const chipsHtml = [
       conditionTags ? `<div class="board-chips">${conditionTags}</div>` : '',
       eventTags ? `<div class="board-chips board-chips--event">${eventTags}</div>` : '',
@@ -948,6 +956,7 @@ const MiraiBoard = (function () {
           <div class="board-meta">${rank}${banner}</div>
           ${chipsHtml}
           ${p.body ? `<p class="board-card__text">${esc(p.body)}</p>` : ''}
+          ${supportTeamsHtml}
           ${(discord || run) ? `<div class="board-card__actions">${discord}${run}</div>` : ''}
         </div>
       </article>
@@ -994,7 +1003,7 @@ const MiraiBoard = (function () {
       authorUid: user.uid, authorPublicId, authorName, authorAvatarURL,
       eventName: '', body: '', imageURL: '', conditionTags: [], eventTags: [], targetRank: null,
       eventBanner: '', discordURL: '', discordLabel: 'Discord', runLocationURL: '', isPublished: true,
-      visibility: 'public',
+      visibility: 'public', showSupportTeams: false,
     };
 
     const storedEventTags = getPostEventTags(post);
@@ -1046,6 +1055,10 @@ const MiraiBoard = (function () {
           <input type="file" class="form-input" id="evImg" accept="image/*">
           ${post.imageURL ? `<div class="board-aspect-16x9 mt-2" style="max-height:200px"><img src="${esc(post.imageURL)}" alt="" loading="lazy"></div>` : ''}</div>
         ${visibilitySelectHtml('evVisibility', post.visibility)}
+        <div class="form-group">
+          <label class="form-toggle"><input type="checkbox" id="evShowSupportTeams"${post.showSupportTeams ? ' checked' : ''}><span class="toggle-track"></span><span class="toggle-label">お返し編成情報を記載する</span></label>
+          <p class="form-hint mt-1">マイページ設定で登録した支援編成が詳細ページに表示されます</p>
+        </div>
         <div class="form-group"><label class="form-toggle"><input type="checkbox" id="evPublished"${post.isPublished !== false ? ' checked' : ''}><span class="toggle-track"></span><span class="toggle-label">公開する</span></label></div>
 
         <p id="evError" class="form-error mt-2" hidden></p>
@@ -1095,7 +1108,10 @@ const MiraiBoard = (function () {
           imageURL = await uploadImage(user.uid, fileInput.files[0], 'event-banner.jpg');
         }
         const freshHub = await loadOwnHub(user.uid);
-        if (freshHub && freshHub.avatarURL) authorAvatarURL = freshHub.avatarURL;
+        if (freshHub) {
+          if (freshHub.avatarURL) authorAvatarURL = freshHub.avatarURL;
+          if (freshHub.publicId) authorPublicId = freshHub.publicId;
+        }
         const data = {
           authorUid: user.uid,
           authorPublicId: authorPublicId || '',
@@ -1113,6 +1129,7 @@ const MiraiBoard = (function () {
           runLocationURL: normalizeUrl(box.querySelector('#evRunUrl').value),
           isPublished: box.querySelector('#evPublished').checked,
           visibility: box.querySelector('#evVisibility').value === 'friends' ? 'friends' : 'public',
+          showSupportTeams: box.querySelector('#evShowSupportTeams').checked,
         };
         await saveDoc('boardEventAds', user.uid, data, !docExists);
         docExists = true;
@@ -1387,6 +1404,16 @@ const MiraiBoard = (function () {
     const { doc, getDoc } = f.dbFns;
     try {
       const snap = await getDoc(doc(f.db, 'users', uid, 'sns', 'linkHub'));
+      return snap.exists() ? snap.data() : null;
+    } catch (e) { return null; }
+  }
+
+  async function loadPublicHub(publicId) {
+    const f = await fb();
+    if (!f || !publicId) return null;
+    const { doc, getDoc } = f.dbFns;
+    try {
+      const snap = await getDoc(doc(f.db, 'linkHubs', publicId));
       return snap.exists() ? snap.data() : null;
     } catch (e) { return null; }
   }
