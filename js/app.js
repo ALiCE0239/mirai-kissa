@@ -176,6 +176,7 @@
       .add('/admin',    'tmpl-admin',     () => AdminPage.init())
       .add('/login',    'tmpl-login',     () => MiraiMyPage.initLogin())
       .add('/mypage',   'tmpl-mypage',    () => guardCommunity(() => MiraiMyPage.initMyPage())())
+      .add('/mypage/settings', 'tmpl-mypage-settings', () => guardCommunity(() => MiraiMyPage.initSettings())())
       .add('/mypage/friend-requests', 'tmpl-mypage-friend-requests', () => guardCommunity(() => MiraiFriends.initFriendRequestsPage())())
       .add('/mypage/friends', 'tmpl-mypage-friends', () => guardCommunity(() => MiraiFriends.initFriendsPage())())
       .add('/mypage/sekainote', 'tmpl-mypage-sekainote', () => guardCommunity(() => MiraiMyPage.initSekaiNoteEdit())())
@@ -209,6 +210,7 @@
         '/admin':     '管理者 — 未来喫茶',
         '/login':     'ログイン — 未来喫茶',
         '/mypage':    'マイページ — 未来喫茶',
+        '/mypage/settings': 'マイページ設定 — 未来喫茶',
         '/mypage/friend-requests': 'フレンド申請 — 未来喫茶',
         '/mypage/friends': 'フレンド一覧 — 未来喫茶',
         '/mypage/sekainote': 'セカイノートを編集 — 未来喫茶',

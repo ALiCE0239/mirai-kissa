@@ -3,6 +3,7 @@
  *
  * - #/login          ログイン画面（X / Google）
  * - #/mypage         マイページ（要ログイン）
+ * - #/mypage/settings    マイページ設定（要ログイン）
  * - #/mypage/sekainote     セカイノート編集（要ログイン）
  * - #/mypage/profile-card  プロフィールカード作成（要ログイン）
  * - #/sekainote/read       セカイノート読み取り（公開）
@@ -149,6 +150,88 @@ const MiraiMyPage = (function () {
   const PROFILE_CARD_WIDTH_MM = 91;
   const PROFILE_CARD_HEIGHT_MM = 55;
   const PROFILE_CARD_EXPORT_DPI = 300;
+  const SUPPORT_TEAM_MAX = 3;
+  const SUPPORT_TEAM_TYPES = {
+    internal: '内部編成',
+    internal_encore: '内部アンコール編成',
+    encore: 'アンコール編成',
+  };
+  const SETTINGS_DRAFT_KEY = 'mirai_mypage_settings_draft';
+  const EXEC_FROM_SETTINGS_KEY = 'mirai_exec_from_settings';
+
+  function parseSupportNumber(value) {
+    if (value === '' || value == null) return null;
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+  }
+
+  function parseSupportDecimal(value) {
+    if (value === '' || value == null) return null;
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : null;
+  }
+
+  function normalizeSupportTeams(teams) {
+    if (!Array.isArray(teams)) return [];
+    return teams.slice(0, SUPPORT_TEAM_MAX).map((t) => ({
+      id: t.id || newPublicId(),
+      teamType: Object.prototype.hasOwnProperty.call(SUPPORT_TEAM_TYPES, t.teamType) ? t.teamType : 'internal',
+      leaderSkill: String(t.leaderSkill || '').trim().slice(0, 40),
+      internalValue: parseSupportNumber(t.internalValue),
+      totalPower: parseSupportDecimal(t.totalPower),
+    }));
+  }
+
+  function supportTeamsForSave(teams) {
+    return normalizeSupportTeams(teams).filter((t) =>
+      t.leaderSkill || t.internalValue != null || t.totalPower != null
+    );
+  }
+
+  function supportTeamTypeLabel(type) {
+    return SUPPORT_TEAM_TYPES[type] || SUPPORT_TEAM_TYPES.internal;
+  }
+
+  function parseLeaderSkillValue(value) {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  function calcSupportExecValue(leaderSkill, internalValue) {
+    const leader = parseLeaderSkillValue(leaderSkill);
+    const internal = parseSupportNumber(internalValue);
+    if (leader == null || internal == null) return null;
+    return leader + (internal - leader) * 0.2;
+  }
+
+  function supportTeamStatsText(team, fmtDec) {
+    const leaderText = team.leaderSkill ? esc(team.leaderSkill) : '—';
+    const internalText = team.internalValue != null ? esc(team.internalValue) : '—';
+    const totalText = team.totalPower != null ? esc(fmtDec(team.totalPower)) : '—';
+    const execValue = calcSupportExecValue(team.leaderSkill, team.internalValue);
+    const execPart = execValue != null ? '(' + esc(fmtDec(execValue)) + '%)' : '';
+    return leaderText + '/' + internalText + '/' + totalText + execPart;
+  }
+
+  function supportTeamsDetailHtml(teams) {
+    const list = supportTeamsForSave(teams);
+    if (!list.length) return '';
+    const fmtDec = typeof window.fmtNum1 === 'function' ? window.fmtNum1 : (n) => String(n);
+    return (
+      '<section class="board-support-teams">' +
+      '<h3 class="board-support-teams__title">お返し編成</h3>' +
+      '<ol class="board-support-teams__list">' +
+      list.map((team) =>
+        '<li class="board-support-team-row">' +
+        '<span class="board-support-team-row__type">' + esc(supportTeamTypeLabel(team.teamType)) + '</span>' +
+        '<span class="board-support-team-row__stats">' + supportTeamStatsText(team, fmtDec) + '</span>' +
+        '</li>'
+      ).join('') +
+      '</ol></section>'
+    );
+  }
 
   function profileCardExportPixelSize() {
     const pxPerMm = PROFILE_CARD_EXPORT_DPI / 25.4;
@@ -495,6 +578,32 @@ const MiraiMyPage = (function () {
     renderSekaiEditor(box, user, hub, hubExisted);
   }
 
+  async function initSettings() {
+    const root = document.getElementById('app');
+    const box = root.querySelector('#myPageSettingsRoot');
+    if (!box) return;
+
+    if (!(await isConfigured())) {
+      box.innerHTML =
+        '<div class="info-box"><p><strong>ログイン機能は準備中です。</strong></p>' +
+        '<p class="mt-1">Firebase の設定後に利用できます。</p></div>';
+      return;
+    }
+
+    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
+
+    const user = await resolveAuthUser();
+    if (!user) {
+      box.innerHTML =
+        '<div class="info-box"><p>マイページ設定の編集にはログインが必要です。</p>' +
+        '<p class="mt-2"><a href="#/login" class="btn btn-primary" data-link>ログインする</a></p></div>';
+      return;
+    }
+
+    const { hub } = await prepareHub(user);
+    renderProfileSettings(box, user, hub);
+  }
+
   async function resolveAuthUser() {
     await window.MiraiFirebaseReady;
     let user = window.MiraiAuth.getUser();
@@ -529,6 +638,7 @@ const MiraiMyPage = (function () {
         theme: 'blue',
         blocks: [],
         notes: [],
+        supportTeams: [],
       };
       const x = window.MiraiAuth.getStoredXHandle();
       if (x) {
@@ -537,6 +647,7 @@ const MiraiMyPage = (function () {
     }
     hub.links = Array.isArray(hub.links) ? hub.links : [];
     hub.notes = Array.isArray(hub.notes) ? hub.notes : [];
+    hub.supportTeams = normalizeSupportTeams(hub.supportTeams);
     return { hub, hubExisted };
   }
 
@@ -572,43 +683,11 @@ const MiraiMyPage = (function () {
           <div class="mp-profile-summary__main">
             <div id="mpProfileAvatarPreview">${avatarHtml(hub, 'linkhub-avatar--sm')}</div>
             <div class="mp-profile-summary__text">
-              <p class="mp-profile-summary__name" id="mpProfileNamePreview">${esc(hub.displayName || '未設定')}</p>
-              <p class="mp-profile-summary__headline" id="mpProfileHeadlinePreview">${esc(hub.headline || '一言未設定')}</p>
+              <p class="mp-profile-summary__name">${esc(hub.displayName || '未設定')}</p>
+              <p class="mp-profile-summary__headline">${esc(hub.headline || '一言未設定')}</p>
             </div>
           </div>
-          <button type="button" class="btn btn-secondary" id="mpProfileToggle" aria-expanded="false" aria-controls="mpProfilePanel">マイページ設定</button>
-        </div>
-
-        <div id="mpProfilePanel" class="mp-profile-panel" hidden>
-          <div class="form-group mp-avatar-field">
-            <label>アイコン画像</label>
-            <div class="mp-avatar-upload">
-              <div id="mpAvatarEditPreview">${avatarHtml(hub, 'linkhub-avatar--sm')}</div>
-              <div class="mp-avatar-upload__actions">
-                <label class="btn btn-secondary btn-sm mp-avatar-upload__pick">
-                  画像を選ぶ
-                  <input type="file" id="mpAvatarFile" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
-                </label>
-                <button type="button" class="btn btn-secondary btn-sm" id="mpAvatarClear"${hub.avatarURL ? '' : ' hidden'}>削除</button>
-              </div>
-              <p class="form-hint">JPEG / PNG / WebP / GIF・2MBまで</p>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="mpName">表示名</label>
-            <input type="text" class="form-input" id="mpName" maxlength="30" value="${esc(hub.displayName)}" placeholder="例: みくちゃん">
-          </div>
-          <div class="form-group">
-            <label for="mpHeadline">一言</label>
-            <input type="text" class="form-input" id="mpHeadline" maxlength="40" value="${esc(hub.headline)}" placeholder="例: 25時、ナイトコードで。推し">
-          </div>
-          <div class="form-group">
-            <label for="mpBio">自己紹介</label>
-            <textarea class="form-input" id="mpBio" rows="3" maxlength="200" placeholder="プロフィールや活動内容など">${esc(hub.bio)}</textarea>
-          </div>
-          <button type="button" class="btn btn-primary btn-block" id="mpProfileSave">マイページ設定を保存</button>
-          <p id="mpProfileError" class="form-error mt-2" hidden></p>
-          <p id="mpProfileSaved" class="community-saved mt-2" hidden>保存しました ✓</p>
+          <a href="#/mypage/settings" class="btn btn-secondary" data-link>マイページ設定</a>
         </div>
 
         <div class="divider"></div>
@@ -708,8 +787,192 @@ const MiraiMyPage = (function () {
       </section>
     `;
 
-    const profilePanel = box.querySelector('#mpProfilePanel');
-    const profileToggle = box.querySelector('#mpProfileToggle');
+    box.querySelector('#mpLogout').addEventListener('click', async () => {
+      await window.MiraiAuth.signOut();
+      location.hash = '#/';
+    });
+
+    box.querySelector('#mpCopyId').addEventListener('click', () => {
+      const id = hub.publicId;
+      try { navigator.clipboard.writeText(id); } catch (e) { document.execCommand('copy'); }
+      const btn = box.querySelector('#mpCopyId');
+      const t = btn.textContent;
+      btn.textContent = 'コピー済';
+      setTimeout(() => { btn.textContent = t; }, 1200);
+    });
+
+    if (window.MiraiQr) {
+      MiraiQr.render(box.querySelector('#mpQrCode'), MiraiQr.publicPageUrl(hub.publicId), 120).catch(console.error);
+    }
+
+    if (window.MiraiFriends) {
+      MiraiFriends.initMypageFriends(box, user);
+    }
+  }
+
+  function renderProfileSettings(box, user, hub) {
+    const draftRaw = sessionStorage.getItem(SETTINGS_DRAFT_KEY);
+    if (draftRaw) {
+      try {
+        const draft = JSON.parse(draftRaw);
+        if (draft.displayName != null) hub.displayName = String(draft.displayName);
+        if (draft.headline != null) hub.headline = String(draft.headline);
+        if (draft.bio != null) hub.bio = String(draft.bio);
+        if (draft.supportTeams) hub.supportTeams = normalizeSupportTeams(draft.supportTeams);
+      } catch (e) {
+        console.warn('[mypage] settings draft restore failed:', e);
+      }
+      sessionStorage.removeItem(SETTINGS_DRAFT_KEY);
+    }
+
+    let supportTeams = hub.supportTeams.slice();
+
+    function supportTeamTypeOptions(selected) {
+      return Object.keys(SUPPORT_TEAM_TYPES).map((k) =>
+        '<option value="' + k + '"' + (selected === k ? ' selected' : '') + '>' + esc(SUPPORT_TEAM_TYPES[k]) + '</option>'
+      ).join('');
+    }
+
+    function supportTeamRowHtml(team, idx) {
+      return (
+        '<div class="mp-support-team" data-id="' + esc(team.id) + '" data-idx="' + idx + '">' +
+        '<div class="mp-support-team__head">' +
+        '<p class="adjust-filters__title">支援編成 ' + (idx + 1) + '</p>' +
+        '<button type="button" class="btn btn-secondary btn-sm mp-support-team__remove">削除</button>' +
+        '</div>' +
+        '<div class="form-group">' +
+        '<label>編成タイプ</label>' +
+        '<select class="form-select mp-support-type">' + supportTeamTypeOptions(team.teamType) + '</select>' +
+        '</div>' +
+        '<div class="form-row mp-support-team__stats">' +
+        '<div class="form-group">' +
+        '<label>リーダースキル</label>' +
+        '<input type="text" class="form-input mp-support-leader" maxlength="40" value="' + esc(team.leaderSkill) + '" placeholder="160">' +
+        '</div>' +
+        '<div class="form-group">' +
+        '<label>内部値</label>' +
+        '<input type="number" class="form-input mp-support-internal" min="0" max="999" value="' + (team.internalValue != null ? esc(team.internalValue) : '') + '" placeholder="760">' +
+        '</div>' +
+        '<div class="form-group">' +
+        '<label>総合力</label>' +
+        '<input type="number" class="form-input mp-support-total" min="0" max="9999" step="0.1" value="' + (team.totalPower != null ? esc(team.totalPower) : '') + '" placeholder="36.2">' +
+        '</div>' +
+        '</div>' +
+        '<p class="form-hint mp-support-exec-hint"><a href="#/exec" class="btn btn-secondary btn-sm mp-support-exec-calc" data-link>実効値計算機で入力</a></p>' +
+        '</div>'
+      );
+    }
+
+    function renderSupportTeamList() {
+      const wrap = box.querySelector('#mpSupportTeams');
+      const addBtn = box.querySelector('#mpAddSupportTeam');
+      if (!wrap) return;
+      wrap.innerHTML = supportTeams.map((team, idx) => supportTeamRowHtml(team, idx)).join('');
+      if (addBtn) addBtn.disabled = supportTeams.length >= SUPPORT_TEAM_MAX;
+      wireSupportTeamRows();
+    }
+
+    function readSupportTeamsFromDom() {
+      const rows = box.querySelectorAll('.mp-support-team');
+      supportTeams = Array.from(rows).map((row) => ({
+        id: row.dataset.id || newPublicId(),
+        teamType: row.querySelector('.mp-support-type').value,
+        leaderSkill: row.querySelector('.mp-support-leader').value.trim(),
+        internalValue: parseSupportNumber(row.querySelector('.mp-support-internal').value),
+        totalPower: parseSupportDecimal(row.querySelector('.mp-support-total').value),
+      }));
+    }
+
+    function saveSettingsDraft() {
+      readProfileForm();
+      sessionStorage.setItem(SETTINGS_DRAFT_KEY, JSON.stringify({
+        displayName: hub.displayName,
+        headline: hub.headline,
+        bio: hub.bio,
+        supportTeams: supportTeams,
+      }));
+    }
+
+    function wireSupportTeamRows() {
+      box.querySelectorAll('.mp-support-team__remove').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          readSupportTeamsFromDom();
+          const row = btn.closest('.mp-support-team');
+          const idx = parseInt(row.dataset.idx, 10);
+          supportTeams.splice(idx, 1);
+          renderSupportTeamList();
+        });
+      });
+      box.querySelectorAll('.mp-support-exec-calc').forEach((link) => {
+        link.addEventListener('click', () => {
+          readSupportTeamsFromDom();
+          readProfileForm();
+          saveSettingsDraft();
+          sessionStorage.setItem(EXEC_FROM_SETTINGS_KEY, '1');
+        });
+      });
+    }
+
+    box.innerHTML = `
+      <section class="card community-editor mp-settings-page">
+        <h2 class="community-editor__title">マイページ設定</h2>
+        <p class="form-hint mp-editor-lead">表示名・アイコン・プロフィールの内容は公開ページにも反映されます</p>
+        <div class="form-group mp-avatar-field">
+          <label>アイコン画像</label>
+          <div class="mp-avatar-upload">
+            <div id="mpAvatarEditPreview">${avatarHtml(hub, 'linkhub-avatar--sm')}</div>
+            <div class="mp-avatar-upload__actions">
+              <label class="btn btn-secondary btn-sm mp-avatar-upload__pick">
+                画像を選ぶ
+                <input type="file" id="mpAvatarFile" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+              </label>
+              <button type="button" class="btn btn-secondary btn-sm" id="mpAvatarClear"${hub.avatarURL ? '' : ' hidden'}>削除</button>
+            </div>
+            <p class="form-hint">JPEG / PNG / WebP / GIF・2MBまで</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="mpName">表示名</label>
+          <input type="text" class="form-input" id="mpName" maxlength="30" value="${esc(hub.displayName)}" placeholder="例: みくちゃん">
+        </div>
+        <div class="form-group">
+          <label for="mpHeadline">一言</label>
+          <input type="text" class="form-input" id="mpHeadline" maxlength="40" value="${esc(hub.headline)}" placeholder="例: 25時、ナイトコードで。推し">
+        </div>
+        <div class="form-group">
+          <label for="mpBio">自己紹介</label>
+          <textarea class="form-input" id="mpBio" rows="3" maxlength="200" placeholder="プロフィールや活動内容など">${esc(hub.bio)}</textarea>
+        </div>
+
+        <div class="divider"></div>
+        <div class="community-links-head">
+          <p class="adjust-filters__title">🛟 支援編成</p>
+          <button type="button" class="btn btn-secondary btn-sm" id="mpAddSupportTeam">支援編成を追加</button>
+        </div>
+        <p class="form-hint">最大${SUPPORT_TEAM_MAX}つまで登録できます。イベラン広告の詳細で「お返し編成情報を記載」にチェックを入れると表示されます。</p>
+        <div id="mpSupportTeams" class="mp-support-teams"></div>
+
+        <button type="button" class="btn btn-primary btn-block" id="mpProfileSave">マイページ設定を保存</button>
+        <p id="mpProfileError" class="form-error mt-2" hidden></p>
+        <p id="mpProfileSaved" class="community-saved mt-2" hidden>保存しました ✓</p>
+        <a href="#/mypage" class="btn btn-secondary btn-block mt-3" data-link>マイページに戻る</a>
+      </section>
+    `;
+
+    renderSupportTeamList();
+    box.querySelector('#mpAddSupportTeam').addEventListener('click', () => {
+      readSupportTeamsFromDom();
+      if (supportTeams.length >= SUPPORT_TEAM_MAX) return;
+      supportTeams.push({
+        id: newPublicId(),
+        teamType: 'internal',
+        leaderSkill: '',
+        internalValue: null,
+        totalPower: null,
+      });
+      renderSupportTeamList();
+    });
+
     let pendingAvatarFile = null;
     let avatarObjectUrl = null;
 
@@ -717,28 +980,16 @@ const MiraiMyPage = (function () {
       hub.displayName = box.querySelector('#mpName').value.trim();
       hub.headline = box.querySelector('#mpHeadline').value.trim();
       hub.bio = box.querySelector('#mpBio').value.trim();
+      readSupportTeamsFromDom();
+      hub.supportTeams = supportTeamsForSave(supportTeams);
     }
 
-    function renderProfileSummary() {
+    function renderAvatarPreview() {
       const view = Object.assign({}, hub);
       if (avatarObjectUrl) view.avatarURL = avatarObjectUrl;
-      box.querySelector('#mpProfileAvatarPreview').innerHTML = avatarHtml(view, 'linkhub-avatar--sm');
       box.querySelector('#mpAvatarEditPreview').innerHTML = avatarHtml(view, 'linkhub-avatar--sm');
-      box.querySelector('#mpProfileNamePreview').textContent = hub.displayName || '未設定';
-      box.querySelector('#mpProfileHeadlinePreview').textContent = hub.headline || '一言未設定';
       box.querySelector('#mpAvatarClear').hidden = !(hub.avatarURL || pendingAvatarFile);
     }
-
-    profileToggle.addEventListener('click', () => {
-      const open = profilePanel.hidden;
-      profilePanel.hidden = !open;
-      profileToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      profileToggle.textContent = open ? 'マイページ設定を閉じる' : 'マイページ設定';
-    });
-
-    ['#mpName', '#mpHeadline', '#mpBio'].forEach((sel) => {
-      box.querySelector(sel).addEventListener('input', () => { readProfileForm(); renderProfileSummary(); });
-    });
 
     box.querySelector('#mpAvatarFile').addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
@@ -746,7 +997,7 @@ const MiraiMyPage = (function () {
       if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
       pendingAvatarFile = file;
       avatarObjectUrl = URL.createObjectURL(file);
-      renderProfileSummary();
+      renderAvatarPreview();
     });
 
     box.querySelector('#mpAvatarClear').addEventListener('click', () => {
@@ -755,7 +1006,7 @@ const MiraiMyPage = (function () {
       pendingAvatarFile = null;
       hub.avatarURL = '';
       box.querySelector('#mpAvatarFile').value = '';
-      renderProfileSummary();
+      renderAvatarPreview();
     });
 
     const profileSavedEl = box.querySelector('#mpProfileSaved');
@@ -781,12 +1032,9 @@ const MiraiMyPage = (function () {
           box.querySelector('#mpAvatarFile').value = '';
         }
         await saveHub(user.uid, hub);
+        sessionStorage.removeItem(SETTINGS_DRAFT_KEY);
         profileSavedEl.hidden = false;
-        renderProfileSummary();
-        const sekaiSummary = box.querySelector('#mpSekaiSummary');
-        const sekaiBtn = box.querySelector('#mpSekaiBtn');
-        if (sekaiSummary) sekaiSummary.textContent = sekaiSummaryText(hub, true);
-        if (sekaiBtn) sekaiBtn.textContent = 'セカイノートを編集';
+        renderAvatarPreview();
         setTimeout(() => { profileSavedEl.hidden = true; }, 2500);
       } catch (e) {
         profileErrEl.textContent = e.message || String(e);
@@ -796,28 +1044,6 @@ const MiraiMyPage = (function () {
         btn.textContent = 'マイページ設定を保存';
       }
     });
-
-    box.querySelector('#mpLogout').addEventListener('click', async () => {
-      await window.MiraiAuth.signOut();
-      location.hash = '#/';
-    });
-
-    box.querySelector('#mpCopyId').addEventListener('click', () => {
-      const id = hub.publicId;
-      try { navigator.clipboard.writeText(id); } catch (e) { document.execCommand('copy'); }
-      const btn = box.querySelector('#mpCopyId');
-      const t = btn.textContent;
-      btn.textContent = 'コピー済';
-      setTimeout(() => { btn.textContent = t; }, 1200);
-    });
-
-    if (window.MiraiQr) {
-      MiraiQr.render(box.querySelector('#mpQrCode'), MiraiQr.publicPageUrl(hub.publicId), 120).catch(console.error);
-    }
-
-    if (window.MiraiFriends) {
-      MiraiFriends.initMypageFriends(box, user);
-    }
   }
 
   function renderSekaiEditor(box, user, hub, hubExisted) {
@@ -825,7 +1051,7 @@ const MiraiMyPage = (function () {
 
     box.innerHTML = `
       <div class="mp-sekai-page">
-        ${!hub.displayName ? '<div class="info-box mb-2"><p>公開前に<a href="#/mypage" data-link>マイページ</a>で表示名を設定してください。</p></div>' : ''}
+        ${!hub.displayName ? '<div class="info-box mb-2"><p>公開前に<a href="#/mypage/settings" data-link>マイページ設定</a>で表示名を設定してください。</p></div>' : ''}
         <p class="form-hint mp-sekai-lead">テーマカラー・リンク・記事を設定して、公開ページを作れます</p>
         <div class="mp-sekai-grid">
           <div class="mp-sekai-editor card community-editor">
@@ -1013,7 +1239,7 @@ const MiraiMyPage = (function () {
       sekaiErrEl.hidden = true;
       sekaiSavedEl.hidden = true;
       if (!hub.displayName) {
-        sekaiErrEl.textContent = 'マイページで表示名を設定してから保存してください。';
+        sekaiErrEl.textContent = 'マイページ設定で表示名を設定してから保存してください。';
         sekaiErrEl.hidden = false;
         return;
       }
@@ -1306,7 +1532,7 @@ const MiraiMyPage = (function () {
 
     box.innerHTML = `
       <div class="profile-card-page">
-        ${!hub.displayName ? '<div class="info-box mb-2"><p><a href="#/mypage" data-link>マイページ</a>で表示名を設定してください。</p></div>' : ''}
+        ${!hub.displayName ? '<div class="info-box mb-2"><p><a href="#/mypage/settings" data-link>マイページ設定</a>で表示名を設定してください。</p></div>' : ''}
         <p class="form-hint">名刺サイズ（91×55mm）のメンバーズカードです。カラーは選ぶと自動保存されます。</p>
 
         <section class="card profile-card-customize">
@@ -1513,6 +1739,7 @@ const MiraiMyPage = (function () {
   return {
     initLogin,
     initMyPage,
+    initSettings,
     initSekaiNoteEdit,
     initSekaiNoteRead,
     initProfileCard,
@@ -1534,6 +1761,8 @@ const MiraiMyPage = (function () {
     resolveProfileCardTitle,
     profileCardHtml,
     normalizeCardThemeKey,
+    supportTeamsDetailHtml,
+    supportTeamTypeLabel,
   };
 })();
 

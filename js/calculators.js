@@ -365,6 +365,23 @@ const Calculators = {
   // ========================================
   initExec() {
     this._hide('execResult');
+    const fromSettings = sessionStorage.getItem('mirai_exec_from_settings');
+    if (fromSettings) {
+      const page = this._app()?.querySelector('.calc-page');
+      const header = page && page.querySelector('.calc-header');
+      if (header) {
+        const back = header.querySelector('.back-link');
+        if (back) {
+          back.href = '#/mypage/settings';
+          back.textContent = '← マイページ設定に戻る';
+        }
+        const hint = document.createElement('p');
+        hint.className = 'form-hint exec-settings-hint';
+        hint.textContent = '内部値を計算したら「コピー」し、マイページ設定の支援編成欄に貼り付けてください。';
+        header.appendChild(hint);
+      }
+      sessionStorage.removeItem('mirai_exec_from_settings');
+    }
     const btn = this._el('execCalcBtn');
     if (btn) {
       btn.onclick = (e) => {

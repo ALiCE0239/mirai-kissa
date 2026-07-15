@@ -24,6 +24,7 @@ const MiraiRanking = (function () {
       shortLabel: 'チャレンジスコア',
       scoreLabel: 'スコア',
       scorePlaceholder: '例: 985432',
+      notePlaceholder: '楽曲名・難易度など',
       sortDesc: true,
     },
     character_rank: {
@@ -500,6 +501,11 @@ const MiraiRanking = (function () {
           '<p class="form-hint mt-1">保存すると再申請（審査中）になります。</p></div>'
         : '';
 
+      const noteFieldHtml = meta.notePlaceholder
+        ? '<div class="form-group"><label for="rkNote">補足（任意）</label>' +
+          '<textarea class="form-input" id="rkNote" rows="2" maxlength="200" placeholder="' + esc(meta.notePlaceholder) + '">' + esc(entry.note || '') + '</textarea></div>'
+        : '';
+
       box.innerHTML =
         statusNote +
         '<section class="card community-editor mp-board-editor">' +
@@ -513,8 +519,7 @@ const MiraiRanking = (function () {
         '<div class="form-group"><label for="rkProof">証拠画像のURL <span class="text-muted">（必須）</span></label>' +
         '<input type="url" class="form-input" id="rkProof" value="' + esc(entry.proofURL || '') + '" placeholder="https://x.com/... または https://i.imgur.com/...">' +
         '<p class="form-hint mt-1">スクリーンショットを X・Imgur 等に投稿し、公開URLを貼ってください。Firebase には保存しません。</p></div>' +
-        '<div class="form-group"><label for="rkNote">補足（任意）</label>' +
-        '<textarea class="form-input" id="rkNote" rows="2" maxlength="200" placeholder="楽曲名・難易度など">' + esc(entry.note || '') + '</textarea></div>' +
+        noteFieldHtml +
         '<p id="rkError" class="form-error mt-2" hidden></p>' +
         '<button type="button" class="btn btn-primary btn-block" id="rkSave">' + (existing ? '再申請する' : '申請する') + '</button>' +
         '<p id="rkSaved" class="community-saved mt-2" hidden>申請しました ✓ 管理者の承認をお待ちください</p>' +
@@ -530,7 +535,8 @@ const MiraiRanking = (function () {
         const playerName = box.querySelector('#rkPlayerName').value.trim();
         const score = parseInt(box.querySelector('#rkScore').value, 10);
         const proofURL = normalizeUrl(box.querySelector('#rkProof').value);
-        const note = box.querySelector('#rkNote').value.trim();
+        const noteEl = box.querySelector('#rkNote');
+        const note = noteEl ? noteEl.value.trim() : '';
 
         if (!charKey) { errEl.textContent = 'キャラクターを選んでください。'; errEl.hidden = false; return; }
         if (!playerName) { errEl.textContent = '名前を入力してください。'; errEl.hidden = false; return; }
