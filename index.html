@@ -40,7 +40,7 @@
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
   <link rel="stylesheet" href="css/style.css?v=41">
-  <link rel="stylesheet" href="css/community.css?v=16">
+  <link rel="stylesheet" href="css/community.css?v=28">
   <link rel="stylesheet" href="css/ads.css?v=1">
 </head>
 <body>
@@ -769,6 +769,20 @@
     </div>
   </template>
 
+  <!-- ==================== フレンド拒否設定 ==================== -->
+  <template id="tmpl-mypage-friend-settings">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow">
+        <div class="calc-header">
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
+          <h1>👥 拒否設定</h1>
+          <p>申請の受け付けとブロックを設定できます</p>
+        </div>
+        <div id="friendRequestSettingsRoot"></div>
+      </div>
+    </div>
+  </template>
+
   <!-- ==================== マイページ設定 ==================== -->
   <template id="tmpl-mypage-settings">
     <div class="page-content page-enter">
@@ -899,6 +913,18 @@
     </div>
   </template>
 
+  <template id="tmpl-board-mysekai-detail">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide board-mysekai-detail-page">
+        <div class="calc-header">
+          <a href="#/board/mysekai" class="back-link" data-link>← 一覧に戻る</a>
+          <h1>🌿 マイセカイ宣伝</h1>
+        </div>
+        <div id="boardMysekaiDetailRoot"></div>
+      </div>
+    </div>
+  </template>
+
   <template id="tmpl-board-mysekai-edit">
     <div class="page-content page-enter">
       <div class="calc-page community-narrow">
@@ -945,19 +971,19 @@
   <script src="js/auth.js?v=1"></script>
   <script src="js/qrcode.min.js"></script>
   <script src="js/qr-utils.js?v=1"></script>
-  <script src="js/friends.js?v=4"></script>
-  <script src="js/mypage.js?v=19"></script>
+  <script src="js/friends.js?v=8"></script>
+  <script src="js/mypage.js?v=26"></script>
   <script src="js/admin-config.js?v=3"></script>
   <script src="js/admin.js?v=12"></script>
-  <script src="js/board.js?v=8"></script>
-  <script src="js/ranking.js?v=8"></script>
+  <script src="js/board.js?v=15"></script>
+  <script src="js/ranking.js?v=9"></script>
   <script src="js/guides.js?v=1"></script>
-  <script src="js/router.js?v=15"></script>
+  <script src="js/router.js?v=16"></script>
   <script src="js/border-rankings-data.js?v=1"></script>
   <script src="js/song-kiso-data.js?v=1"></script>
   <script src="js/song-kiso.js?v=3"></script>
   <script src="js/pjsk-engine.js?v=33"></script>
   <script src="js/calculators.js?v=57"></script>
-  <script src="js/app.js?v=24"></script>
+  <script src="js/app.js?v=26"></script>
 </body>
 </html>

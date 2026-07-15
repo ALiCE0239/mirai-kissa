@@ -257,8 +257,13 @@ const MiraiRanking = (function () {
   function entryRowHtml(entry, rank, opts) {
     opts = opts || {};
     const accent = characterAccent(entry.characterKey);
-    const profile = entry.authorPublicId
-      ? '<a href="#/p/' + esc(entry.authorPublicId) + '" class="ranking-row__name" data-link>' + esc(entry.playerName || entry.authorName || '匿名') + '</a>'
+    const profileHref = entry.authorPublicId
+      ? (window.MiraiFriends && MiraiFriends.profileLink
+        ? MiraiFriends.profileLink(entry.authorPublicId, 'ranking')
+        : '#/p/' + encodeURIComponent(entry.authorPublicId) + '?fr=ranking')
+      : '';
+    const profile = profileHref
+      ? '<a href="' + esc(profileHref) + '" class="ranking-row__name" data-link>' + esc(entry.playerName || entry.authorName || '匿名') + '</a>'
       : '<span class="ranking-row__name">' + esc(entry.playerName || entry.authorName || '匿名') + '</span>';
     const selfCls = opts.isSelf ? ' ranking-row--self' : '';
     return (

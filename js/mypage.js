@@ -741,7 +741,7 @@ const MiraiMyPage = (function () {
               <button type="button" class="btn btn-secondary" id="mpFriendIdSearchBtn">検索</button>
             </div>
             <p class="form-hint">IDが分かれば、ここからセカイノートを開いてフレンド申請できます</p>
-            <div id="mpFriendIdSearchResult" class="mp-friend-id-search__result"></div>
+          <div id="mpFriendIdSearchResult" class="mp-friend-id-search__result"></div>
           </div>
           <div class="mp-friends-actions">
             <div class="mp-friends-btn-wrap">
@@ -749,6 +749,7 @@ const MiraiMyPage = (function () {
               <span id="mpFriendRequestBadge" class="mp-friend-notify-badge" hidden aria-label="未確認のフレンド申請"></span>
             </div>
             <a href="#/mypage/friends" class="btn btn-secondary" data-link>フレンド一覧</a>
+            <a href="#/mypage/friend-settings" class="btn btn-secondary" data-link>拒否設定</a>
           </div>
         </section>
 
@@ -764,22 +765,34 @@ const MiraiMyPage = (function () {
 
         <div class="divider"></div>
         <div class="mp-board-block">
-          <div class="community-links-head">
-            <p class="adjust-filters__title">📣 イベラン広告</p>
-            <a href="#/board/event/edit" class="btn btn-secondary btn-sm" data-link id="mpEventBtn">作成する</a>
+          <div class="mp-board-block__head">
+            <div class="mp-board-block__main">
+              <p class="adjust-filters__title">📣 イベラン広告</p>
+              <p id="mpEventSummary" class="mp-board-summary text-muted">読み込み中…</p>
+            </div>
+            <div class="mp-board-block__actions">
+              <a href="#/board/event/edit" class="btn btn-secondary btn-sm" data-link id="mpEventBtn">作成する</a>
+              <p id="mpEventStatus" class="mp-board-status-wrap text-muted">読み込み中…</p>
+            </div>
           </div>
-          <p id="mpEventSummary" class="mp-board-summary text-muted">読み込み中…</p>
+          <p id="mpEventListingAction" class="mp-board-listing-action" hidden></p>
           <p id="mpEventBookmarks" class="form-hint">ブックマークを読み込み中…</p>
           <p class="form-hint"><a href="#/board/event" data-link>掲示板で見る</a> · 1アカウント1件</p>
         </div>
 
         <div class="divider"></div>
         <div class="mp-board-block">
-          <div class="community-links-head">
-            <p class="adjust-filters__title">🌿 マイセカイ宣伝</p>
-            <a href="#/board/mysekai/edit" class="btn btn-secondary btn-sm" data-link id="mpMysekaiBtn">作成する</a>
+          <div class="mp-board-block__head">
+            <div class="mp-board-block__main">
+              <p class="adjust-filters__title">🌿 マイセカイ宣伝</p>
+              <p id="mpMysekaiSummary" class="mp-board-summary text-muted">読み込み中…</p>
+            </div>
+            <div class="mp-board-block__actions">
+              <a href="#/board/mysekai/edit" class="btn btn-secondary btn-sm" data-link id="mpMysekaiBtn">作成する</a>
+              <p id="mpMysekaiStatus" class="mp-board-status-wrap text-muted">読み込み中…</p>
+            </div>
           </div>
-          <p id="mpMysekaiSummary" class="mp-board-summary text-muted">読み込み中…</p>
+          <p id="mpMysekaiListingAction" class="mp-board-listing-action" hidden></p>
           <p class="form-hint"><a href="#/board/mysekai" data-link>掲示板で見る</a> · 1アカウント1件</p>
         </div>
 
@@ -1263,18 +1276,60 @@ const MiraiMyPage = (function () {
     });
   }
 
+  function boardPublishStatus(post, contentKey) {
+    const hasContent = !!(post && post[contentKey]);
+    if (!hasContent || post.isPublished === false) {
+      return { label: '公開されていません', tone: 'off' };
+    }
+    if (window.MiraiBoard && typeof MiraiBoard.isBoardPostListed === 'function' && !MiraiBoard.isBoardPostListed(post)) {
+      return { label: '公開停止中', tone: 'paused' };
+    }
+    return { label: '公開中', tone: 'live' };
+  }
+
+  function boardStatusHtml(status) {
+    return (
+      '<span class="mp-board-status mp-board-status--' + status.tone + '">' +
+      '<span class="mp-board-status__dot" aria-hidden="true"></span>' +
+      '<span>' + esc(status.label) + '</span></span>'
+    );
+  }
+
   function eventSummaryText(post) {
     if (!post || !post.eventName) return '未設定 — 編集ボタンから募集内容を登録できます';
-    const pub = post.isPublished === false ? '（非公開）' : '';
     const vis = post.visibility === 'friends' ? '（フレンド限定）' : '';
-    return '「' + post.eventName + '」' + pub + vis;
+    return '「' + post.eventName + '」' + vis;
   }
 
   function mysekaiSummaryText(post) {
     if (!post || !post.title) return '未設定 — 編集ボタンから宣伝内容を登録できます';
-    const pub = post.isPublished === false ? '（非公開）' : '';
     const vis = post.visibility === 'friends' ? '（フレンド限定）' : '';
-    return '「' + post.title + '」' + pub + vis;
+    const likes = Number(post.likeCount) || 0;
+    return '「' + post.title + '」' + vis + ' · ♥' + likes;
+  }
+
+  function wireMypageListingExtend(el, collectionName, uid, onDone) {
+    if (!el || !window.MiraiBoard) return;
+    el.hidden = false;
+    el.innerHTML =
+      '<p class="form-hint">' + esc(MiraiBoard.boardListingPausedMessage()) + '</p>' +
+      '<button type="button" class="btn btn-secondary btn-sm mt-1" id="' + esc(el.id) + 'Btn">掲載を延長する</button>';
+    const btn = el.querySelector('button');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = '処理中…';
+      try {
+        await MiraiBoard.extendBoardListing(collectionName, uid);
+        el.hidden = true;
+        if (typeof onDone === 'function') onDone();
+      } catch (e) {
+        btn.textContent = label;
+        btn.disabled = false;
+        alert(e.message || String(e));
+      }
+    });
   }
 
   function loadEventBookmarksSummary(box, user) {
@@ -1304,18 +1359,52 @@ const MiraiMyPage = (function () {
     if (!window.MiraiBoard) return;
     const eventSummary = box.querySelector('#mpEventSummary');
     const mysekaiSummary = box.querySelector('#mpMysekaiSummary');
+    const eventStatus = box.querySelector('#mpEventStatus');
+    const mysekaiStatus = box.querySelector('#mpMysekaiStatus');
+    const eventListingAction = box.querySelector('#mpEventListingAction');
+    const mysekaiListingAction = box.querySelector('#mpMysekaiListingAction');
     const eventBtn = box.querySelector('#mpEventBtn');
     const mysekaiBtn = box.querySelector('#mpMysekaiBtn');
 
-    Promise.all([
-      MiraiBoard.fetchOwnEventAd(user.uid),
-      MiraiBoard.fetchOwnMysekai(user.uid),
-    ]).then(([ev, ms]) => {
+    function refresh(ev, ms) {
+      if (eventStatus) eventStatus.innerHTML = boardStatusHtml(boardPublishStatus(ev, 'eventName'));
+      if (mysekaiStatus) mysekaiStatus.innerHTML = boardStatusHtml(boardPublishStatus(ms, 'title'));
       if (eventSummary) eventSummary.textContent = eventSummaryText(ev);
       if (mysekaiSummary) mysekaiSummary.textContent = mysekaiSummaryText(ms);
       if (eventBtn) eventBtn.textContent = (ev && ev.eventName) ? '編集する' : '作成する';
       if (mysekaiBtn) mysekaiBtn.textContent = (ms && ms.title) ? '編集する' : '作成する';
-    }).catch((e) => console.error(e));
+      if (eventListingAction) {
+        if (ev && ev.eventName && ev.isPublished !== false && !MiraiBoard.isBoardPostListed(ev)) {
+          wireMypageListingExtend(eventListingAction, 'boardEventAds', user.uid, () => {
+            Promise.all([
+              MiraiBoard.fetchOwnEventAd(user.uid),
+              MiraiBoard.fetchOwnMysekai(user.uid),
+            ]).then(([ev2, ms2]) => refresh(ev2, ms2)).catch((e) => console.error(e));
+          });
+        } else {
+          eventListingAction.hidden = true;
+          eventListingAction.innerHTML = '';
+        }
+      }
+      if (mysekaiListingAction) {
+        if (ms && ms.title && ms.isPublished !== false && !MiraiBoard.isBoardPostListed(ms)) {
+          wireMypageListingExtend(mysekaiListingAction, 'boardMysekai', user.uid, () => {
+            Promise.all([
+              MiraiBoard.fetchOwnEventAd(user.uid),
+              MiraiBoard.fetchOwnMysekai(user.uid),
+            ]).then(([ev2, ms2]) => refresh(ev2, ms2)).catch((e) => console.error(e));
+          });
+        } else {
+          mysekaiListingAction.hidden = true;
+          mysekaiListingAction.innerHTML = '';
+        }
+      }
+    }
+
+    Promise.all([
+      MiraiBoard.fetchOwnEventAd(user.uid),
+      MiraiBoard.fetchOwnMysekai(user.uid),
+    ]).then(([ev, ms]) => refresh(ev, ms)).catch((e) => console.error(e));
   }
 
   function loadRankingSummaries(box, user) {
@@ -1731,10 +1820,14 @@ const MiraiMyPage = (function () {
         '<div class="linkhub linkhub--full" style="' + themeStyle(hub.theme) + '">' + publicHtml(hub) + '</div>';
 
       if (showFriendBar) {
+        const frSource = window.MiraiFriends.parseFriendSourceFromHash
+          ? MiraiFriends.parseFriendSourceFromHash()
+          : 'profile';
         await MiraiFriends.renderActionButton(
           box.querySelector('#publicFriendBar'),
           viewer.uid,
-          hub
+          hub,
+          { source: frSource }
         );
       }
 

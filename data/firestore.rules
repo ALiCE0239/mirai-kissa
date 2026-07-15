@@ -56,6 +56,17 @@ service cloud.firestore {
         && request.resource.data.moderationStatus == 'pending';
     }
 
+    match /users/{userId}/blocks/{blockedUid} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/shadowFriendRequests/{targetUid} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/sns/settings {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
@@ -138,7 +149,8 @@ service cloud.firestore {
         && request.auth.uid == requestId
         && requestId != userId
         && request.resource.data.fromUid == request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && !exists(/databases/$(database)/documents/users/$(userId)/blocks/$(requestId));
       allow update: if request.auth != null && request.auth.uid == userId;
       allow delete: if request.auth != null
         && (request.auth.uid == userId || request.auth.uid == requestId);

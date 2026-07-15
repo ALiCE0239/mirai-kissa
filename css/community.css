@@ -173,7 +173,59 @@
   }
 }
 .mp-board-block { margin-top: 0.25rem; }
-.mp-board-summary { margin: 0.35rem 0 0.25rem; font-size: 0.9rem; }
+.mp-board-block__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+.mp-board-block__main {
+  flex: 1;
+  min-width: 0;
+}
+.mp-board-block__main .adjust-filters__title {
+  margin: 0 0 0.2rem;
+}
+.mp-board-block__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.mp-board-status-wrap {
+  margin: 0;
+  text-align: right;
+}
+.mp-board-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mp-board-status__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+.mp-board-status--live { color: #15803d; }
+.mp-board-status--live .mp-board-status__dot { background: #22c55e; }
+.mp-board-status--paused { color: #a16207; }
+.mp-board-status--paused .mp-board-status__dot { background: #eab308; }
+.mp-board-status--off { color: #b91c1c; }
+.mp-board-status--off .mp-board-status__dot { background: #ef4444; }
+.mp-board-listing-action {
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: rgba(var(--rgb-teal), 0.06);
+  border: 1px solid rgba(var(--rgb-teal), 0.18);
+}
+.mp-board-summary { margin: 0; font-size: 0.9rem; }
 .mp-board-panel {
   padding: 0.75rem 0 0;
   margin-top: 0.5rem;
@@ -265,6 +317,74 @@
   margin: 0;
   font-size: 0.9rem;
   color: var(--text-secondary);
+}
+.friend-action-bar__status--blocked {
+  color: #b45309;
+}
+.mp-friend-settings-page {
+  padding: 1rem 1.25rem;
+}
+.mp-block-add {
+  margin-top: 0.75rem;
+}
+.mp-block-add label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+.mp-block-add__row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.mp-block-add__row .form-input {
+  flex: 1;
+  min-width: 0;
+}
+.mp-block-list-wrap {
+  margin-top: 0.5rem;
+}
+.mp-block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+.mp-block-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+}
+.mp-block-row__main {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.mp-block-row__name {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.mp-friend-request-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.mp-friend-request-settings__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.mp-friend-request-settings__item input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
 }
 .mp-friends-section { margin-top: 0.25rem; }
 .mp-friends-actions {
@@ -1718,4 +1838,237 @@
     padding: 0.4rem 0.85rem;
     font-size: 0.8rem;
   }
+}
+
+/* マイセカイ宣伝 — コンパクトグリッド */
+.board-list.board-mysekai-wrap {
+  max-width: none;
+  margin: 0;
+}
+
+.board-mysekai-sort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.board-mysekai-sort__btn {
+  padding: 0.35rem 0.85rem;
+  border: 2px solid rgba(var(--rgb-teal), 0.25);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.board-mysekai-sort__btn:hover {
+  border-color: rgba(var(--rgb-teal), 0.45);
+  color: var(--text-primary);
+}
+
+.board-mysekai-sort__btn.is-active {
+  border-color: rgba(var(--rgb-teal), 0.55);
+  background: rgba(var(--rgb-teal), 0.1);
+  color: var(--brand-teal);
+  font-weight: 600;
+}
+
+.board-mysekai-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 0.75rem;
+}
+
+.board-mysekai-card {
+  border: 2px solid rgba(var(--rgb-teal), 0.18);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.board-mysekai-card__thumb {
+  aspect-ratio: 16 / 9;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.board-mysekai-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.board-mysekai-card__thumb--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  background: linear-gradient(135deg, rgba(var(--rgb-green), 0.12), rgba(var(--rgb-teal), 0.08));
+}
+
+.board-mysekai-card__body {
+  padding: 0.55rem 0.6rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.2rem;
+}
+
+.board-mysekai-card__title {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.board-mysekai-card__author {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-mysekai-card__likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  color: #e11d48;
+  font-weight: 600;
+}
+
+.board-mysekai-card__open {
+  margin-top: auto;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .board-mysekai-grid {
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 0.9rem;
+  }
+
+  .board-mysekai-card__body {
+    padding: 0.65rem 0.7rem 0.75rem;
+  }
+
+  .board-mysekai-card__title {
+    font-size: 0.88rem;
+  }
+}
+
+/* マイセカイ宣伝 — 詳細ページ */
+.board-mysekai-detail-page #boardMysekaiDetailRoot {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.board-mysekai-detail__head {
+  margin-bottom: 1rem;
+}
+
+.board-mysekai-detail__id {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: rgba(var(--rgb-green), 0.05);
+  border: 1px solid rgba(var(--rgb-teal), 0.18);
+}
+
+.board-mysekai-detail__id-label {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.board-mysekai-detail__id-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.board-mysekai-detail__id-code {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.35rem 0.7rem;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(var(--rgb-teal), 0.35);
+  word-break: break-all;
+}
+
+.board-mysekai-detail__title {
+  font-size: 1.35rem;
+  margin: 0 0 0.5rem;
+}
+
+.board-mysekai-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.board-mysekai-gallery__hero {
+  aspect-ratio: 16 / 9;
+  background: #0f172a;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.board-mysekai-gallery__hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.board-mysekai-gallery__subs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.board-mysekai-gallery__sub {
+  aspect-ratio: 16 / 9;
+  background: #0f172a;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.board-mysekai-gallery__sub img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.board-mysekai-detail__text {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  margin: 0 0 1rem;
+  line-height: 1.6;
+}
+
+.board-mysekai-detail__actions {
+  margin-top: 0.5rem;
 }
