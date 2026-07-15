@@ -37,16 +37,6 @@
     });
   }
 
-  function initMobileMenu() {
-    const toggle = document.getElementById('navToggle');
-    const links = document.getElementById('navLinks');
-    if (!toggle || !links) return;
-    toggle.addEventListener('click', () => links.classList.toggle('open'));
-    links.addEventListener('click', (e) => {
-      if (e.target.tagName === 'A') links.classList.remove('open');
-    });
-  }
-
   function bindHomePanel(toggle, panel, onOpen) {
     if (!toggle || !panel || toggle.dataset.bound === '1') return;
     toggle.dataset.bound = '1';
@@ -235,7 +225,6 @@
   document.addEventListener('DOMContentLoaded', () => {
     createParticles();
     initNavScroll();
-    initMobileMenu();
     initRouter();
     if (typeof PjskEngine !== 'undefined') {
       if (PjskEngine.loadMultiplierData) {
