@@ -904,6 +904,170 @@ const MiraiBoard = (function () {
     </button>`;
   }
 
+  function canEmbedBoardPost(post, contentKey) {
+    if (!post || !post[contentKey]) return false;
+    if (post.isPublished === false) return false;
+    return isBoardPostListed(post);
+  }
+
+  function eventSekaiEmbedHtml(p) {
+    const detailUrl = '#/board/event/' + encodeURIComponent(p.authorUid);
+    const thumb = p.imageURL
+      ? `<img src="${esc(p.imageURL)}" alt="" loading="lazy">`
+      : '<span class="linkhub-embed__placeholder" aria-hidden="true">📣</span>';
+    const rank = p.targetRank ? `<span class="linkhub-embed__meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
+    const banner = p.eventBanner ? `<span class="linkhub-embed__meta-item">${esc(p.eventBanner)}</span>` : '';
+    const meta = [rank, banner].filter(Boolean).join('');
+    return (
+      '<a href="' + esc(detailUrl) + '" class="linkhub-embed linkhub-embed--event" data-link>' +
+      '<div class="linkhub-embed__thumb board-aspect-16x9">' + thumb + '</div>' +
+      '<div class="linkhub-embed__body">' +
+      '<p class="linkhub-embed__label">📣 イベラン広告</p>' +
+      '<h3 class="linkhub-embed__title">' + esc(p.eventName || '(無題)') + visibilityChipHtml(p) + '</h3>' +
+      (meta ? '<p class="linkhub-embed__meta">' + meta + '</p>' : '') +
+      '<span class="linkhub-embed__cta">詳細を見る</span>' +
+      '</div></a>'
+    );
+  }
+
+  function mysekaiSekaiEmbedHtml(p) {
+    const detailUrl = mysekaiDetailUrl(p.authorUid);
+    const thumbSrc = (p.imageURLs || [])[0];
+    const thumb = thumbSrc
+      ? `<img src="${esc(thumbSrc)}" alt="" loading="lazy">`
+      : '<span class="linkhub-embed__placeholder" aria-hidden="true">🌿</span>';
+    return (
+      '<a href="' + esc(detailUrl) + '" class="linkhub-embed linkhub-embed--mysekai" target="_blank" rel="noopener noreferrer">' +
+      '<div class="linkhub-embed__thumb board-aspect-16x9">' + thumb + '</div>' +
+      '<div class="linkhub-embed__body">' +
+      '<p class="linkhub-embed__label">🌿 マイセカイ宣伝</p>' +
+      '<h3 class="linkhub-embed__title">' + esc(p.title || '(無題)') + visibilityChipHtml(p) + '</h3>' +
+      mysekaiLikeCountHtml(p.likeCount, 'linkhub-embed__likes') +
+      '<span class="linkhub-embed__cta">詳細を見る</span>' +
+      '</div></a>'
+    );
+  }
+
+  async function fetchSekaiEmbedPosts(authorUid, viewerUid) {
+    const result = { eventPost: null, mysekaiPost: null };
+    if (!authorUid) return result;
+    const { friendUids, blockedUids } = await loadViewerContext();
+    const [ev, ms] = await Promise.all([
+      fetchEventAd(authorUid),
+      fetchMysekaiPost(authorUid),
+    ]);
+    if (ev && isPostVisible(ev, viewerUid, friendUids, blockedUids) && canEmbedBoardPost(ev, 'eventName')) {
+      result.eventPost = (await enrichPostsWithAvatars([ev]))[0];
+    }
+    if (ms && isPostVisible(ms, viewerUid, friendUids, blockedUids) && canEmbedBoardPost(ms, 'title')) {
+      result.mysekaiPost = (await enrichPostsWithAvatars([ms]))[0];
+    }
+    return result;
+  }
+
+  async function initEventBookmarks() {
+    const box = document.getElementById('app').querySelector('#boardEventBookmarksRoot');
+    if (!box) return;
+    if (!(await isConfigured())) { box.innerHTML = notConfiguredHtml(); return; }
+
+    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
+    const { user: viewer, friendUids, blockedUids } = await loadViewerContext();
+    if (!viewer) {
+      box.innerHTML =
+        '<div class="info-box"><p>ブックマーク一覧の表示にはログインが必要です。</p>' +
+        '<p class="mt-2"><a href="#/login" class="btn btn-primary" data-link>ログインする</a></p></div>';
+      return;
+    }
+
+    let bookmarks = [];
+    try {
+      bookmarks = await listEventBookmarks(viewer.uid);
+    } catch (e) {
+      console.error(e);
+      box.innerHTML = '<div class="info-box"><p>ブックマークの読み込みに失敗しました。</p></div>';
+      return;
+    }
+
+    const listEl = document.createElement('div');
+    listEl.className = 'board-list board-feed-wrap board-bookmarks-list';
+    listEl.innerHTML = '<p class="text-muted">読み込み中…</p>';
+    box.innerHTML = '';
+    box.appendChild(listEl);
+
+    let bookmarkUids = new Set(bookmarks.map((b) => b.authorUid));
+    let posts = [];
+
+    async function loadPosts() {
+      const items = await Promise.all(bookmarks.map(async (b) => {
+        try {
+          const post = await fetchEventAd(b.authorUid);
+          if (!post || !isPostVisible(post, viewer.uid, friendUids, blockedUids)) return null;
+          return Object.assign({}, post, {
+            bookmarkedAt: b.createdAt,
+            bookmarkAuthorName: b.authorName || post.authorName || '',
+          });
+        } catch (e) {
+          console.warn(e);
+          return null;
+        }
+      }));
+      posts = (await enrichPostsWithAvatars(items.filter(Boolean)))
+        .sort((a, b) => bookmarkMs({ createdAt: b.bookmarkedAt }) - bookmarkMs({ createdAt: a.bookmarkedAt }));
+    }
+
+    function render() {
+      if (!bookmarks.length) {
+        listEl.innerHTML =
+          '<div class="info-box board-bookmarks-empty">' +
+          '<p>ブックマークした広告はまだありません。</p>' +
+          '<p class="form-hint mt-1">掲示板の★ボタンから保存できます。</p>' +
+          '<p class="mt-2"><a href="#/board/event" class="btn btn-secondary" data-link>掲示板を見る</a></p>' +
+          '</div>';
+        return;
+      }
+      if (!posts.length) {
+        listEl.innerHTML =
+          '<div class="info-box"><p>表示できるブックマークがありません（非公開・掲載停止・ブロックなど）。</p>' +
+          '<p class="mt-2"><a href="#/board/event" class="btn btn-secondary" data-link>掲示板を見る</a></p></div>';
+        return;
+      }
+      listEl.innerHTML =
+        '<p class="form-hint board-bookmarks-count">' + esc(String(posts.length)) + '件のブックマーク</p>' +
+        '<div class="board-feed">' + posts.map((p) => eventCardHtml(p, bookmarkUids, true)).join('') + '</div>';
+    }
+
+    listEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.board-bookmark');
+      if (!btn) return;
+      e.preventDefault();
+      const authorUid = btn.dataset.uid;
+      const post = posts.find((p) => p.authorUid === authorUid);
+      if (!post) return;
+      btn.disabled = true;
+      try {
+        const added = await toggleEventBookmark(viewer.uid, post);
+        if (!added) {
+          bookmarkUids.delete(authorUid);
+          bookmarks = bookmarks.filter((b) => b.authorUid !== authorUid);
+          posts = posts.filter((p) => p.authorUid !== authorUid);
+          render();
+        }
+      } catch (err) {
+        console.error(err);
+        alert(err.message || 'ブックマークの更新に失敗しました');
+        btn.disabled = false;
+      }
+    });
+
+    try {
+      await loadPosts();
+      render();
+    } catch (e) {
+      console.error(e);
+      listEl.innerHTML = '<div class="info-box"><p>読み込みに失敗しました。</p></div>';
+    }
+  }
+
   async function initEventList() {
     const box = document.getElementById('app').querySelector('#boardEventRoot');
     if (!box) return;
@@ -953,6 +1117,12 @@ const MiraiBoard = (function () {
 
     const { user: viewer, friendUids, blockedUids } = await loadViewerContext();
     let bookmarkUids = viewer ? await loadBookmarkedUids(viewer.uid) : new Set();
+    const toolbarNote = box.querySelector('.board-toolbar__note');
+    if (toolbarNote && viewer) {
+      toolbarNote.innerHTML =
+        '閲覧のみ。投稿・編集は<a href="#/mypage" data-link>マイページ</a>から行えます（1アカウント1件）。 · ' +
+        '<a href="#/board/event/bookmarks" data-link>★ ブックマーク一覧</a>';
+    }
     const canBookmark = !!viewer;
 
     if (viewer) {
@@ -1833,10 +2003,12 @@ const MiraiBoard = (function () {
   }
 
   return {
-    initEventList, initEventDetail, initEventEdit, initMysekaiList, initMysekaiDetail, initMysekaiEdit,
+    initEventList, initEventDetail, initEventEdit, initEventBookmarks,
+    initMysekaiList, initMysekaiDetail, initMysekaiEdit,
     mountEventEditor, mountMysekaiEditor,
     fetchOwnEventAd, fetchOwnMysekai,
     listEventBookmarks, loadBookmarkedUids, toggleEventBookmark,
+    fetchSekaiEmbedPosts, eventSekaiEmbedHtml, mysekaiSekaiEmbedHtml, canEmbedBoardPost,
     isBoardPostListed, extendBoardListing, boardListingPausedMessage,
     LISTING_INACTIVE_DAYS,
   };

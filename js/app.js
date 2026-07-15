@@ -178,6 +178,7 @@
       .add('/ranking/:type', 'tmpl-ranking', (params) => MiraiRanking.initView(params))
       .add('/sekainote/read', 'tmpl-sekainote-read', () => MiraiMyPage.initSekaiNoteRead())
       .add('/p/:id',    'tmpl-public',    (params) => MiraiMyPage.initPublic(params))
+      .add('/board/event/bookmarks', 'tmpl-board-event-bookmarks', () => guardCommunity(() => MiraiBoard.initEventBookmarks())())
       .add('/board/event',       'tmpl-board-event',       () => MiraiBoard.initEventList())
       .add('/board/event/:uid',  'tmpl-board-event-detail', (params) => MiraiBoard.initEventDetail(params))
       .add('/board/event/edit',  'tmpl-board-event-edit',  () => guardCommunity(() => MiraiBoard.initEventEdit())())
@@ -212,6 +213,7 @@
         '/ranking': 'ランキング — 未来喫茶',
         '/sekainote/read': 'セカイノートを読み取る — 未来喫茶',
         '/board/event':        'イベラン広告 — 未来喫茶',
+        '/board/event/bookmarks': 'ブックマーク一覧 — 未来喫茶',
         '/board/event/edit':   'イベラン広告を編集 — 未来喫茶',
         '/board/mysekai':      'マイセカイ宣伝 — 未来喫茶',
         '/board/mysekai/edit': 'マイセカイ宣伝を編集 — 未来喫茶',

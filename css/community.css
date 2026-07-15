@@ -932,6 +932,115 @@
 .linkhub-link__emoji { font-size: 1.1rem; }
 .linkhub-empty { color: #64748b; font-size: 0.85rem; }
 
+/* ---------- セカイノート — 掲示板引用 ---------- */
+.linkhub-embeds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1rem;
+  text-align: left;
+}
+.linkhub-embed {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 0.75rem;
+  align-items: stretch;
+  padding: 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(var(--rgb-teal), 0.2);
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.linkhub-embed:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--rgb-teal), 0.38);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+.linkhub-embed--event { border-color: rgba(14, 165, 233, 0.22); }
+.linkhub-embed--mysekai { border-color: rgba(16, 185, 129, 0.22); }
+.linkhub-embed__thumb {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #0f172a;
+  min-height: 0;
+}
+.linkhub-embed__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.linkhub-embed__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 63px;
+  font-size: 1.5rem;
+  background: rgba(var(--rgb-teal), 0.08);
+}
+.linkhub-embed__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  gap: 0.2rem;
+}
+.linkhub-embed__label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.linkhub-embed__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+.linkhub-embed__meta {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.linkhub-embed__meta-item + .linkhub-embed__meta-item::before {
+  content: ' · ';
+}
+.linkhub-embed__likes {
+  margin: 0;
+  font-size: 0.78rem;
+}
+.linkhub-embed__cta {
+  margin-top: 0.15rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--brand-teal);
+}
+.mp-sekai-pins {
+  margin-top: 0.25rem;
+}
+.mp-sekai-pins-lead {
+  margin: 0 0 0.65rem;
+}
+.mp-sekai-pin {
+  margin-bottom: 0.35rem;
+}
+.mp-sekai-pin-hint {
+  margin: -0.15rem 0 0.65rem 2.6rem;
+}
+.board-bookmarks-count {
+  margin: 0 0 0.75rem;
+}
+.board-bookmarks-empty {
+  text-align: center;
+}
+
 /* ---------- 掲示板 ---------- */
 .board-toolbar {
   display: flex; gap: 0.75rem; align-items: center;
@@ -1840,6 +1949,170 @@
   }
 }
 
+@media (max-width: 640px) {
+  .nav-auth-btn {
+    padding: 0.38rem 0.6rem;
+    font-size: 0.76rem;
+    min-height: 2.25rem;
+  }
+
+  .nav-actions {
+    gap: 0.3rem;
+  }
+
+  .community-login,
+  .community-editor {
+    padding: 1.15rem;
+  }
+
+  .community-preview-wrap {
+    position: static;
+  }
+
+  .community-share__row {
+    flex-direction: column;
+  }
+
+  .linkhub {
+    padding: 1.5rem 1rem;
+  }
+
+  .linkhub--full {
+    padding: 1.75rem 1rem;
+    min-height: 0;
+  }
+
+  .board-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .board-toolbar .form-input,
+  .board-search-wrap {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .board-toolbar > .btn,
+  .board-toolbar > .btn-primary,
+  .board-toolbar > .btn-secondary {
+    width: 100%;
+  }
+
+  .board-detail-page__body {
+    padding: 1rem 1rem 1.5rem;
+  }
+
+  .board-detail-page .board-event-head__title {
+    padding: 0.75rem 1rem 0;
+  }
+
+  .board-feed-card__hero--detail {
+    min-height: 0;
+  }
+
+  .board-checks {
+    grid-template-columns: 1fr;
+  }
+
+  .board-edit-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .board-edit-actions .btn {
+    width: 100%;
+  }
+
+  .mp-board-block__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mp-board-block__actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mp-board-status-wrap {
+    text-align: left;
+  }
+
+  .mp-friend-id-search__row {
+    flex-direction: column;
+  }
+
+  .mp-friend-id-search__row .btn {
+    width: 100%;
+  }
+
+  .mp-friend-search-result {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mp-friend-search-result__actions {
+    width: 100%;
+  }
+
+  .mp-friend-search-result__actions .btn {
+    flex: 1;
+  }
+
+  .mp-friend-request {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .mp-friend-request__actions {
+    justify-content: flex-end;
+  }
+
+  .mp-block-add__row {
+    flex-direction: column;
+  }
+
+  .mp-block-add__row .btn {
+    width: 100%;
+  }
+
+  .profile-card-page__actions {
+    flex-direction: column;
+  }
+
+  .profile-card-page__actions .btn {
+    width: 100%;
+  }
+
+  .board-mysekai-detail__title {
+    font-size: 1.15rem;
+  }
+
+  .board-mysekai-detail__id-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .board-mysekai-detail__id-row .btn {
+    width: 100%;
+  }
+
+  .linkhub-embed {
+    grid-template-columns: 1fr;
+  }
+
+  .linkhub-embed__thumb {
+    aspect-ratio: 16 / 9;
+  }
+
+  .mp-sekai-pin-hint {
+    margin-left: 0;
+  }
+}
+
 /* マイセカイ宣伝 — コンパクトグリッド */
 .board-list.board-mysekai-wrap {
   max-width: none;
@@ -2071,4 +2344,14 @@
 
 .board-mysekai-detail__actions {
   margin-top: 0.5rem;
+}
+
+@media (max-width: 400px) {
+  .board-mysekai-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ranking-picker {
+    grid-template-columns: 1fr;
+  }
 }
