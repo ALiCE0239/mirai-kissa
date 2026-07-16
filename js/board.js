@@ -663,8 +663,61 @@ const MiraiBoard = (function () {
   }
 
   function mysekaiDetailUrl(uid) {
+    return boardDetailPageUrl('#/board/mysekai/' + encodeURIComponent(uid));
+  }
+
+  function eventDetailUrl(uid) {
+    return boardDetailPageUrl('#/board/event/' + encodeURIComponent(uid));
+  }
+
+  function boardDetailPageUrl(hashPath) {
     const base = location.href.split('#')[0];
-    return base + '#/board/mysekai/' + encodeURIComponent(uid);
+    return base + hashPath;
+  }
+
+  function boardDetailShareHtml(pageUrl, shareText) {
+    const xUrl = 'https://twitter.com/intent/tweet?' + new URLSearchParams({
+      text: shareText,
+      url: pageUrl,
+    }).toString();
+    return (
+      '<section class="board-detail-share" aria-label="リンクを共有">' +
+      '<p class="board-detail-share__label">リンクを共有</p>' +
+      '<p class="form-hint board-detail-share__hint">URLをコピーするか、Xなどで投稿できます</p>' +
+      '<div class="board-detail-share__row">' +
+      '<input type="text" class="form-input board-detail-share__url" readonly value="' + esc(pageUrl) + '" aria-label="詳細ページのURL">' +
+      '<button type="button" class="btn btn-secondary btn-sm board-detail-share__copy">コピー</button>' +
+      '</div>' +
+      '<div class="board-detail-share__actions">' +
+      '<a href="' + esc(xUrl) + '" class="btn btn-secondary btn-sm board-detail-share__x" target="_blank" rel="noopener noreferrer">Xでポスト</a>' +
+      '</div></section>'
+    );
+  }
+
+  function wireBoardDetailShare(container) {
+    if (!container) return;
+    const copyBtn = container.querySelector('.board-detail-share__copy');
+    const input = container.querySelector('.board-detail-share__url');
+    if (!copyBtn || !input) return;
+    copyBtn.addEventListener('click', () => {
+      const url = input.value;
+      const done = () => {
+        const label = copyBtn.textContent;
+        copyBtn.textContent = 'コピー済';
+        setTimeout(() => { copyBtn.textContent = label; }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(done).catch(() => {
+          input.focus();
+          input.select();
+          try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+        });
+      } else {
+        input.focus();
+        input.select();
+        try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+      }
+    });
   }
 
   function sortMysekaiPosts(posts, mode) {
@@ -823,6 +876,9 @@ const MiraiBoard = (function () {
     const likeBtn = opts.canLike
       ? '<button type="button" class="board-like" data-uid="' + esc(p.authorUid) + '"><span aria-hidden="true">♥</span> <span class="board-like__count">' + esc(p.likeCount || 0) + '</span></button>'
       : '';
+    const pageUrl = mysekaiDetailUrl(p.authorUid);
+    const shareText = '【マイセカイ宣伝】' + (p.title || 'マイセカイ百景') + ' — 未来喫茶';
+    const shareHtml = boardDetailShareHtml(pageUrl, shareText);
     return (
       '<article class="board-mysekai-detail">' +
       '<div class="board-mysekai-detail__head">' +
@@ -833,6 +889,7 @@ const MiraiBoard = (function () {
       gallery +
       (p.body ? '<p class="board-mysekai-detail__text">' + esc(p.body) + '</p>' : '') +
       (likeBtn ? '<div class="board-mysekai-detail__actions">' + likeBtn + '</div>' : '') +
+      shareHtml +
       '</article>'
     );
   }
@@ -1359,7 +1416,7 @@ const MiraiBoard = (function () {
     const eventTags = getPostEventTags(p).map((t) => `<span class="board-chip board-chip--event">${esc(t)}</span>`).join('');
     const rank = p.targetRank ? `<span class="board-meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
     const banner = p.eventBanner ? `<span class="board-meta-item">${esc(p.eventBanner)}</span>` : '';
-    const detailUrl = `#/board/event/${encodeURIComponent(p.authorUid)}`;
+    const detailUrl = eventDetailUrl(p.authorUid);
     const bookmarked = bookmarkUids && bookmarkUids.has(p.authorUid);
     const bookmarkBtn = canBookmark ? eventBookmarkBtnHtml(p, bookmarked) : '';
     const chipsHtml = [
@@ -1431,6 +1488,7 @@ const MiraiBoard = (function () {
     }
     box.innerHTML = eventDetailHtml(enriched, { canBookmark: !!viewer, bookmarked, supportTeamsHtml });
     document.title = (enriched.eventName || 'イベラン広告') + ' — 未来喫茶';
+    wireBoardDetailShare(box);
 
     const bookmarkBtn = box.querySelector('.board-bookmark');
     if (bookmarkBtn && viewer) {
@@ -1470,6 +1528,9 @@ const MiraiBoard = (function () {
       conditionTags ? `<div class="board-chips">${conditionTags}</div>` : '',
       eventTags ? `<div class="board-chips board-chips--event">${eventTags}</div>` : '',
     ].filter(Boolean).join('');
+    const pageUrl = eventDetailUrl(p.authorUid);
+    const shareText = '【イベラン広告】' + (p.eventName || 'イベラン') + ' — 未来喫茶';
+    const shareHtml = boardDetailShareHtml(pageUrl, shareText);
 
     return `
       <article class="board-detail-page">
@@ -1483,6 +1544,7 @@ const MiraiBoard = (function () {
           ${p.body ? `<p class="board-card__text">${esc(p.body)}</p>` : ''}
           ${supportTeamsHtml}
           ${(discord || run) ? `<div class="board-card__actions">${discord}${run}</div>` : ''}
+          ${shareHtml}
         </div>
       </article>
     `;
@@ -1795,6 +1857,7 @@ const MiraiBoard = (function () {
     document.title = (enriched.title || 'マイセカイ宣伝') + ' — 未来喫茶';
 
     wireMysekaiIdCopy(box);
+    wireBoardDetailShare(box);
     box.addEventListener('click', async (e) => {
       const likeBtn = e.target.closest('.board-like');
       if (!likeBtn) return;
