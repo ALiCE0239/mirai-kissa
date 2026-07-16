@@ -151,6 +151,11 @@ const MiraiMyPage = (function () {
   const PROFILE_CARD_HEIGHT_MM = 55;
   const PROFILE_CARD_EXPORT_DPI = 300;
   const SUPPORT_TEAM_MAX = 3;
+  const HEADLINE_MAX = 20;
+
+  function normalizeHeadline(value) {
+    return String(value || '').trim().slice(0, HEADLINE_MAX);
+  }
   const SUPPORT_TEAM_TYPES = {
     internal: '内部編成',
     internal_encore: '内部アンコール編成',
@@ -441,7 +446,11 @@ const MiraiMyPage = (function () {
     const f = await fb();
     if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     const { doc, setDoc, serverTimestamp } = f.dbFns;
-    const data = Object.assign({}, hub, { uid, updatedAt: serverTimestamp() });
+    const data = Object.assign({}, hub, {
+      uid,
+      headline: normalizeHeadline(hub.headline),
+      updatedAt: serverTimestamp(),
+    });
     await setDoc(doc(f.db, 'linkHubs', data.publicId), data, { merge: true });
     await setDoc(doc(f.db, 'users', uid, 'sns', 'linkHub'), data, { merge: true });
     if (window.MiraiFriends && typeof MiraiFriends.syncFriendProfileForPeers === 'function') {
@@ -660,6 +669,7 @@ const MiraiMyPage = (function () {
     hub.links = Array.isArray(hub.links) ? hub.links : [];
     hub.notes = Array.isArray(hub.notes) ? hub.notes : [];
     hub.supportTeams = normalizeSupportTeams(hub.supportTeams);
+    hub.headline = normalizeHeadline(hub.headline);
     return { hub, hubExisted };
   }
 
@@ -842,7 +852,7 @@ const MiraiMyPage = (function () {
       try {
         const draft = JSON.parse(draftRaw);
         if (draft.displayName != null) hub.displayName = String(draft.displayName);
-        if (draft.headline != null) hub.headline = String(draft.headline);
+        if (draft.headline != null) hub.headline = normalizeHeadline(draft.headline);
         if (draft.bio != null) hub.bio = String(draft.bio);
         if (draft.supportTeams) hub.supportTeams = normalizeSupportTeams(draft.supportTeams);
       } catch (e) {
@@ -963,7 +973,8 @@ const MiraiMyPage = (function () {
           </div>
           <div class="form-group">
           <label for="mpHeadline">一言</label>
-            <input type="text" class="form-input" id="mpHeadline" maxlength="40" value="${esc(hub.headline)}" placeholder="例: 25時、ナイトコードで。推し">
+            <input type="text" class="form-input" id="mpHeadline" maxlength="${HEADLINE_MAX}" value="${esc(normalizeHeadline(hub.headline))}" placeholder="例: 25時、推しはミク">
+            <p class="form-hint">最大${HEADLINE_MAX}文字</p>
           </div>
           <div class="form-group">
             <label for="mpBio">自己紹介</label>
@@ -1004,7 +1015,7 @@ const MiraiMyPage = (function () {
 
     function readProfileForm() {
       hub.displayName = box.querySelector('#mpName').value.trim();
-      hub.headline = box.querySelector('#mpHeadline').value.trim();
+      hub.headline = normalizeHeadline(box.querySelector('#mpHeadline').value);
       hub.bio = box.querySelector('#mpBio').value.trim();
       readSupportTeamsFromDom();
       hub.supportTeams = supportTeamsForSave(supportTeams);
@@ -1877,6 +1888,7 @@ const MiraiMyPage = (function () {
           '<p class="mt-2"><a href="#/" class="btn btn-secondary" data-link>ホームへ</a></p></div>';
         return;
       }
+      hub.headline = normalizeHeadline(hub.headline);
 
       const viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
       const showFriendBar = viewer && hub.uid && viewer.uid !== hub.uid && window.MiraiFriends;
