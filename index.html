@@ -39,7 +39,7 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=46">
+  <link rel="stylesheet" href="css/style.css?v=47">
   <link rel="stylesheet" href="css/community.css?v=31">
   <link rel="stylesheet" href="css/ads.css?v=1">
 </head>
@@ -69,6 +69,7 @@
   <footer class="footer">
     <p>© 2026 未来喫茶 — プロジェクトセカイ非公式ツール集</p>
     <p class="mt-1">このサイトはファンメイドです。SEGA・Colorful Palette とは関係ありません。</p>
+    <p id="footerSupportMount" class="footer-support mt-1" hidden></p>
   </footer>
 
   <!-- ==================== HOME ==================== -->
@@ -956,6 +957,21 @@
     </div>
   </template>
 
+  <!-- ==================== サイト支援 ==================== -->
+  <template id="tmpl-support">
+    <div class="page-content page-enter">
+      <div class="calc-page community-narrow support-page">
+        <div class="calc-header">
+          <a href="#/" class="back-link" data-link>← ホームに戻る</a>
+          <h1>サイトを支援する</h1>
+          <p>未来喫茶の運営を応援していただけます</p>
+        </div>
+        <div id="supportRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== 404 ==================== -->
   <template id="tmpl-404">
     <div class="page-content page-enter">
       <div class="calc-page text-center" style="padding-top: 6rem;">
@@ -970,6 +986,8 @@
   <script src="js/analytics.js?v=1"></script>
   <script src="js/ads-config.js?v=1"></script>
   <script src="js/ads.js?v=1"></script>
+  <script src="js/support-config.js?v=1"></script>
+  <script src="js/support.js?v=1"></script>
   <script src="js/firebase-config.js?v=1"></script>
   <script type="module" src="js/firebase.js?v=1"></script>
   <script src="js/auth.js?v=2"></script>
@@ -988,6 +1006,6 @@
   <script src="js/song-kiso.js?v=3"></script>
   <script src="js/pjsk-engine.js?v=33"></script>
   <script src="js/calculators.js?v=57"></script>
-  <script src="js/app.js?v=28"></script>
+  <script src="js/app.js?v=29"></script>
 </body>
 </html>
