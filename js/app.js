@@ -163,6 +163,7 @@
       .add('/kizuna',   'tmpl-kizuna',    () => Calculators.initKizuna())
       .add('/diagnosis','tmpl-diagnosis', () => Calculators.initDiagnosis())
       .add('/guides',   'tmpl-guides',    () => GuidesPage.init())
+      .add('/support',  'tmpl-support',   () => MiraiSupport.initPage())
       .add('/admin',    'tmpl-admin',     () => AdminPage.init())
       .add('/login',    'tmpl-login',     () => MiraiMyPage.initLogin())
       .add('/mypage',   'tmpl-mypage',    () => guardCommunity(() => MiraiMyPage.initMyPage())())
@@ -200,6 +201,7 @@
         '/kizuna':    'キズナ計算 — 未来喫茶',
         '/diagnosis': 'イベラン診断 — 未来喫茶',
         '/guides':    '攻略図書館 — 未来喫茶',
+        '/support':   'サイトを支援する — 未来喫茶',
         '/admin':     '管理者 — 未来喫茶',
         '/login':     'ログイン — 未来喫茶',
         '/mypage':    'マイページ — 未来喫茶',
@@ -238,5 +240,6 @@
       MiraiAuth.init().catch((err) => console.error('[未来喫茶] 認証初期化エラー:', err));
     }
     if (typeof MiraiAds !== 'undefined') MiraiAds.init();
+    if (typeof MiraiSupport !== 'undefined') MiraiSupport.init();
   });
 })();

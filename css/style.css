@@ -1273,6 +1273,53 @@ input, select {
   color: var(--brand-blue);
 }
 
+.footer-support {
+  margin-top: 0.65rem;
+}
+.footer-support__link {
+  font-weight: 600;
+  color: var(--brand-teal);
+}
+.footer-support__link:hover {
+  color: var(--brand-blue);
+}
+
+/* ---- サイト支援ページ ---- */
+.support-page__lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.support-page__provider {
+  margin: 0 0 1.25rem;
+}
+.support-page__actions {
+  margin-bottom: 1.25rem;
+}
+.support-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  max-width: 320px;
+}
+.support-cta__icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+.support-disclaimer {
+  margin-top: 0.5rem;
+}
+.support-disclaimer p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+.support-unavailable code {
+  font-size: 0.85em;
+}
+
 /* ---- Utilities ---- */
 .mt-1 { margin-top: 0.5rem; }
 .mt-2 { margin-top: 1rem; }
