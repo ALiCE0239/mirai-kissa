@@ -124,10 +124,14 @@ const MiraiAuth = (function () {
       notify();
     });
 
+    let hadRedirectPending = false;
+    try {
+      hadRedirectPending = sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY) === '1';
+    } catch (e) { /* ignore */ }
+
     // リダイレクト方式のログインから戻ってきた場合の後処理（ルーターより先に完了させる）
     try {
       const result = await getRedirectResult(fb.auth);
-      const hadRedirectPending = sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY) === '1';
       if (result && result.user) {
         currentUser = result.user;
         await handleSignInResult(result, getAdditionalUserInfo);
@@ -138,12 +142,21 @@ const MiraiAuth = (function () {
         }
       } else if (hadRedirectPending) {
         sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+        // X 許可後に戻っても getRedirectResult が空 = 設定ミスのことが多い
+        if (!fb.auth.currentUser) {
+          storeAuthError({ code: 'auth/invalid-credential', message: '' });
+          location.hash = '#/login';
+        }
       }
     } catch (e) {
       console.warn('[auth] redirect result:', e);
       sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
       storeAuthError(e);
-      if (location.hash !== '#/login') location.hash = '#/login';
+      location.hash = '#/login';
+    }
+
+    if (!currentUser && fb.auth.currentUser) {
+      currentUser = fb.auth.currentUser;
     }
 
     notify();
@@ -272,7 +285,12 @@ const MiraiAuth = (function () {
     const { signInWithPopup, signInWithRedirect, getAdditionalUserInfo } = fb.authFns;
     const provider = providerFactory();
     if (options.preferRedirect) {
-      try { sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, '1'); } catch (e) { /* ignore */ }
+      try {
+        sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, '1');
+        if (location.hash && location.hash !== '#/login') {
+          sessionStorage.setItem(LOGIN_RETURN_KEY, location.hash);
+        }
+      } catch (e) { /* ignore */ }
       await signInWithRedirect(fb.auth, provider);
       return null;
     }
@@ -283,7 +301,12 @@ const MiraiAuth = (function () {
     } catch (err) {
       // モバイル等でポップアップが使えない場合はリダイレクトにフォールバック
       if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment')) {
-        try { sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, '1'); } catch (e) { /* ignore */ }
+        try {
+          sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, '1');
+          if (location.hash && location.hash !== '#/login') {
+            sessionStorage.setItem(LOGIN_RETURN_KEY, location.hash);
+          }
+        } catch (e) { /* ignore */ }
         await signInWithRedirect(fb.auth, provider);
         return null;
       }
