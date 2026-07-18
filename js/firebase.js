@@ -8,6 +8,10 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
   getAuth,
+  initializeAuth,
+  browserLocalPersistence,
+  indexedDBLocalPersistence,
+  browserPopupRedirectResolver,
   onAuthStateChanged,
   signInWithPopup,
   signInWithRedirect,
@@ -56,7 +60,15 @@ if (!isConfigured(cfg)) {
   api = { configured: false };
 } else {
   const app = initializeApp(cfg);
-  const auth = getAuth(app);
+  let auth;
+  try {
+    auth = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
+  } catch (e) {
+    auth = getAuth(app);
+  }
   const db = getFirestore(app);
   const storage = getStorage(app);
 

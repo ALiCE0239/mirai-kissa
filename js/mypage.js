@@ -505,8 +505,17 @@ const MiraiMyPage = (function () {
     const run = async (fn) => {
       errEl.hidden = true;
       try {
-        const user = await fn();
-        if (user) location.hash = window.MiraiAuth.consumeLoginReturn('#/mypage');
+        await fn();
+        if (window.MiraiAuth.isRedirectPending && window.MiraiAuth.isRedirectPending()) {
+          return;
+        }
+        let user = window.MiraiAuth.getUser();
+        if (!user) user = await window.MiraiAuth.waitForUser(3000);
+        if (user) {
+          location.hash = window.MiraiAuth.consumeLoginReturn('#/mypage');
+        } else {
+          showErr('ログインが完了しませんでした。すでに Google で登録済みの場合は Google でログインしてください。');
+        }
       } catch (e) {
         showErr(e.message || String(e));
       }

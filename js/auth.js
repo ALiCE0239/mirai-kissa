@@ -122,6 +122,9 @@ const MiraiAuth = (function () {
     onAuthStateChanged(fb.auth, (user) => {
       currentUser = user || null;
       notify();
+      if (user && location.hash === '#/login') {
+        location.hash = consumeLoginReturn('#/mypage');
+      }
     });
 
     let hadRedirectPending = false;
@@ -241,6 +244,9 @@ const MiraiAuth = (function () {
     if (code === 'auth/requires-recent-login') {
       return 'セキュリティのため、一度ログアウトしてから再度ログインしてから連携してください。';
     }
+    if (code === 'auth/redirect-failed') {
+      return 'X ログインのリダイレクトが完了しませんでした。PC ではポップアップを許可して再度お試しください。すでに Google でログイン済みの場合は Google でログインし、マイページ設定から X を連携できます。';
+    }
     if (raw) return raw;
     return 'ログインに失敗しました。';
   }
@@ -252,6 +258,20 @@ const MiraiAuth = (function () {
 
   function hasProvider(user, providerId) {
     return providerIds(user).has(providerId);
+  }
+
+  async function finishSignIn(result, getAdditionalUserInfo) {
+    const user = (result && result.user) || (fb.auth && fb.auth.currentUser);
+    if (user) {
+      currentUser = user;
+      notify();
+      if (result) {
+        handleSignInResult(result, getAdditionalUserInfo).catch((e) => {
+          console.warn('[auth] handleSignInResult:', e);
+        });
+      }
+    }
+    return user;
   }
 
   async function linkWith(providerFactory) {
@@ -266,10 +286,7 @@ const MiraiAuth = (function () {
     const provider = providerFactory();
     try {
       const result = await linkWithPopup(user, provider);
-      await handleSignInResult(result, getAdditionalUserInfo);
-      currentUser = result.user || fb.auth.currentUser;
-      notify();
-      return currentUser;
+      return finishSignIn(result, getAdditionalUserInfo);
     } catch (err) {
       if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment')) {
         await linkWithRedirect(user, provider);
@@ -298,8 +315,7 @@ const MiraiAuth = (function () {
     }
     try {
       const result = await signInWithPopup(fb.auth, provider);
-      await handleSignInResult(result, getAdditionalUserInfo);
-      return result.user;
+      return finishSignIn(result, getAdditionalUserInfo);
     } catch (err) {
       // モバイル等でポップアップが使えない場合はリダイレクトにフォールバック
       if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment')) {
@@ -325,6 +341,9 @@ const MiraiAuth = (function () {
     redirectToLogin,
     consumeLoginReturn,
     consumeAuthError,
+    isRedirectPending() {
+      try { return sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY) === '1'; } catch (e) { return false; }
+    },
     waitForUser,
     requireUser,
     getFirebase: () => fb,
@@ -337,11 +356,8 @@ const MiraiAuth = (function () {
       return () => listeners.delete(cb);
     },
     signInWithX() {
-      // X（Twitter）はポップアップよりリダイレクトの方が安定
-      return signInWith(
-        () => new fb.authFns.TwitterAuthProvider(),
-        { preferRedirect: true }
-      );
+      // マイページの X 連携（linkWithPopup）と同じポップアップ方式を優先
+      return signInWith(() => new fb.authFns.TwitterAuthProvider());
     },
     signInWithGoogle() {
       return signInWith(() => new fb.authFns.GoogleAuthProvider());
