@@ -151,7 +151,50 @@ const MiraiAuth = (function () {
     if (code === 'auth/unauthorized-domain') {
       return 'このドメインは許可されていません。Firebase の「承認済みドメイン」に追加してください。';
     }
+    if (code === 'auth/credential-already-in-use') {
+      return 'この Google / X アカウントは、別の未来喫茶アカウントにすでに登録されています。元のアカウントでログインするか、別のアカウントをお試しください。';
+    }
+    if (code === 'auth/provider-already-linked') {
+      return 'すでに連携済みです。';
+    }
+    if (code === 'auth/requires-recent-login') {
+      return 'セキュリティのため、一度ログアウトしてから再度ログインしてから連携してください。';
+    }
     return (err && err.message) || 'ログインに失敗しました。';
+  }
+
+  function providerIds(user) {
+    if (!user || !Array.isArray(user.providerData)) return new Set();
+    return new Set(user.providerData.map((p) => p.providerId));
+  }
+
+  function hasProvider(user, providerId) {
+    return providerIds(user).has(providerId);
+  }
+
+  async function linkWith(providerFactory) {
+    if (!fb || !fb.configured) {
+      throw new Error('ログイン機能はまだ準備中です（Firebase 未設定）。');
+    }
+    const user = currentUser;
+    if (!user) {
+      throw new Error('ログインしてから連携してください。');
+    }
+    const { linkWithPopup, linkWithRedirect, getAdditionalUserInfo } = fb.authFns;
+    const provider = providerFactory();
+    try {
+      const result = await linkWithPopup(user, provider);
+      await handleSignInResult(result, getAdditionalUserInfo);
+      currentUser = result.user || fb.auth.currentUser;
+      notify();
+      return currentUser;
+    } catch (err) {
+      if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment')) {
+        await linkWithRedirect(user, provider);
+        return null;
+      }
+      throw new Error(friendlyError(err));
+    }
   }
 
   async function signInWith(providerFactory) {
@@ -197,6 +240,22 @@ const MiraiAuth = (function () {
     },
     signInWithGoogle() {
       return signInWith(() => new fb.authFns.GoogleAuthProvider());
+    },
+    linkWithX() {
+      return linkWith(() => new fb.authFns.TwitterAuthProvider());
+    },
+    linkWithGoogle() {
+      return linkWith(() => new fb.authFns.GoogleAuthProvider());
+    },
+    hasProvider(user, providerId) {
+      return hasProvider(user || currentUser, providerId);
+    },
+    getLinkedProviders(user) {
+      const u = user || currentUser;
+      return {
+        google: hasProvider(u, 'google.com'),
+        twitter: hasProvider(u, 'twitter.com'),
+      };
     },
     async signOut() {
       if (!fb || !fb.configured) return;
