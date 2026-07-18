@@ -48,9 +48,14 @@ const MiraiFriends = (function () {
     const f = await fb();
     if (!f || !uid) return normalizeFriendRequestSources(null);
     const { doc, getDoc } = f.dbFns;
-    const snap = await getDoc(doc(f.db, 'users', uid, 'sns', 'settings'));
-    if (!snap.exists()) return normalizeFriendRequestSources(null);
-    return normalizeFriendRequestSources(snap.data().friendRequestSources);
+    try {
+      const snap = await safeGetDoc(getDoc, doc(f.db, 'users', uid, 'sns', 'settings'));
+      if (!snap.exists()) return normalizeFriendRequestSources(null);
+      return normalizeFriendRequestSources(snap.data().friendRequestSources);
+    } catch (e) {
+      console.warn('[friends] loadFriendRequestSources:', e);
+      return normalizeFriendRequestSources(null);
+    }
   }
 
   async function saveFriendRequestSources(uid, sources) {
@@ -336,12 +341,30 @@ const MiraiFriends = (function () {
     return snap.exists() ? snap.data() : null;
   }
 
+  async function safeGetDoc(getDoc, ref) {
+    try {
+      return await getDoc(ref);
+    } catch (e) {
+      if (e && e.code === 'permission-denied') {
+        console.warn('[friends] permission denied:', ref && ref.path ? ref.path : ref);
+        return { exists: () => false, data: () => null };
+      }
+      throw e;
+    }
+  }
+
   async function loadHubByPublicId(publicId) {
     const f = await fb();
     if (!f || !f.configured) return null;
+    const id = normalizePublicId(publicId);
+    if (!id) return null;
     const { doc, getDoc } = f.dbFns;
-    const snap = await getDoc(doc(f.db, 'linkHubs', publicId));
-    return snap.exists() ? snap.data() : null;
+    const snap = await getDoc(doc(f.db, 'linkHubs', id));
+    if (!snap.exists()) return null;
+    const hub = snap.data();
+    if (!hub) return null;
+    if (!hub.publicId) hub.publicId = id;
+    return hub;
   }
 
   function normalizePublicId(raw) {
@@ -356,10 +379,10 @@ const MiraiFriends = (function () {
     if (!f || !f.configured) return 'none';
     const { doc, getDoc } = f.dbFns;
     const [friendSnap, sentSnap, recvSnap, shadowSnap] = await Promise.all([
-      getDoc(doc(f.db, 'users', myUid, 'friends', targetUid)),
-      getDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid)),
-      getDoc(doc(f.db, 'users', myUid, 'friendRequests', targetUid)),
-      getDoc(doc(f.db, 'users', myUid, 'shadowFriendRequests', targetUid)),
+      safeGetDoc(getDoc, doc(f.db, 'users', myUid, 'friends', targetUid)),
+      safeGetDoc(getDoc, doc(f.db, 'users', targetUid, 'friendRequests', myUid)),
+      safeGetDoc(getDoc, doc(f.db, 'users', myUid, 'friendRequests', targetUid)),
+      safeGetDoc(getDoc, doc(f.db, 'users', myUid, 'shadowFriendRequests', targetUid)),
     ]);
     if (friendSnap.exists()) return 'friends';
     if (sentSnap.exists() && sentSnap.data().status === 'pending') return 'pending_sent';
@@ -532,8 +555,24 @@ const MiraiFriends = (function () {
     }
   }
 
+  function friendActionErrorMessage(err) {
+    const code = err && err.code ? String(err.code) : '';
+    if (code === 'permission-denied') {
+      return 'ログイン状態を確認できませんでした。一度ログアウトしてから再度ログインしてください。';
+    }
+    const msg = err && err.message ? String(err.message).trim() : '';
+    return msg || 'フレンド操作の読み込みに失敗しました';
+  }
+
   async function renderActionButton(container, myUid, targetHub, opts) {
-    if (!container || !targetHub || !targetHub.uid) return;
+    if (!container) return;
+    if (!targetHub || !targetHub.uid) {
+      container.hidden = false;
+      container.innerHTML =
+        '<p class="friend-action-bar__status friend-action-bar__status--blocked">' +
+        'このユーザーはプロフィール登録が未完了のため、フレンド申請できません。</p>';
+      return;
+    }
     let onChange;
     let source = 'profile';
     if (typeof opts === 'function') {
@@ -544,6 +583,7 @@ const MiraiFriends = (function () {
       source = normalizeFriendSource(opts.source);
     }
 
+    try {
     const status = await getStatus(myUid, targetHub.uid);
     if (status === 'self') {
       container.innerHTML = '';
@@ -605,6 +645,12 @@ const MiraiFriends = (function () {
         btn.textContent = 'フレンド申請する';
       }
     });
+    } catch (e) {
+      console.error('[friends] renderActionButton:', e);
+      container.hidden = false;
+      container.innerHTML =
+        '<p class="form-error">' + esc(friendActionErrorMessage(e)) + '</p>';
+    }
   }
 
   function updateRequestBadge(box, count) {
@@ -732,13 +778,44 @@ const MiraiFriends = (function () {
     await renderFriendsList(box, user);
   }
 
+  async function resolveSearchUser(fallbackUser) {
+    const authUser = window.MiraiAuth && window.MiraiAuth.getUser
+      ? window.MiraiAuth.getUser()
+      : null;
+    const user = authUser || fallbackUser || null;
+    if (!user || !user.uid) return null;
+    try {
+      if (typeof user.getIdToken === 'function') await user.getIdToken();
+    } catch (e) {
+      console.warn('[friends] auth token refresh failed:', e);
+    }
+    return user;
+  }
+
+  function friendSearchErrorMessage(err) {
+    const code = err && err.code ? String(err.code) : '';
+    if (code === 'permission-denied') {
+      return 'ログイン状態を確認できませんでした。一度ログアウトしてから再度ログインしてください。';
+    }
+    if (code === 'unavailable' || code === 'failed-precondition') {
+      return '通信エラーです。しばらくしてから再度お試しください。';
+    }
+    const msg = err && err.message ? String(err.message).trim() : '';
+    return msg || '検索に失敗しました';
+  }
+
   function initFriendIdSearch(box, user) {
     const input = box.querySelector('#mpFriendIdSearch');
     const btn = box.querySelector('#mpFriendIdSearchBtn');
     const resultEl = box.querySelector('#mpFriendIdSearchResult');
     if (!input || !btn || !resultEl) return;
 
+    let searchSeq = 0;
+
     async function runSearch() {
+      const seq = ++searchSeq;
+      const isStale = () => seq !== searchSeq;
+
       resultEl.innerHTML = '';
       const id = normalizePublicId(input.value);
       if (!id) {
@@ -750,15 +827,26 @@ const MiraiFriends = (function () {
         return;
       }
 
+      const searchUser = await resolveSearchUser(user);
+      if (!searchUser) {
+        resultEl.innerHTML =
+          '<p class="form-error">フレンド検索にはログインが必要です。</p>' +
+          '<p class="form-hint mt-1"><a href="#/login" data-link>ログインする</a></p>';
+        return;
+      }
+
       resultEl.innerHTML = '<p class="text-muted">検索中…</p>';
       btn.disabled = true;
       try {
         const hub = await loadHubByPublicId(id);
-        if (!hub || !hub.uid) {
-          resultEl.innerHTML = '<p class="form-error">該当するユーザーが見つかりませんでした。</p>';
+        if (isStale()) return;
+        if (!hub) {
+          resultEl.innerHTML =
+            '<p class="form-error">該当するユーザーが見つかりませんでした。</p>' +
+            '<p class="form-hint mt-1">相手がマイページを一度も開いていない、またはプロフィール登録が完了していない可能性があります。</p>';
           return;
         }
-        if (hub.uid === user.uid) {
+        if (hub.uid && hub.uid === searchUser.uid) {
           resultEl.innerHTML = '<p class="text-muted mp-friends-empty">これはあなた自身のIDです。</p>';
           return;
         }
@@ -778,13 +866,24 @@ const MiraiFriends = (function () {
             </div>
           </div>
         `;
+        if (isStale()) return;
         const actionEl = resultEl.querySelector('#mpFriendIdSearchAction');
-        await renderActionButton(actionEl, user.uid, hub, { onChange: () => runSearch(), source: 'idSearch' });
+        if (actionEl) {
+          renderActionButton(actionEl, searchUser.uid, hub, {
+            onChange: () => runSearch(),
+            source: 'idSearch',
+          }).catch((e) => {
+            if (isStale()) return;
+            actionEl.innerHTML = '<p class="form-error">' + esc(friendActionErrorMessage(e)) + '</p>';
+            console.error(e);
+          });
+        }
       } catch (e) {
-        resultEl.innerHTML = '<p class="form-error">検索に失敗しました</p>';
+        if (isStale()) return;
+        resultEl.innerHTML = '<p class="form-error">' + esc(friendSearchErrorMessage(e)) + '</p>';
         console.error(e);
       } finally {
-        btn.disabled = false;
+        if (!isStale()) btn.disabled = false;
       }
     }
 
