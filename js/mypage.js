@@ -471,6 +471,32 @@ const MiraiMyPage = (function () {
     return data;
   }
 
+  async function saveHubWithRetry(uid, hub) {
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (window.MiraiAuth && window.MiraiAuth.whenReady) {
+          await window.MiraiAuth.whenReady();
+        }
+        const authUser = window.MiraiAuth ? window.MiraiAuth.getUser() : null;
+        if (authUser && typeof authUser.getIdToken === 'function') {
+          await authUser.getIdToken(attempt > 0);
+        }
+        await saveHub(uid, hub);
+        return;
+      } catch (e) {
+        lastError = e;
+        const code = e && e.code ? String(e.code) : '';
+        if (attempt < 2 && (code === 'permission-denied' || code === 'unavailable')) {
+          await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+          continue;
+        }
+        throw e;
+      }
+    }
+    if (lastError) throw lastError;
+  }
+
   // ================= ログイン画面 =================
 
   async function initLogin() {
@@ -577,7 +603,7 @@ const MiraiMyPage = (function () {
     let profileSaveError = '';
     if (!hubExisted) {
       try {
-        await saveHub(user.uid, hub);
+        await saveHubWithRetry(user.uid, hub);
         sekaiSaved = true;
       } catch (e) {
         console.error(e);
@@ -1994,7 +2020,9 @@ const MiraiMyPage = (function () {
       hub.headline = normalizeHeadline(hub.headline);
 
       let viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
-      if (viewer && typeof viewer.getIdToken === 'function') {
+      if (window.MiraiFriends && window.MiraiFriends.ensureAuthReady) {
+        viewer = await MiraiFriends.ensureAuthReady(viewer);
+      } else if (viewer && typeof viewer.getIdToken === 'function') {
         try { await viewer.getIdToken(); } catch (e) { console.warn('[public] auth token:', e); }
       }
 
@@ -2021,10 +2049,7 @@ const MiraiMyPage = (function () {
           : 'profile';
         const bar = box.querySelector('#publicFriendBar');
         if (bar) {
-          MiraiFriends.renderActionButton(bar, viewer.uid, hub, { source: frSource }).catch((e) => {
-            console.error('[public] friend action bar:', e);
-            bar.innerHTML = '<p class="form-error">' + esc(e.message || 'フレンド申請の表示に失敗しました') + '</p>';
-          });
+          await MiraiFriends.renderActionButton(bar, viewer.uid, hub, { source: frSource });
         }
       }
     } catch (e) {
