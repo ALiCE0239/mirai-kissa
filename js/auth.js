@@ -142,9 +142,11 @@ const MiraiAuth = (function () {
         }
       } else if (hadRedirectPending) {
         sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-        // X 許可後に戻っても getRedirectResult が空 = 設定ミスのことが多い
         if (!fb.auth.currentUser) {
-          storeAuthError({ code: 'auth/invalid-credential', message: '' });
+          storeAuthError({
+            code: 'auth/redirect-failed',
+            message: 'redirect',
+          });
           location.hash = '#/login';
         }
       }
@@ -335,9 +337,10 @@ const MiraiAuth = (function () {
       return () => listeners.delete(cb);
     },
     signInWithX() {
+      // X（Twitter）はポップアップよりリダイレクトの方が安定
       return signInWith(
         () => new fb.authFns.TwitterAuthProvider(),
-        { preferRedirect: prefersRedirectAuth() }
+        { preferRedirect: true }
       );
     },
     signInWithGoogle() {
