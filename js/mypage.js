@@ -495,6 +495,9 @@ const MiraiMyPage = (function () {
     const errEl = box.querySelector('#loginError');
     const showErr = (msg) => { errEl.textContent = msg; errEl.hidden = false; };
 
+    const pendingErr = window.MiraiAuth.consumeAuthError && window.MiraiAuth.consumeAuthError();
+    if (pendingErr) showErr(pendingErr);
+
     const run = async (fn) => {
       errEl.hidden = true;
       try {
