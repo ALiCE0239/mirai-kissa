@@ -567,6 +567,7 @@
   overflow: hidden;
   box-sizing: border-box;
   color: var(--pc-ink, #1e293b);
+  text-align: left;
 }
 .profile-card-page__preview .profile-card-meishi {
   transform: rotate(-1.2deg);
@@ -666,9 +667,11 @@
 .profile-card-meishi__member {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2mm;
   min-width: 0;
   flex: 1;
+  text-align: left;
 }
 .profile-card-meishi__titles {
   display: flex;
@@ -681,7 +684,7 @@
   min-height: 12mm;
 }
 .profile-card-meishi__titles--empty {
-  visibility: hidden;
+  display: none;
 }
 .profile-card-meishi__title-badge {
   display: block;
@@ -710,6 +713,8 @@
   white-space: nowrap;
   color: var(--pc-ink, #1e293b);
   letter-spacing: 0.02em;
+  text-align: left;
+  width: 100%;
 }
 .profile-card-meishi__id-box {
   display: inline-flex;

@@ -487,10 +487,10 @@ const MiraiMyPage = (function () {
 
     box.innerHTML =
       '<p class="text-muted community-login__lead">ログインすると、セカイノートからプロフィール・イベラン広告・マイセカイ宣伝を編集できます。</p>' +
-      '<button type="button" class="btn btn-primary btn-block" id="loginGoogle">Google でログイン</button>' +
-      '<p class="form-hint mt-2">𝕏 ログインは現在準備中です</p>' +
-      '<p id="loginError" class="form-error mt-3" hidden></p>' +
-      '<p class="form-hint mt-3">初めての方は自動で新規登録されます。</p>';
+      '<button type="button" class="btn community-btn-x btn-block" id="loginX">𝕏（X）でログイン</button>' +
+      '<button type="button" class="btn btn-primary btn-block mt-2" id="loginGoogle">Google でログイン</button>' +
+      '<p class="form-hint mt-2">初回ログイン時は自動で新規登録されます。X ログインを使う場合は Firebase Console で Twitter プロバイダを有効化してください。</p>' +
+      '<p id="loginError" class="form-error mt-3" hidden></p>';
 
     const errEl = box.querySelector('#loginError');
     const showErr = (msg) => { errEl.textContent = msg; errEl.hidden = false; };
@@ -505,6 +505,7 @@ const MiraiMyPage = (function () {
       }
     };
 
+    box.querySelector('#loginX').addEventListener('click', () => run(() => window.MiraiAuth.signInWithX()));
     box.querySelector('#loginGoogle').addEventListener('click', () => run(() => window.MiraiAuth.signInWithGoogle()));
 
     // ログイン状態が変わったら自動遷移

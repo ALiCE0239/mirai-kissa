@@ -78,12 +78,7 @@ const MiraiSupport = (function () {
     if (!root) return;
 
     if (!isActive()) {
-      root.innerHTML =
-        '<div class="info-box support-unavailable">' +
-        '<p><strong>現在、支援の受付は準備中です。</strong></p>' +
-        '<p class="form-hint mt-1">OFUSE または Ko-fi 等のアカウント作成後、' +
-        '<code>js/support-config.js</code> の <code>url</code> に支援ページの URL を設定してください。</p>' +
-        '</div>';
+      location.hash = '#/';
       return;
     }
 

@@ -39,8 +39,8 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=47">
-  <link rel="stylesheet" href="css/community.css?v=31">
+  <link rel="stylesheet" href="css/style.css?v=48">
+  <link rel="stylesheet" href="css/community.css?v=32">
   <link rel="stylesheet" href="css/ads.css?v=1">
 </head>
 <body>
@@ -620,6 +620,13 @@
                 </div>
                 <p class="form-hint">7日間ユニーク訪問者（目安）: <strong id="statUv7">—</strong></p>
 
+                <h3 class="admin-section-title">登録ユーザー</h3>
+                <div class="admin-stat-grid admin-stat-grid--3">
+                  <div class="admin-stat-card"><span class="admin-stat-label">登録ユーザー</span><span class="admin-stat-value" id="statUserTotal">—</span></div>
+                </div>
+                <p class="form-hint">プロフィールを1回以上保存したアカウント数です。</p>
+                <p id="statUserError" class="form-error mt-2" hidden></p>
+
                 <h3 class="admin-section-title">ページ別（7日間）</h3>
                 <div class="admin-table-wrap">
                   <table class="admin-table">
@@ -639,7 +646,13 @@
 
               <div id="adminUsersPanel" class="admin-panel" hidden>
                 <h2 class="admin-main__title">ユーザー管理</h2>
-                <section class="card admin-card">
+                <section class="card admin-card" id="adminUserStats">
+                  <h3 class="admin-card__heading">登録ユーザー数</h3>
+                  <p class="admin-user-count"><span class="admin-stat-value" id="statUsersTabTotal">—</span><span class="admin-user-count__unit">人</span></p>
+                  <p class="form-hint">プロフィールを1回以上保存したアカウント数です（ログインのみで未保存の人は含みません）。</p>
+                  <p id="statUsersTabError" class="form-error mt-2" hidden></p>
+                </section>
+                <section class="card admin-card mt-3">
                   <h3 class="admin-card__heading">ID でユーザー検索</h3>
                   <form id="adminUserSearchForm" class="admin-user-search">
                     <label class="form-label" for="adminUserSearchId">未来喫茶ID（8文字）</label>
@@ -986,17 +999,17 @@
   <script src="js/analytics.js?v=1"></script>
   <script src="js/ads-config.js?v=1"></script>
   <script src="js/ads.js?v=1"></script>
-  <script src="js/support-config.js?v=1"></script>
-  <script src="js/support.js?v=1"></script>
+  <script src="js/support-config.js?v=2"></script>
+  <script src="js/support.js?v=2"></script>
   <script src="js/firebase-config.js?v=1"></script>
-  <script type="module" src="js/firebase.js?v=1"></script>
+  <script type="module" src="js/firebase.js?v=2"></script>
   <script src="js/auth.js?v=2"></script>
   <script src="js/qrcode.min.js"></script>
   <script src="js/qr-utils.js?v=1"></script>
   <script src="js/friends.js?v=8"></script>
-  <script src="js/mypage.js?v=28"></script>
+  <script src="js/mypage.js?v=29"></script>
   <script src="js/admin-config.js?v=3"></script>
-  <script src="js/admin.js?v=12"></script>
+  <script src="js/admin.js?v=13"></script>
   <script src="js/board.js?v=17"></script>
   <script src="js/ranking.js?v=9"></script>
   <script src="js/guides.js?v=1"></script>
