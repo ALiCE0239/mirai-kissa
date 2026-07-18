@@ -366,6 +366,53 @@ const MiraiFriends = (function () {
     return user;
   }
 
+  /** 認証が整うまで待ち、整ったらユーザーを返す（最大 timeoutMs） */
+  async function waitForAuthUser(fallbackUser, timeoutMs) {
+    const deadline = Date.now() + (timeoutMs || 12000);
+    while (Date.now() < deadline) {
+      const user = await ensureAuthReady(fallbackUser);
+      if (user) return user;
+      await delay(400);
+    }
+    return new Promise((resolve) => {
+      let done = false;
+      let off = null;
+      const finish = (user) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (off) off();
+        resolve(user || null);
+      };
+      const timer = setTimeout(() => finish(null), 4000);
+      if (!window.MiraiAuth || typeof window.MiraiAuth.onChange !== 'function') {
+        finish(null);
+        return;
+      }
+      const current = window.MiraiAuth.getUser();
+      if (current) {
+        finish(current);
+        return;
+      }
+      off = window.MiraiAuth.onChange((user) => {
+        if (user) finish(user);
+      });
+    });
+  }
+
+  async function loadHubByPublicIdWithRetry(publicId, opts) {
+    opts = opts || {};
+    const attempts = opts.attempts || 8;
+    const intervalMs = opts.intervalMs || 500;
+    for (let i = 0; i < attempts; i++) {
+      if (opts.isStale && opts.isStale()) return null;
+      const hub = await loadHubByPublicId(publicId);
+      if (hub) return hub;
+      if (i < attempts - 1) await delay(intervalMs);
+    }
+    return null;
+  }
+
   function isRenderStale(opts) {
     return !!(opts && typeof opts.isRenderStale === 'function' && opts.isRenderStale());
   }
@@ -847,6 +894,24 @@ const MiraiFriends = (function () {
     return msg || '検索に失敗しました';
   }
 
+  function renderFriendSearchCard(resultEl, hub, id) {
+    resultEl.innerHTML = `
+      <div class="mp-friend-search-result card">
+        <div class="mp-friend-search-result__main">
+          ${friendAvatar(hub)}
+          <div class="mp-friend-search-result__text">
+            <p class="mp-friend-search-result__name">${esc(hub.displayName || 'ユーザー')}</p>
+            <p class="form-hint">未来喫茶ID: ${esc(hub.publicId || id)}</p>
+          </div>
+        </div>
+        <div class="mp-friend-search-result__actions">
+          <a href="${esc(profileLink(hub.publicId || id, 'idSearch'))}" class="btn btn-secondary btn-sm" data-link>セカイノートを見る</a>
+          <div id="mpFriendIdSearchAction"><p class="text-muted">読み込み中…</p></div>
+        </div>
+      </div>
+    `;
+  }
+
   function initFriendIdSearch(box, user) {
     const input = box.querySelector('#mpFriendIdSearch');
     const btn = box.querySelector('#mpFriendIdSearchBtn');
@@ -855,6 +920,20 @@ const MiraiFriends = (function () {
 
     let searchSeq = 0;
     let actionRenderSeq = 0;
+    let authRetryOff = null;
+
+    function bindAuthRetry(runSearchFn) {
+      if (authRetryOff || !window.MiraiAuth || typeof window.MiraiAuth.onChange !== 'function') return;
+      authRetryOff = window.MiraiAuth.onChange(() => {
+        const id = normalizePublicId(input.value);
+        if (!id || id.length < 4) return;
+        const stuck = !resultEl.querySelector('.mp-friend-search-result')
+          && (resultEl.textContent.indexOf('検索中') >= 0
+            || resultEl.textContent.indexOf('ログインが必要') >= 0
+            || resultEl.textContent.indexOf('失敗') >= 0);
+        if (stuck) runSearchFn();
+      });
+    }
 
     async function runSearch() {
       const seq = ++searchSeq;
@@ -873,17 +952,18 @@ const MiraiFriends = (function () {
 
       resultEl.innerHTML = '<p class="text-muted">検索中…</p>';
       btn.disabled = true;
+      bindAuthRetry(runSearch);
       try {
-        const searchUser = await resolveSearchUser(user);
+        const searchUser = await waitForAuthUser(user, 12000);
         if (isStale()) return;
         if (!searchUser) {
           resultEl.innerHTML =
-            '<p class="form-error">フレンド検索にはログインが必要です。</p>' +
-            '<p class="form-hint mt-1"><a href="#/login" data-link>ログインする</a></p>';
+            '<p class="form-error">ログイン状態を確認中です…</p>' +
+            '<p class="form-hint mt-1">しばらく待っても表示されない場合は<a href="#/login" data-link>ログイン</a>してください。</p>';
           return;
         }
 
-        const hub = await loadHubByPublicId(id);
+        const hub = await loadHubByPublicIdWithRetry(id, { isStale });
         if (isStale()) return;
         if (!hub) {
           resultEl.innerHTML =
@@ -896,26 +976,12 @@ const MiraiFriends = (function () {
           return;
         }
 
-        resultEl.innerHTML = `
-          <div class="mp-friend-search-result card">
-            <div class="mp-friend-search-result__main">
-              ${friendAvatar(hub)}
-              <div class="mp-friend-search-result__text">
-                <p class="mp-friend-search-result__name">${esc(hub.displayName || 'ユーザー')}</p>
-                <p class="form-hint">未来喫茶ID: ${esc(hub.publicId || id)}</p>
-              </div>
-            </div>
-            <div class="mp-friend-search-result__actions">
-              <a href="${esc(profileLink(hub.publicId || id, 'idSearch'))}" class="btn btn-secondary btn-sm" data-link>セカイノートを見る</a>
-              <div id="mpFriendIdSearchAction"></div>
-            </div>
-          </div>
-        `;
+        renderFriendSearchCard(resultEl, hub, id);
         if (isStale()) return;
         const actionEl = resultEl.querySelector('#mpFriendIdSearchAction');
         if (actionEl) {
           const myActionSeq = ++actionRenderSeq;
-          await renderActionButton(actionEl, searchUser.uid, hub, {
+          renderActionButton(actionEl, searchUser.uid, hub, {
             onChange: () => runSearch(),
             source: 'idSearch',
             isRenderStale: () => isStale() || myActionSeq !== actionRenderSeq,
@@ -926,7 +992,7 @@ const MiraiFriends = (function () {
         resultEl.innerHTML = '<p class="form-error">' + esc(friendSearchErrorMessage(e)) + '</p>';
         console.error(e);
       } finally {
-        if (!isStale()) btn.disabled = false;
+        if (seq === searchSeq) btn.disabled = false;
       }
     }
 
@@ -971,6 +1037,8 @@ const MiraiFriends = (function () {
     renderActionButton,
     initMypageFriends,
     ensureAuthReady,
+    waitForAuthUser,
+    loadHubByPublicIdWithRetry,
     initFriendRequestsPage,
     initFriendsPage,
     initFriendRequestSettingsPage,

@@ -572,6 +572,28 @@ const MiraiMyPage = (function () {
     });
   }
 
+  async function loadHubWithRetry(publicId, opts) {
+    opts = opts || {};
+    const attempts = opts.attempts || 8;
+    const intervalMs = opts.intervalMs || 500;
+    for (let i = 0; i < attempts; i++) {
+      if (opts.isStale && opts.isStale()) return null;
+      const hub = await loadHub(publicId);
+      if (hub) return hub;
+      if (i < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      }
+    }
+    return null;
+  }
+
+  async function waitForPageUser(fallbackUser) {
+    if (window.MiraiFriends && typeof MiraiFriends.waitForAuthUser === 'function') {
+      return MiraiFriends.waitForAuthUser(fallbackUser, 12000);
+    }
+    return resolveAuthUser();
+  }
+
   // ================= マイページ編集 =================
 
   async function initMyPage() {
@@ -587,34 +609,59 @@ const MiraiMyPage = (function () {
       return;
     }
 
-    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
+    let pageSeq = 0;
 
-    const user = await resolveAuthUser();
-    if (!user) {
-      box.innerHTML =
-        '<div class="info-box"><p>マイページの編集にはログインが必要です。</p>' +
-        '<p class="mt-2"><a href="#/login" class="btn btn-primary" data-link>ログインする</a></p></div>';
-      return;
-    }
+    async function renderPage() {
+      const seq = ++pageSeq;
+      const isStale = () => seq !== pageSeq;
 
-    const { hub, hubExisted } = await prepareHub(user);
+      box.innerHTML = '<p class="text-muted">読み込み中…</p>';
 
-    let sekaiSaved = hubExisted;
-    let profileSaveError = '';
-    if (!hubExisted) {
-      try {
-        await saveHubWithRetry(user.uid, hub);
-        sekaiSaved = true;
-      } catch (e) {
-        console.error(e);
-        profileSaveError = e.message || String(e);
+      const user = await waitForPageUser(null);
+      if (isStale()) return;
+      if (!user) {
+        box.innerHTML =
+          '<div class="info-box"><p>ログイン状態を確認中です…</p>' +
+          '<p class="form-hint mt-1">しばらく待っても表示されない場合は<a href="#/login" data-link>ログイン</a>してください。</p></div>';
+        return;
       }
+
+      const { hub, hubExisted } = await prepareHub(user);
+      if (isStale()) return;
+
+      let sekaiSaved = hubExisted;
+      let profileSaveError = '';
+      if (!hubExisted) {
+        try {
+          await saveHubWithRetry(user.uid, hub);
+          sekaiSaved = true;
+        } catch (e) {
+          console.error(e);
+          profileSaveError = e.message || String(e);
+        }
+      }
+      if (isStale()) return;
+
+      renderDashboard(box, user, hub, sekaiSaved, profileSaveError);
+      loadBoardSummaries(box, user);
+      loadRankingSummaries(box, user);
+      loadEventBookmarksSummary(box, user);
     }
 
-    renderDashboard(box, user, hub, sekaiSaved, profileSaveError);
-    loadBoardSummaries(box, user);
-    loadRankingSummaries(box, user);
-    loadEventBookmarksSummary(box, user);
+    await renderPage();
+
+    if (window.MiraiAuth && typeof window.MiraiAuth.onChange === 'function') {
+      window.MiraiAuth.onChange((user) => {
+        if (!user) return;
+        const loading = box.querySelector('.text-muted');
+        const needsLogin = box.querySelector('.info-box');
+        if (loading && loading.textContent.indexOf('読み込み中') >= 0) {
+          renderPage();
+        } else if (needsLogin && needsLogin.textContent.indexOf('ログイン状態を確認中') >= 0) {
+          renderPage();
+        }
+      });
+    }
   }
 
   async function initSekaiNoteEdit() {
@@ -2008,56 +2055,83 @@ const MiraiMyPage = (function () {
       return;
     }
 
-    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
-    try {
-      const hub = await loadHub(publicId);
-      if (!hub) {
-        box.innerHTML = '<div class="info-box"><p>ページが見つかりませんでした。</p>' +
-          '<p class="form-hint mt-1">相手がマイページを一度も開いていない、またはIDが間違っている可能性があります。</p>' +
-          '<p class="mt-2"><a href="#/" class="btn btn-secondary" data-link>ホームへ</a></p></div>';
-        return;
-      }
-      hub.headline = normalizeHeadline(hub.headline);
+    let pageSeq = 0;
 
-      let viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
-      if (window.MiraiFriends && window.MiraiFriends.ensureAuthReady) {
-        viewer = await MiraiFriends.ensureAuthReady(viewer);
-      } else if (viewer && typeof viewer.getIdToken === 'function') {
-        try { await viewer.getIdToken(); } catch (e) { console.warn('[public] auth token:', e); }
-      }
+    async function renderPublic() {
+      const seq = ++pageSeq;
+      const isStale = () => seq !== pageSeq;
 
-      const showFriendBar = viewer && hub.uid && viewer.uid !== hub.uid && window.MiraiFriends;
-
-      let embedOpts = {};
-      if (hub.uid && (hub.pinEventAd || hub.pinMysekai) && window.MiraiBoard && MiraiBoard.fetchSekaiEmbedPosts) {
-        try {
-          embedOpts = await MiraiBoard.fetchSekaiEmbedPosts(hub.uid, viewer && viewer.uid);
-        } catch (e) {
-          console.warn(e);
+      box.innerHTML = '<p class="text-muted">読み込み中…</p>';
+      try {
+        const hub = await loadHubWithRetry(publicId, { isStale });
+        if (isStale()) return;
+        if (!hub) {
+          box.innerHTML = '<div class="info-box"><p>ページが見つかりませんでした。</p>' +
+            '<p class="form-hint mt-1">相手がマイページを一度も開いていない、またはIDが間違っている可能性があります。</p>' +
+            '<p class="mt-2"><a href="#/" class="btn btn-secondary" data-link>ホームへ</a></p></div>';
+          return;
         }
-      }
+        hub.headline = normalizeHeadline(hub.headline);
 
-      box.innerHTML =
-        (showFriendBar ? '<div id="publicFriendBar" class="friend-action-bar card"></div>' : '') +
-        '<div class="linkhub linkhub--full" style="' + themeStyle(hub.theme) + '">' + publicHtml(hub, embedOpts) + '</div>';
-
-      document.title = (hub.displayName || 'セカイノート') + ' — 未来喫茶';
-
-      if (showFriendBar) {
-        const frSource = window.MiraiFriends.parseFriendSourceFromHash
-          ? MiraiFriends.parseFriendSourceFromHash()
-          : 'profile';
-        const bar = box.querySelector('#publicFriendBar');
-        if (bar) {
-          await MiraiFriends.renderActionButton(bar, viewer.uid, hub, { source: frSource });
+        let viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
+        if (window.MiraiFriends && window.MiraiFriends.waitForAuthUser) {
+          viewer = await window.MiraiFriends.waitForAuthUser(viewer, 8000);
+        } else if (window.MiraiFriends && window.MiraiFriends.ensureAuthReady) {
+          viewer = await MiraiFriends.ensureAuthReady(viewer);
+        } else if (viewer && typeof viewer.getIdToken === 'function') {
+          try { await viewer.getIdToken(); } catch (e) { console.warn('[public] auth token:', e); }
         }
+        if (isStale()) return;
+
+        const showFriendBar = viewer && hub.uid && viewer.uid !== hub.uid && window.MiraiFriends;
+
+        let embedOpts = {};
+        if (hub.uid && (hub.pinEventAd || hub.pinMysekai) && window.MiraiBoard && MiraiBoard.fetchSekaiEmbedPosts) {
+          try {
+            embedOpts = await MiraiBoard.fetchSekaiEmbedPosts(hub.uid, viewer && viewer.uid);
+          } catch (e) {
+            console.warn(e);
+          }
+        }
+        if (isStale()) return;
+
+        box.innerHTML =
+          (showFriendBar ? '<div id="publicFriendBar" class="friend-action-bar card"></div>' : '') +
+          '<div class="linkhub linkhub--full" style="' + themeStyle(hub.theme) + '">' + publicHtml(hub, embedOpts) + '</div>';
+
+        document.title = (hub.displayName || 'セカイノート') + ' — 未来喫茶';
+
+        if (showFriendBar) {
+          const frSource = window.MiraiFriends.parseFriendSourceFromHash
+            ? MiraiFriends.parseFriendSourceFromHash()
+            : 'profile';
+          const bar = box.querySelector('#publicFriendBar');
+          if (bar) {
+            MiraiFriends.renderActionButton(bar, viewer.uid, hub, { source: frSource });
+          }
+        }
+      } catch (e) {
+        if (isStale()) return;
+        const detail = e && e.message ? String(e.message) : String(e);
+        box.innerHTML =
+          '<div class="info-box"><p>読み込みに失敗しました。</p>' +
+          '<p class="form-error mt-1">' + esc(detail) + '</p></div>';
+        console.error(e);
       }
-    } catch (e) {
-      const detail = e && e.message ? String(e.message) : String(e);
-      box.innerHTML =
-        '<div class="info-box"><p>読み込みに失敗しました。</p>' +
-        '<p class="form-error mt-1">' + esc(detail) + '</p></div>';
-      console.error(e);
+    }
+
+    await renderPublic();
+
+    if (window.MiraiAuth && typeof window.MiraiAuth.onChange === 'function') {
+      window.MiraiAuth.onChange((user) => {
+        const loading = box.querySelector('.text-muted');
+        if (loading && loading.textContent.indexOf('読み込み中') >= 0) {
+          renderPublic();
+        } else if (user) {
+          const bar = box.querySelector('#publicFriendBar');
+          if (bar && bar.textContent.indexOf('読み込み中') >= 0) renderPublic();
+        }
+      });
     }
   }
 
