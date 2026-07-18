@@ -244,6 +244,42 @@ const AdminPage = (function () {
     return data.access_token;
   }
 
+  async function fetchRegisteredUserCount() {
+    const f = await fb();
+    if (!f || !f.configured) return null;
+    const { collection, getCountFromServer } = f.dbFns;
+    const snap = await getCountFromServer(collection(f.db, 'linkHubs'));
+    return snap.data().count;
+  }
+
+  async function loadUserCount(root) {
+    const targets = [
+      { valueEl: root.querySelector('#statUserTotal'), errEl: root.querySelector('#statUserError') },
+      { valueEl: root.querySelector('#statUsersTabTotal'), errEl: root.querySelector('#statUsersTabError') },
+    ].filter((t) => t.valueEl);
+
+    targets.forEach(({ valueEl }) => { valueEl.textContent = '…'; });
+    targets.forEach(({ errEl }) => { if (errEl) errEl.hidden = true; });
+
+    try {
+      const count = await fetchRegisteredUserCount();
+      if (count == null) {
+        throw new Error('Firebase が未設定です。');
+      }
+      const text = formatNum(count);
+      targets.forEach(({ valueEl }) => { valueEl.textContent = text; });
+    } catch (err) {
+      targets.forEach(({ valueEl }) => { valueEl.textContent = '—'; });
+      const msg = err.message || String(err);
+      targets.forEach(({ errEl }) => {
+        if (errEl) {
+          errEl.textContent = msg;
+          errEl.hidden = false;
+        }
+      });
+    }
+  }
+
   async function countRows(token, filters) {
     let q = baseUrl() + '/rest/v1/analytics_events?select=id';
     if (filters.event_type) q += '&event_type=eq.' + encodeURIComponent(filters.event_type);
@@ -350,6 +386,9 @@ const AdminPage = (function () {
 
     if (tab === 'users' || tab === 'rankings') {
       refreshFirebaseState(root);
+    }
+    if (tab === 'users') {
+      loadUserCount(root);
     }
   }
 
@@ -723,6 +762,8 @@ const AdminPage = (function () {
         return (MiraiAnalytics && MiraiAnalytics.toolLabel(tool)) || tool;
       });
 
+      loadUserCount(root);
+
       bodyEl.hidden = false;
       switchTab(root, activeTab);
       updateRankingsBadge(root);
@@ -822,7 +863,10 @@ const AdminPage = (function () {
     const refresh = root.querySelector('#adminRefreshBtn');
     if (refresh && refresh.dataset.bound !== '1') {
       refresh.dataset.bound = '1';
-      refresh.addEventListener('click', () => loadDashboard(root));
+      refresh.addEventListener('click', () => {
+        loadDashboard(root);
+        if (activeTab === 'users') loadUserCount(root);
+      });
     }
 
     root.querySelectorAll('[data-admin-tab]').forEach((btn) => {

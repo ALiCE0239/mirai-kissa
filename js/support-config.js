@@ -9,7 +9,7 @@
  *   Ko-fi:  https://ko-fi.com/あなたのID
  */
 window.MIRAI_SUPPORT_CONFIG = {
-  enabled: true,
+  enabled: false,
   provider: 'ofuse', // 'ofuse' | 'kofi' | 'stripe' | 'custom'
   url: '', // ← 支援ページ URL（アカウント開設後に設定）
   label: '未来喫茶を支援する',

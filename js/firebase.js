@@ -30,8 +30,10 @@ import {
   limit,
   where,
   getDocs,
+  getCountFromServer,
   increment,
   serverTimestamp,
+  Timestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import {
   getStorage,
@@ -84,8 +86,10 @@ if (!isConfigured(cfg)) {
       limit,
       where,
       getDocs,
+      getCountFromServer,
       increment,
       serverTimestamp,
+      Timestamp,
     },
     storageFns: {
       ref: storageRef,

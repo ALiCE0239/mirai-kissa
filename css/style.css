@@ -3401,6 +3401,18 @@ input, select {
   margin-bottom: 0.2rem;
 }
 
+.admin-user-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.admin-user-count__unit {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
 .admin-user-meta {
   display: grid;
   gap: 0.65rem;
