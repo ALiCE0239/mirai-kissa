@@ -16,6 +16,7 @@ const MiraiAuth = (function () {
 
   const XHANDLE_KEY = 'miraiKissaXHandle';
   const LOGIN_RETURN_KEY = 'miraiLoginReturn';
+  const AUTH_ERROR_KEY = 'miraiAuthError';
 
   function notify() {
     listeners.forEach((cb) => {
@@ -108,6 +109,7 @@ const MiraiAuth = (function () {
       if (result) await handleSignInResult(result, getAdditionalUserInfo);
     } catch (e) {
       console.warn('[auth] redirect result:', e);
+      storeAuthError(e);
     }
 
     onAuthStateChanged(fb.auth, (user) => {
@@ -137,8 +139,29 @@ const MiraiAuth = (function () {
     }
   }
 
+  function storeAuthError(err) {
+    const msg = friendlyError(err);
+    if (!msg) return;
+    try { sessionStorage.setItem(AUTH_ERROR_KEY, msg); } catch (e) { /* ignore */ }
+  }
+
+  function consumeAuthError() {
+    try {
+      const msg = sessionStorage.getItem(AUTH_ERROR_KEY);
+      sessionStorage.removeItem(AUTH_ERROR_KEY);
+      return msg || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function prefersRedirectAuth() {
+    return /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || '');
+  }
+
   function friendlyError(err) {
     const code = (err && err.code) || '';
+    const raw = (err && err.message) || '';
     if (code === 'auth/popup-blocked' || code === 'auth/cancelled-popup-request') {
       return 'ポップアップがブロックされました。もう一度お試しください。';
     }
@@ -146,10 +169,22 @@ const MiraiAuth = (function () {
       return 'ログインがキャンセルされました。';
     }
     if (code === 'auth/operation-not-allowed') {
-      return 'このログイン方法はまだ有効化されていません（Firebase の設定が必要です）。';
+      return 'X ログインが Firebase で有効になっていません。Firebase Console → Authentication → Sign-in method → Twitter を ON にしてください。';
     }
     if (code === 'auth/unauthorized-domain') {
-      return 'このドメインは許可されていません。Firebase の「承認済みドメイン」に追加してください。';
+      return 'このドメインは許可されていません。Firebase の「承認済みドメイン」に 39cafe.fictionscale.jp を追加してください。';
+    }
+    if (code === 'auth/invalid-credential') {
+      if (/403|callback|request token/i.test(raw)) {
+        return 'X の Callback URL 設定が一致していない可能性があります。X Developer Portal の User authentication settings に次を登録してください: https://cafe-9d3b7.firebaseapp.com/__/auth/handler';
+      }
+      return 'X の API Key / Secret または Callback URL の設定を確認してください。Firebase には OAuth 1.0a の API Key と API Key Secret（Client ID ではない）を貼り、X 側の Callback URL は https://cafe-9d3b7.firebaseapp.com/__/auth/handler です。';
+    }
+    if (code === 'auth/internal-error') {
+      return 'X ログインの設定エラーです。Firebase の Twitter 設定と X Developer Portal の Callback URL（https://cafe-9d3b7.firebaseapp.com/__/auth/handler）を確認してください。';
+    }
+    if (code === 'auth/account-exists-with-different-credential') {
+      return 'この X アカウントは別のログイン方法（Google 等）ですでに登録されています。先に Google でログインし、マイページ設定から X を連携してください。';
     }
     if (code === 'auth/credential-already-in-use') {
       return 'この Google / X アカウントは、別の未来喫茶アカウントにすでに登録されています。元のアカウントでログインするか、別のアカウントをお試しください。';
@@ -160,7 +195,8 @@ const MiraiAuth = (function () {
     if (code === 'auth/requires-recent-login') {
       return 'セキュリティのため、一度ログアウトしてから再度ログインしてから連携してください。';
     }
-    return (err && err.message) || 'ログインに失敗しました。';
+    if (raw) return raw;
+    return 'ログインに失敗しました。';
   }
 
   function providerIds(user) {
@@ -197,12 +233,17 @@ const MiraiAuth = (function () {
     }
   }
 
-  async function signInWith(providerFactory) {
+  async function signInWith(providerFactory, opts) {
     if (!fb || !fb.configured) {
       throw new Error('ログイン機能はまだ準備中です（Firebase 未設定）。');
     }
+    const options = opts || {};
     const { signInWithPopup, signInWithRedirect, getAdditionalUserInfo } = fb.authFns;
     const provider = providerFactory();
+    if (options.preferRedirect) {
+      await signInWithRedirect(fb.auth, provider);
+      return null;
+    }
     try {
       const result = await signInWithPopup(fb.auth, provider);
       await handleSignInResult(result, getAdditionalUserInfo);
@@ -224,6 +265,7 @@ const MiraiAuth = (function () {
     getUser: () => currentUser,
     redirectToLogin,
     consumeLoginReturn,
+    consumeAuthError,
     waitForUser,
     requireUser,
     getFirebase: () => fb,
@@ -236,7 +278,10 @@ const MiraiAuth = (function () {
       return () => listeners.delete(cb);
     },
     signInWithX() {
-      return signInWith(() => new fb.authFns.TwitterAuthProvider());
+      return signInWith(
+        () => new fb.authFns.TwitterAuthProvider(),
+        { preferRedirect: prefersRedirectAuth() }
+      );
     },
     signInWithGoogle() {
       return signInWith(() => new fb.authFns.GoogleAuthProvider());
