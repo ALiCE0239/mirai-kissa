@@ -226,18 +226,22 @@
     router.start();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     createParticles();
     initNavScroll();
+    if (typeof MiraiAuth !== 'undefined') {
+      try {
+        await MiraiAuth.init();
+      } catch (err) {
+        console.error('[未来喫茶] 認証初期化エラー:', err);
+      }
+    }
     initRouter();
     if (typeof PjskEngine !== 'undefined') {
       if (PjskEngine.loadMultiplierData) {
         PjskEngine.loadMultiplierData().catch(() => {});
       }
       if (PjskEngine.initBorderData) PjskEngine.initBorderData();
-    }
-    if (typeof MiraiAuth !== 'undefined') {
-      MiraiAuth.init().catch((err) => console.error('[未来喫茶] 認証初期化エラー:', err));
     }
     if (typeof MiraiAds !== 'undefined') MiraiAds.init();
     if (typeof MiraiSupport !== 'undefined') MiraiSupport.init();
