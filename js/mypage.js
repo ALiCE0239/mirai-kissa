@@ -489,7 +489,7 @@ const MiraiMyPage = (function () {
       '<p class="text-muted community-login__lead">ログインすると、セカイノートからプロフィール・イベラン広告・マイセカイ宣伝を編集できます。</p>' +
       '<button type="button" class="btn community-btn-x btn-block" id="loginX">𝕏（X）でログイン</button>' +
       '<button type="button" class="btn btn-primary btn-block mt-2" id="loginGoogle">Google でログイン</button>' +
-      '<p class="form-hint mt-2">初回ログイン時は自動で新規登録されます。X ログインを使う場合は Firebase Console で Twitter プロバイダを有効化してください。</p>' +
+      '<p class="form-hint mt-2">初回ログイン時は自動で新規登録されます。もう一方のログイン方法は、ログイン後に<a href="#/mypage/settings" data-link>マイページ設定</a>から連携できます。</p>' +
       '<p id="loginError" class="form-error mt-3" hidden></p>';
 
     const errEl = box.querySelector('#loginError');
@@ -847,6 +847,69 @@ const MiraiMyPage = (function () {
     }
   }
 
+  function authProvidersSectionHtml(user) {
+    const linked = window.MiraiAuth.getLinkedProviders(user);
+    function row(label, providerKey, btnId, btnClass, btnLabel) {
+      if (linked[providerKey]) {
+        return (
+          '<div class="mp-auth-provider-row">' +
+          '<span class="mp-auth-provider-row__label">' + label + '</span>' +
+          '<span class="mp-auth-provider-row__status">連携済み ✓</span>' +
+          '</div>'
+        );
+      }
+      return (
+        '<div class="mp-auth-provider-row">' +
+        '<span class="mp-auth-provider-row__label">' + label + '</span>' +
+        '<button type="button" class="btn btn-sm ' + btnClass + '" id="' + btnId + '">' + btnLabel + '</button>' +
+        '</div>'
+      );
+    }
+    return (
+      '<section class="mp-auth-providers">' +
+      '<p class="adjust-filters__title">🔐 ログイン方法</p>' +
+      '<p class="form-hint">Google と 𝕏（X）の両方を同じアカウントに連携できます。どちらでログインしても同じマイページを開けます。</p>' +
+      '<div class="mp-auth-provider-list">' +
+      row('Google', 'google', 'mpLinkGoogle', 'btn-primary', 'Google を連携') +
+      row('𝕏（X）', 'twitter', 'mpLinkX', 'community-btn-x', '𝕏 を連携') +
+      '</div>' +
+      '<p id="mpAuthLinkError" class="form-error mt-2" hidden></p>' +
+      '<p id="mpAuthLinkSaved" class="community-saved mt-2" hidden>連携しました ✓</p>' +
+      '</section>'
+    );
+  }
+
+  function bindAuthProviderButtons(box, user, hub, onLinked) {
+    const errEl = box.querySelector('#mpAuthLinkError');
+    const savedEl = box.querySelector('#mpAuthLinkSaved');
+    const runLink = async (fn) => {
+      if (errEl) errEl.hidden = true;
+      if (savedEl) savedEl.hidden = true;
+      try {
+        const nextUser = await fn();
+        if (nextUser && typeof onLinked === 'function') {
+          onLinked(nextUser);
+        } else if (savedEl) {
+          savedEl.hidden = false;
+          setTimeout(() => { savedEl.hidden = true; }, 2400);
+        }
+      } catch (err) {
+        if (errEl) {
+          errEl.textContent = err.message || String(err);
+          errEl.hidden = false;
+        }
+      }
+    };
+    const googleBtn = box.querySelector('#mpLinkGoogle');
+    const xBtn = box.querySelector('#mpLinkX');
+    if (googleBtn) {
+      googleBtn.addEventListener('click', () => runLink(() => window.MiraiAuth.linkWithGoogle()));
+    }
+    if (xBtn) {
+      xBtn.addEventListener('click', () => runLink(() => window.MiraiAuth.linkWithX()));
+    }
+  }
+
   function renderProfileSettings(box, user, hub) {
     const draftRaw = sessionStorage.getItem(SETTINGS_DRAFT_KEY);
     if (draftRaw) {
@@ -983,6 +1046,9 @@ const MiraiMyPage = (function () {
           </div>
 
         <div class="divider"></div>
+        ${authProvidersSectionHtml(user)}
+
+        <div class="divider"></div>
         <div class="community-links-head">
           <p class="adjust-filters__title">🛟 支援編成</p>
           <button type="button" class="btn btn-secondary btn-sm" id="mpAddSupportTeam">支援編成を追加</button>
@@ -998,6 +1064,9 @@ const MiraiMyPage = (function () {
     `;
 
     renderSupportTeamList();
+    bindAuthProviderButtons(box, user, hub, (nextUser) => {
+      renderProfileSettings(box, nextUser, hub);
+    });
     box.querySelector('#mpAddSupportTeam').addEventListener('click', () => {
       readSupportTeamsFromDom();
       if (supportTeams.length >= SUPPORT_TEAM_MAX) return;
