@@ -333,6 +333,43 @@ const MiraiFriends = (function () {
     return window.MiraiFirebaseReady ? await window.MiraiFirebaseReady : null;
   }
 
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function isRetryableFirebaseError(err) {
+    const code = err && err.code ? String(err.code) : '';
+    return code === 'permission-denied' || code === 'unavailable' || code === 'failed-precondition';
+  }
+
+  async function ensureAuthReady(fallbackUser) {
+    if (window.MiraiAuth && window.MiraiAuth.whenReady) {
+      await window.MiraiAuth.whenReady();
+    }
+    await fb();
+    let user = (window.MiraiAuth && window.MiraiAuth.getUser()) || fallbackUser || null;
+    if (!user && window.MiraiAuth && window.MiraiAuth.waitForUser) {
+      user = await window.MiraiAuth.waitForUser(2000);
+    }
+    if (!user || !user.uid) return null;
+    for (let i = 0; i < 3; i++) {
+      try {
+        if (typeof user.getIdToken === 'function') {
+          await user.getIdToken(i > 0);
+        }
+        return user;
+      } catch (e) {
+        if (i >= 2) return user;
+        await delay(250 * (i + 1));
+      }
+    }
+    return user;
+  }
+
+  function isRenderStale(opts) {
+    return !!(opts && typeof opts.isRenderStale === 'function' && opts.isRenderStale());
+  }
+
   async function loadHubByUid(uid) {
     const f = await fb();
     if (!f || !f.configured) return null;
@@ -583,73 +620,89 @@ const MiraiFriends = (function () {
       source = normalizeFriendSource(opts.source);
     }
 
-    try {
-    const status = await getStatus(myUid, targetHub.uid);
-    if (status === 'self') {
-      container.innerHTML = '';
-      container.hidden = true;
-      return;
-    }
     container.hidden = false;
+    container.innerHTML = '<p class="text-muted">読み込み中…</p>';
 
-    if (status === 'friends') {
-      container.innerHTML = '<p class="friend-action-bar__status">👥 フレンド</p>';
-      return;
-    }
-    if (status === 'pending_sent') {
-      container.innerHTML =
-        '<p class="friend-action-bar__status">フレンド申請を送信しました</p>' +
-        '<button type="button" class="btn btn-secondary btn-sm" id="friendCancelBtn">申請を取り消す</button>';
-      container.querySelector('#friendCancelBtn').addEventListener('click', async () => {
-        const btn = container.querySelector('#friendCancelBtn');
-        btn.disabled = true;
-        try {
-          await cancelRequest(myUid, targetHub.uid);
-          if (onChange) await onChange();
-          else await renderActionButton(container, myUid, targetHub, opts);
-        } catch (e) {
-          alert(e.message || String(e));
-          btn.disabled = false;
-        }
-      });
-      return;
-    }
-    if (status === 'pending_received') {
-      container.innerHTML =
-        '<p class="friend-action-bar__status">このユーザーからフレンド申請が届いています</p>' +
-        '<a href="#/mypage" class="btn btn-primary btn-sm" data-link>マイページで承認</a>';
-      return;
-    }
-
-    const targetSources = await loadFriendRequestSources(targetHub.uid);
-    if (!isFriendRequestSourceAllowed(targetSources, source)) {
-      container.innerHTML =
-        '<p class="friend-action-bar__status friend-action-bar__status--blocked">' +
-        esc(friendRequestSourceLabel(source) + 'からのフレンド申請は受け付けていません。') +
-        '</p>';
-      return;
-    }
-
-    container.innerHTML = '<button type="button" class="btn btn-primary" id="friendSendBtn">フレンド申請する</button>';
-    container.querySelector('#friendSendBtn').addEventListener('click', async () => {
-      const btn = container.querySelector('#friendSendBtn');
-      btn.disabled = true;
-      btn.textContent = '送信中…';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (isRenderStale(opts)) return;
       try {
-        await sendRequest(myUid, targetHub, source);
-        if (onChange) await onChange();
-        else await renderActionButton(container, myUid, targetHub, opts);
+        await ensureAuthReady(null);
+        if (isRenderStale(opts)) return;
+
+        const status = await getStatus(myUid, targetHub.uid);
+        if (isRenderStale(opts)) return;
+        if (status === 'self') {
+          container.innerHTML = '';
+          container.hidden = true;
+          return;
+        }
+
+        if (status === 'friends') {
+          container.innerHTML = '<p class="friend-action-bar__status">👥 フレンド</p>';
+          return;
+        }
+        if (status === 'pending_sent') {
+          container.innerHTML =
+            '<p class="friend-action-bar__status">フレンド申請を送信しました</p>' +
+            '<button type="button" class="btn btn-secondary btn-sm" id="friendCancelBtn">申請を取り消す</button>';
+          container.querySelector('#friendCancelBtn').addEventListener('click', async () => {
+            const btn = container.querySelector('#friendCancelBtn');
+            btn.disabled = true;
+            try {
+              await cancelRequest(myUid, targetHub.uid);
+              if (onChange) await onChange();
+              else await renderActionButton(container, myUid, targetHub, opts);
+            } catch (e) {
+              alert(e.message || String(e));
+              btn.disabled = false;
+            }
+          });
+          return;
+        }
+        if (status === 'pending_received') {
+          container.innerHTML =
+            '<p class="friend-action-bar__status">このユーザーからフレンド申請が届いています</p>' +
+            '<a href="#/mypage" class="btn btn-primary btn-sm" data-link>マイページで承認</a>';
+          return;
+        }
+
+        const targetSources = await loadFriendRequestSources(targetHub.uid);
+        if (isRenderStale(opts)) return;
+        if (!isFriendRequestSourceAllowed(targetSources, source)) {
+          container.innerHTML =
+            '<p class="friend-action-bar__status friend-action-bar__status--blocked">' +
+            esc(friendRequestSourceLabel(source) + 'からのフレンド申請は受け付けていません。') +
+            '</p>';
+          return;
+        }
+
+        container.innerHTML = '<button type="button" class="btn btn-primary" id="friendSendBtn">フレンド申請する</button>';
+        container.querySelector('#friendSendBtn').addEventListener('click', async () => {
+          const btn = container.querySelector('#friendSendBtn');
+          btn.disabled = true;
+          btn.textContent = '送信中…';
+          try {
+            await sendRequest(myUid, targetHub, source);
+            if (onChange) await onChange();
+            else await renderActionButton(container, myUid, targetHub, opts);
+          } catch (e) {
+            alert(e.message || String(e));
+            btn.disabled = false;
+            btn.textContent = 'フレンド申請する';
+          }
+        });
+        return;
       } catch (e) {
-        alert(e.message || String(e));
-        btn.disabled = false;
-        btn.textContent = 'フレンド申請する';
+        if (attempt < 2 && isRetryableFirebaseError(e)) {
+          await delay(400 * (attempt + 1));
+          continue;
+        }
+        if (isRenderStale(opts)) return;
+        console.error('[friends] renderActionButton:', e);
+        container.innerHTML =
+          '<p class="form-error">' + esc(friendActionErrorMessage(e)) + '</p>';
+        return;
       }
-    });
-    } catch (e) {
-      console.error('[friends] renderActionButton:', e);
-      container.hidden = false;
-      container.innerHTML =
-        '<p class="form-error">' + esc(friendActionErrorMessage(e)) + '</p>';
     }
   }
 
@@ -779,17 +832,7 @@ const MiraiFriends = (function () {
   }
 
   async function resolveSearchUser(fallbackUser) {
-    const authUser = window.MiraiAuth && window.MiraiAuth.getUser
-      ? window.MiraiAuth.getUser()
-      : null;
-    const user = authUser || fallbackUser || null;
-    if (!user || !user.uid) return null;
-    try {
-      if (typeof user.getIdToken === 'function') await user.getIdToken();
-    } catch (e) {
-      console.warn('[friends] auth token refresh failed:', e);
-    }
-    return user;
+    return ensureAuthReady(fallbackUser);
   }
 
   function friendSearchErrorMessage(err) {
@@ -811,6 +854,7 @@ const MiraiFriends = (function () {
     if (!input || !btn || !resultEl) return;
 
     let searchSeq = 0;
+    let actionRenderSeq = 0;
 
     async function runSearch() {
       const seq = ++searchSeq;
@@ -827,17 +871,18 @@ const MiraiFriends = (function () {
         return;
       }
 
-      const searchUser = await resolveSearchUser(user);
-      if (!searchUser) {
-        resultEl.innerHTML =
-          '<p class="form-error">フレンド検索にはログインが必要です。</p>' +
-          '<p class="form-hint mt-1"><a href="#/login" data-link>ログインする</a></p>';
-        return;
-      }
-
       resultEl.innerHTML = '<p class="text-muted">検索中…</p>';
       btn.disabled = true;
       try {
+        const searchUser = await resolveSearchUser(user);
+        if (isStale()) return;
+        if (!searchUser) {
+          resultEl.innerHTML =
+            '<p class="form-error">フレンド検索にはログインが必要です。</p>' +
+            '<p class="form-hint mt-1"><a href="#/login" data-link>ログインする</a></p>';
+          return;
+        }
+
         const hub = await loadHubByPublicId(id);
         if (isStale()) return;
         if (!hub) {
@@ -869,13 +914,11 @@ const MiraiFriends = (function () {
         if (isStale()) return;
         const actionEl = resultEl.querySelector('#mpFriendIdSearchAction');
         if (actionEl) {
-          renderActionButton(actionEl, searchUser.uid, hub, {
+          const myActionSeq = ++actionRenderSeq;
+          await renderActionButton(actionEl, searchUser.uid, hub, {
             onChange: () => runSearch(),
             source: 'idSearch',
-          }).catch((e) => {
-            if (isStale()) return;
-            actionEl.innerHTML = '<p class="form-error">' + esc(friendActionErrorMessage(e)) + '</p>';
-            console.error(e);
+            isRenderStale: () => isStale() || myActionSeq !== actionRenderSeq,
           });
         }
       } catch (e) {
@@ -889,7 +932,10 @@ const MiraiFriends = (function () {
 
     btn.addEventListener('click', runSearch);
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') runSearch();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runSearch();
+      }
     });
   }
 
@@ -924,6 +970,7 @@ const MiraiFriends = (function () {
     parseFriendSourceFromHash,
     renderActionButton,
     initMypageFriends,
+    ensureAuthReady,
     initFriendRequestsPage,
     initFriendsPage,
     initFriendRequestSettingsPage,
