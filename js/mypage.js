@@ -378,12 +378,22 @@ const MiraiMyPage = (function () {
     return !!(f && f.configured);
   }
 
+  function normalizePublicId(raw) {
+    return String(raw || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+  }
+
   async function loadHub(publicId) {
     const f = await fb();
     if (!f || !f.configured) return null;
+    const id = normalizePublicId(publicId);
+    if (!id) return null;
     const { doc, getDoc } = f.dbFns;
-    const snap = await getDoc(doc(f.db, 'linkHubs', publicId));
-    return snap.exists() ? snap.data() : null;
+    const snap = await getDoc(doc(f.db, 'linkHubs', id));
+    if (!snap.exists()) return null;
+    const hub = snap.data();
+    if (!hub) return null;
+    if (!hub.publicId) hub.publicId = id;
+    return hub;
   }
 
   async function loadOwnHub(uid) {
@@ -564,15 +574,18 @@ const MiraiMyPage = (function () {
     const { hub, hubExisted } = await prepareHub(user);
 
     let sekaiSaved = hubExisted;
+    let profileSaveError = '';
     if (!hubExisted) {
       try {
         await saveHub(user.uid, hub);
+        sekaiSaved = true;
       } catch (e) {
         console.error(e);
+        profileSaveError = e.message || String(e);
       }
     }
 
-    renderDashboard(box, user, hub, sekaiSaved);
+    renderDashboard(box, user, hub, sekaiSaved, profileSaveError);
     loadBoardSummaries(box, user);
     loadRankingSummaries(box, user);
     loadEventBookmarksSummary(box, user);
@@ -712,11 +725,14 @@ const MiraiMyPage = (function () {
     return parts.join(' · ');
   }
 
-  function renderDashboard(box, user, hub, hubExisted) {
+  function renderDashboard(box, user, hub, hubExisted, profileSaveError) {
     box.innerHTML = `
       <section class="card community-editor mp-page">
         <h2 class="community-editor__title">マイページ</h2>
         <p class="text-muted mp-editor-lead">プロフィールと掲示板投稿を管理できます</p>
+        ${profileSaveError
+          ? '<div class="info-box mb-2"><p class="form-error">プロフィールの初期登録に失敗しました。ページを再読み込みするか、マイページ設定から表示名を保存してください。</p><p class="form-hint">' + esc(profileSaveError) + '</p></div>'
+          : ''}
 
         <div class="mp-profile-summary">
           <div class="mp-profile-summary__main">
@@ -1959,7 +1975,7 @@ const MiraiMyPage = (function () {
     const root = document.getElementById('app');
     const box = root.querySelector('#publicProfileRoot');
     if (!box) return;
-    const publicId = params && params.id;
+    const publicId = normalizePublicId(params && params.id);
 
     if (!(await isConfigured())) {
       box.innerHTML = '<div class="info-box"><p>このページ機能は準備中です。</p></div>';
@@ -1971,12 +1987,17 @@ const MiraiMyPage = (function () {
       const hub = await loadHub(publicId);
       if (!hub) {
         box.innerHTML = '<div class="info-box"><p>ページが見つかりませんでした。</p>' +
+          '<p class="form-hint mt-1">相手がマイページを一度も開いていない、またはIDが間違っている可能性があります。</p>' +
           '<p class="mt-2"><a href="#/" class="btn btn-secondary" data-link>ホームへ</a></p></div>';
         return;
       }
       hub.headline = normalizeHeadline(hub.headline);
 
-      const viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
+      let viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
+      if (viewer && typeof viewer.getIdToken === 'function') {
+        try { await viewer.getIdToken(); } catch (e) { console.warn('[public] auth token:', e); }
+      }
+
       const showFriendBar = viewer && hub.uid && viewer.uid !== hub.uid && window.MiraiFriends;
 
       let embedOpts = {};
@@ -1992,21 +2013,25 @@ const MiraiMyPage = (function () {
         (showFriendBar ? '<div id="publicFriendBar" class="friend-action-bar card"></div>' : '') +
         '<div class="linkhub linkhub--full" style="' + themeStyle(hub.theme) + '">' + publicHtml(hub, embedOpts) + '</div>';
 
+      document.title = (hub.displayName || 'セカイノート') + ' — 未来喫茶';
+
       if (showFriendBar) {
         const frSource = window.MiraiFriends.parseFriendSourceFromHash
           ? MiraiFriends.parseFriendSourceFromHash()
           : 'profile';
-        await MiraiFriends.renderActionButton(
-          box.querySelector('#publicFriendBar'),
-          viewer.uid,
-          hub,
-          { source: frSource }
-        );
+        const bar = box.querySelector('#publicFriendBar');
+        if (bar) {
+          MiraiFriends.renderActionButton(bar, viewer.uid, hub, { source: frSource }).catch((e) => {
+            console.error('[public] friend action bar:', e);
+            bar.innerHTML = '<p class="form-error">' + esc(e.message || 'フレンド申請の表示に失敗しました') + '</p>';
+          });
+        }
       }
-
-      document.title = (hub.displayName || 'セカイノート') + ' — 未来喫茶';
     } catch (e) {
-      box.innerHTML = '<div class="info-box"><p>読み込みに失敗しました。</p></div>';
+      const detail = e && e.message ? String(e.message) : String(e);
+      box.innerHTML =
+        '<div class="info-box"><p>読み込みに失敗しました。</p>' +
+        '<p class="form-error mt-1">' + esc(detail) + '</p></div>';
       console.error(e);
     }
   }
@@ -2042,7 +2067,7 @@ const MiraiMyPage = (function () {
 
   function publicHtml(hub, opts) {
     const links = Array.isArray(hub.links) ? hub.links : [];
-    const linksHtml = links.filter((l) => l.url).map((l) => {
+    const linksHtml = links.filter((l) => l && l.url).map((l) => {
       const emoji = l.emoji ? `<span class="linkhub-link__emoji">${esc(l.emoji)}</span>` : '';
       return `<a class="linkhub-link" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${emoji}<span>${esc(l.title || l.url)}</span></a>`;
     }).join('');
