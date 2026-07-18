@@ -479,8 +479,12 @@ const MiraiMyPage = (function () {
       return;
     }
 
-    // 既にログイン済みなら元のページへ
-    if (window.MiraiAuth.getUser()) {
+    box.innerHTML = '<p class="text-muted">読み込み中…</p>';
+
+    if (window.MiraiAuth.whenReady) await window.MiraiAuth.whenReady();
+    const userAfterAuth = await window.MiraiAuth.waitForUser(4000);
+
+    if (userAfterAuth || window.MiraiAuth.getUser()) {
       location.hash = window.MiraiAuth.consumeLoginReturn('#/mypage');
       return;
     }
