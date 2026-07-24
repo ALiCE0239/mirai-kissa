@@ -108,9 +108,16 @@
   justify-content: center;
   margin: 0 auto 1.5rem;
   padding-top: 0.25rem;
+  width: 100%;
+  text-align: left;
 }
 .public-profile-card-wrap .profile-card-meishi {
   transform: rotate(-1.2deg);
+}
+.mp-sekai-preview-wrap .public-profile-card-wrap .profile-card-meishi {
+  width: 91mm;
+  max-width: 91mm;
+  flex-shrink: 0;
 }
 
 .linkhub-avatar {
@@ -691,7 +698,7 @@
 .profile-card-meishi__foot {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 3mm;
   flex: 1;
   min-height: 0;
@@ -702,7 +709,8 @@
   align-items: flex-start;
   gap: 2mm;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 0;
+  align-self: stretch;
   text-align: left;
 }
 .profile-card-meishi__titles {
@@ -714,6 +722,7 @@
   flex-shrink: 0;
   max-width: 44%;
   min-height: 12mm;
+  margin-left: auto;
 }
 .profile-card-meishi__titles--empty {
   display: none;
@@ -746,7 +755,8 @@
   color: var(--pc-ink, #1e293b);
   letter-spacing: 0.02em;
   text-align: left;
-  width: 100%;
+  max-width: 100%;
+  align-self: flex-start;
 }
 .profile-card-meishi__id-box {
   display: inline-flex;
