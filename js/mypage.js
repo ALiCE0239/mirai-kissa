@@ -572,16 +572,38 @@ const MiraiMyPage = (function () {
     });
   }
 
+  function isRetryableLoadError(err) {
+    const code = err && err.code ? String(err.code) : '';
+    return code === 'permission-denied' || code === 'unavailable' || code === 'failed-precondition';
+  }
+
   async function loadHubWithRetry(publicId, opts) {
     opts = opts || {};
-    const attempts = opts.attempts || 8;
-    const intervalMs = opts.intervalMs || 500;
+    const attempts = opts.attempts || 4;
+    const intervalMs = opts.intervalMs || 300;
     for (let i = 0; i < attempts; i++) {
       if (opts.isStale && opts.isStale()) return null;
-      const hub = await loadHub(publicId);
-      if (hub) return hub;
-      if (i < attempts - 1) {
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      const f = await fb();
+      if (!f || !f.configured) {
+        if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        continue;
+      }
+      const id = normalizePublicId(publicId);
+      if (!id) return null;
+      const { doc, getDoc } = f.dbFns;
+      try {
+        const snap = await getDoc(doc(f.db, 'linkHubs', id));
+        if (!snap.exists()) return null;
+        const hub = snap.data();
+        if (!hub) return null;
+        if (!hub.publicId) hub.publicId = id;
+        return hub;
+      } catch (e) {
+        if (i < attempts - 1 && isRetryableLoadError(e)) {
+          await new Promise((resolve) => setTimeout(resolve, intervalMs * (i + 1)));
+          continue;
+        }
+        throw e;
       }
     }
     return null;
@@ -2044,6 +2066,70 @@ const MiraiMyPage = (function () {
 
   // ================= 公開ページ =================
 
+  function publicPageNeedsEmbeds(hub) {
+    return !!(hub && hub.uid && (hub.pinEventAd || hub.pinMysekai) && window.MiraiBoard);
+  }
+
+  function renderPublicPage(box, hub, opts) {
+    opts = opts || {};
+    const viewer = opts.viewer || null;
+    const showFriendBar = viewer && hub.uid && viewer.uid !== hub.uid && window.MiraiFriends;
+    box.innerHTML =
+      (showFriendBar ? '<div id="publicFriendBar" class="friend-action-bar card"></div>' : '') +
+      '<div class="linkhub linkhub--full" style="' + themeStyle(hub.theme) + '">' +
+      publicHtml(hub, { embedLoading: !!opts.embedLoading }) +
+      '</div>';
+    document.title = (hub.displayName || 'セカイノート') + ' — 未来喫茶';
+    return showFriendBar;
+  }
+
+  async function wirePublicFriendBar(box, hub, viewer, isStale) {
+    if (!window.MiraiFriends || !hub.uid) return;
+    let activeViewer = viewer;
+    if (activeViewer && window.MiraiFriends.ensureAuthReady) {
+      activeViewer = await MiraiFriends.ensureAuthReady(activeViewer);
+    }
+    if (isStale()) return;
+    if (!activeViewer || activeViewer.uid === hub.uid) return;
+
+    let bar = box.querySelector('#publicFriendBar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'publicFriendBar';
+      bar.className = 'friend-action-bar card';
+      box.insertBefore(bar, box.firstChild);
+    }
+    const frSource = window.MiraiFriends.parseFriendSourceFromHash
+      ? MiraiFriends.parseFriendSourceFromHash()
+      : 'profile';
+    await MiraiFriends.renderActionButton(bar, activeViewer.uid, hub, {
+      source: frSource,
+      isRenderStale: isStale,
+    });
+  }
+
+  async function loadPublicEmbeds(box, hub, viewer, isStale) {
+    const root = box.querySelector('#publicEmbedRoot');
+    if (!root || !window.MiraiBoard || typeof MiraiBoard.fetchSekaiEmbedPosts !== 'function') return;
+    try {
+      let viewerUid = viewer && viewer.uid;
+      if (viewerUid && window.MiraiFriends && window.MiraiFriends.ensureAuthReady) {
+        const readyViewer = await MiraiFriends.ensureAuthReady(viewer);
+        viewerUid = readyViewer && readyViewer.uid;
+      }
+      if (isStale()) return;
+      const embedOpts = await MiraiBoard.fetchSekaiEmbedPosts(hub.uid, viewerUid);
+      if (isStale()) return;
+      const html = boardEmbedsHtml(hub, embedOpts);
+      if (html) root.outerHTML = html;
+      else root.remove();
+    } catch (e) {
+      console.warn('[public] embed load failed:', e);
+      if (isStale()) return;
+      root.remove();
+    }
+  }
+
   async function initPublic(params) {
     const root = document.getElementById('app');
     const box = root.querySelector('#publicProfileRoot');
@@ -2056,6 +2142,7 @@ const MiraiMyPage = (function () {
     }
 
     let pageSeq = 0;
+    let currentHub = null;
 
     async function renderPublic() {
       const seq = ++pageSeq;
@@ -2066,52 +2153,29 @@ const MiraiMyPage = (function () {
         const hub = await loadHubWithRetry(publicId, { isStale });
         if (isStale()) return;
         if (!hub) {
+          currentHub = null;
           box.innerHTML = '<div class="info-box"><p>ページが見つかりませんでした。</p>' +
             '<p class="form-hint mt-1">相手がマイページを一度も開いていない、またはIDが間違っている可能性があります。</p>' +
             '<p class="mt-2"><a href="#/" class="btn btn-secondary" data-link>ホームへ</a></p></div>';
           return;
         }
         hub.headline = normalizeHeadline(hub.headline);
+        currentHub = hub;
 
-        let viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
-        if (window.MiraiFriends && window.MiraiFriends.waitForAuthUser) {
-          viewer = await window.MiraiFriends.waitForAuthUser(viewer, 8000);
-        } else if (window.MiraiFriends && window.MiraiFriends.ensureAuthReady) {
-          viewer = await MiraiFriends.ensureAuthReady(viewer);
-        } else if (viewer && typeof viewer.getIdToken === 'function') {
-          try { await viewer.getIdToken(); } catch (e) { console.warn('[public] auth token:', e); }
-        }
-        if (isStale()) return;
-
-        const showFriendBar = viewer && hub.uid && viewer.uid !== hub.uid && window.MiraiFriends;
-
-        let embedOpts = {};
-        if (hub.uid && (hub.pinEventAd || hub.pinMysekai) && window.MiraiBoard && MiraiBoard.fetchSekaiEmbedPosts) {
-          try {
-            embedOpts = await MiraiBoard.fetchSekaiEmbedPosts(hub.uid, viewer && viewer.uid);
-          } catch (e) {
-            console.warn(e);
-          }
-        }
-        if (isStale()) return;
-
-        box.innerHTML =
-          (showFriendBar ? '<div id="publicFriendBar" class="friend-action-bar card"></div>' : '') +
-          '<div class="linkhub linkhub--full" style="' + themeStyle(hub.theme) + '">' + publicHtml(hub, embedOpts) + '</div>';
-
-        document.title = (hub.displayName || 'セカイノート') + ' — 未来喫茶';
+        const viewer = typeof MiraiAuth !== 'undefined' ? MiraiAuth.getUser() : null;
+        const embedLoading = publicPageNeedsEmbeds(hub);
+        const showFriendBar = renderPublicPage(box, hub, { viewer, embedLoading });
 
         if (showFriendBar) {
-          const frSource = window.MiraiFriends.parseFriendSourceFromHash
-            ? MiraiFriends.parseFriendSourceFromHash()
-            : 'profile';
-          const bar = box.querySelector('#publicFriendBar');
-          if (bar) {
-            MiraiFriends.renderActionButton(bar, viewer.uid, hub, { source: frSource });
-          }
+          wirePublicFriendBar(box, hub, viewer, isStale);
+        }
+
+        if (embedLoading) {
+          loadPublicEmbeds(box, hub, viewer, isStale);
         }
       } catch (e) {
         if (isStale()) return;
+        currentHub = null;
         const detail = e && e.message ? String(e.message) : String(e);
         box.innerHTML =
           '<div class="info-box"><p>読み込みに失敗しました。</p>' +
@@ -2127,9 +2191,15 @@ const MiraiMyPage = (function () {
         const loading = box.querySelector('.text-muted');
         if (loading && loading.textContent.indexOf('読み込み中') >= 0) {
           renderPublic();
-        } else if (user) {
-          const bar = box.querySelector('#publicFriendBar');
-          if (bar && bar.textContent.indexOf('読み込み中') >= 0) renderPublic();
+          return;
+        }
+        if (!user || !currentHub || !currentHub.uid || user.uid === currentHub.uid) return;
+        if (!window.MiraiFriends) return;
+        const seq = pageSeq;
+        const isStale = () => seq !== pageSeq;
+        wirePublicFriendBar(box, currentHub, user, isStale);
+        if (publicPageNeedsEmbeds(currentHub)) {
+          loadPublicEmbeds(box, currentHub, user, isStale);
         }
       });
     }
@@ -2165,13 +2235,27 @@ const MiraiMyPage = (function () {
   }
 
   function publicHtml(hub, opts) {
+    opts = opts || {};
     const links = Array.isArray(hub.links) ? hub.links : [];
     const linksHtml = links.filter((l) => l && l.url).map((l) => {
       const emoji = l.emoji ? `<span class="linkhub-link__emoji">${esc(l.emoji)}</span>` : '';
       return `<a class="linkhub-link" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${emoji}<span>${esc(l.title || l.url)}</span></a>`;
     }).join('');
 
+    const hasPins = !!(hub.pinEventAd || hub.pinMysekai);
     const embedsSection = boardEmbedsHtml(hub, opts);
+    let embedBlock = embedsSection;
+    if (!embedBlock && hasPins) {
+      const loadingHint = opts.embedLoading
+        ? '<p class="text-muted form-hint">掲示板の引用を読み込み中…</p>'
+        : '';
+      embedBlock = '<div id="publicEmbedRoot">' + loadingHint + '</div>';
+    } else if (embedBlock && hasPins) {
+      embedBlock = embedBlock.replace(
+        '<section class="linkhub-embeds"',
+        '<section id="publicEmbedRoot" class="linkhub-embeds"'
+      );
+    }
     const notesSection = notesHtml(hub, opts);
 
     return `
@@ -2182,7 +2266,7 @@ const MiraiMyPage = (function () {
       <h1 class="linkhub-name">${esc(hub.displayName || '名無し')}</h1>
       ${hub.headline ? `<p class="linkhub-headline">${esc(hub.headline)}</p>` : ''}
       ${hub.bio ? `<p class="linkhub-bio">${esc(hub.bio)}</p>` : ''}
-      ${embedsSection}
+      ${embedBlock}
       <div class="linkhub-links">${linksHtml || '<p class="linkhub-empty">リンクはまだありません</p>'}</div>
       ${notesSection}
     `;
