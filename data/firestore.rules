@@ -19,6 +19,25 @@ service cloud.firestore {
           || entryId == request.auth.uid + '_character_rank');
     }
 
+    function normalizeFriendSource(source) {
+      return source in ['profile', 'idSearch', 'ranking', 'boardEvent', 'boardMysekai']
+        ? source
+        : 'profile';
+    }
+
+    function isFriendRequestSourceAllowed(userId, source) {
+      let settingsDoc = get(/databases/$(database)/documents/users/$(userId)/sns/settings);
+      if (!settingsDoc.exists) {
+        return true;
+      }
+      let sources = settingsDoc.data.get('friendRequestSources', null);
+      if (sources == null) {
+        return true;
+      }
+      let key = normalizeFriendSource(source);
+      return sources.get(key, true) != false;
+    }
+
     match /config/admins {
       allow read: if request.auth != null;
       allow write: if false;
@@ -161,7 +180,9 @@ service cloud.firestore {
         && requestId != userId
         && request.resource.data.fromUid == request.auth.uid
         && request.resource.data.status == 'pending'
-        && !exists(/databases/$(database)/documents/users/$(userId)/blocks/$(requestId));
+        && request.resource.data.source in ['profile', 'idSearch', 'ranking', 'boardEvent', 'boardMysekai']
+        && !exists(/databases/$(database)/documents/users/$(userId)/blocks/$(requestId))
+        && isFriendRequestSourceAllowed(userId, request.resource.data.source);
       allow update: if request.auth != null && request.auth.uid == userId;
       allow delete: if request.auth != null
         && (request.auth.uid == userId || request.auth.uid == requestId);
