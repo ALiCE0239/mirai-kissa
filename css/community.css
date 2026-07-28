@@ -540,13 +540,28 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.85rem 1rem;
-  text-decoration: none;
   color: inherit;
   transition: box-shadow var(--transition-fast), transform var(--transition-fast);
 }
 .mp-friend-row:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
+}
+.mp-friend-row__link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.mp-friend-row__actions {
+  flex-shrink: 0;
+}
+.friend-action-bar .btn + .btn,
+.friend-action-bar .friend-action-bar__status + .btn {
+  margin-top: 0.65rem;
 }
 .mp-friend-row__text { flex: 1; min-width: 0; }
 .mp-friend-row__name {

@@ -48,14 +48,9 @@ const MiraiFriends = (function () {
     const f = await fb();
     if (!f || !uid) return normalizeFriendRequestSources(null);
     const { doc, getDoc } = f.dbFns;
-    try {
-      const snap = await safeGetDoc(getDoc, doc(f.db, 'users', uid, 'sns', 'settings'));
-      if (!snap.exists()) return normalizeFriendRequestSources(null);
-      return normalizeFriendRequestSources(snap.data().friendRequestSources);
-    } catch (e) {
-      console.warn('[friends] loadFriendRequestSources:', e);
-      return normalizeFriendRequestSources(null);
-    }
+    const snap = await getDoc(doc(f.db, 'users', uid, 'sns', 'settings'));
+    if (!snap.exists()) return normalizeFriendRequestSources(null);
+    return normalizeFriendRequestSources(snap.data().friendRequestSources);
   }
 
   async function saveFriendRequestSources(uid, sources) {
@@ -508,6 +503,10 @@ const MiraiFriends = (function () {
       await setDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid), payload);
     } catch (e) {
       if (e && e.code === 'permission-denied') {
+        const latestSources = await loadFriendRequestSources(targetUid);
+        if (!isFriendRequestSourceAllowed(latestSources, requestSource)) {
+          throw new Error(friendRequestSourceLabel(requestSource) + 'からのフレンド申請は受け付けていません。');
+        }
         await setDoc(doc(f.db, 'users', myUid, 'shadowFriendRequests', targetUid), {
           targetUid,
           targetPublicId: (targetHub && targetHub.publicId) || '',
@@ -519,6 +518,25 @@ const MiraiFriends = (function () {
       }
       throw e;
     }
+  }
+
+  function confirmRemoveFriend(displayName) {
+    const name = String(displayName || 'このユーザー').trim() || 'このユーザー';
+    return window.confirm(
+      name + ' さんをフレンドから解除しますか？\n\nお互いのフレンド一覧から削除されます。'
+    );
+  }
+
+  async function removeFriend(myUid, friendUid) {
+    const f = await fb();
+    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
+    if (!myUid || !friendUid) throw new Error('解除できません。');
+    if (myUid === friendUid) throw new Error('自分自身は解除できません。');
+    const { doc, deleteDoc } = f.dbFns;
+    await Promise.all([
+      deleteDoc(doc(f.db, 'users', myUid, 'friends', friendUid)),
+      deleteDoc(doc(f.db, 'users', friendUid, 'friends', myUid)),
+    ]);
   }
 
   async function cancelRequest(myUid, targetUid) {
@@ -685,7 +703,24 @@ const MiraiFriends = (function () {
         }
 
         if (status === 'friends') {
-          container.innerHTML = '<p class="friend-action-bar__status">👥 フレンド</p>';
+          container.innerHTML =
+            '<p class="friend-action-bar__status">👥 フレンド</p>' +
+            '<button type="button" class="btn btn-secondary btn-sm" id="friendRemoveBtn">フレンドを解除</button>';
+          container.querySelector('#friendRemoveBtn').addEventListener('click', async () => {
+            const btn = container.querySelector('#friendRemoveBtn');
+            if (!confirmRemoveFriend(targetHub.displayName)) return;
+            btn.disabled = true;
+            btn.textContent = '解除中…';
+            try {
+              await removeFriend(myUid, targetHub.uid);
+              if (onChange) await onChange();
+              else await renderActionButton(container, myUid, targetHub, opts);
+            } catch (err) {
+              alert(err.message || String(err));
+              btn.disabled = false;
+              btn.textContent = 'フレンドを解除';
+            }
+          });
           return;
         }
         if (status === 'pending_sent') {
@@ -845,15 +880,38 @@ const MiraiFriends = (function () {
       }
 
       rootEl.innerHTML = friends.map((fr) => `
-        <a href="#/p/${esc(fr.publicId)}" class="mp-friend-row card" data-link>
-          ${friendAvatar(fr)}
-          <div class="mp-friend-row__text">
-            <p class="mp-friend-row__name">${esc(fr.displayName || 'ユーザー')}</p>
-            <p class="form-hint">セカイノートを見る · ID: ${esc(fr.publicId || '—')}</p>
+        <div class="mp-friend-row card">
+          <a href="#/p/${esc(fr.publicId)}" class="mp-friend-row__link" data-link>
+            ${friendAvatar(fr)}
+            <div class="mp-friend-row__text">
+              <p class="mp-friend-row__name">${esc(fr.displayName || 'ユーザー')}</p>
+              <p class="form-hint">セカイノートを見る · ID: ${esc(fr.publicId || '—')}</p>
+            </div>
+            <span class="mp-friend-row__arrow" aria-hidden="true">→</span>
+          </a>
+          <div class="mp-friend-row__actions">
+            <button type="button" class="btn btn-secondary btn-sm mpFriendRemove" data-uid="${esc(fr.friendUid)}" data-name="${esc(fr.displayName || 'ユーザー')}">解除</button>
           </div>
-          <span class="mp-friend-row__arrow" aria-hidden="true">→</span>
-        </a>
+        </div>
       `).join('');
+
+      rootEl.querySelectorAll('.mpFriendRemove').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const friendUid = btn.dataset.uid;
+          const friendName = btn.dataset.name || 'このユーザー';
+          if (!confirmRemoveFriend(friendName)) return;
+          btn.disabled = true;
+          btn.textContent = '解除中…';
+          try {
+            await removeFriend(user.uid, friendUid);
+            await renderFriendsList(rootEl, user);
+          } catch (e) {
+            alert(e.message || String(e));
+            btn.disabled = false;
+            btn.textContent = '解除';
+          }
+        });
+      });
     } catch (e) {
       rootEl.innerHTML = '<p class="form-error">読み込みに失敗しました</p>';
       console.error(e);
@@ -1018,6 +1076,8 @@ const MiraiFriends = (function () {
     cancelRequest,
     acceptRequest,
     rejectRequest,
+    removeFriend,
+    confirmRemoveFriend,
     listIncomingRequests,
     listFriends,
     hydrateFriendsFromHubs,
