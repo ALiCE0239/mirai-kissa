@@ -1,8 +1,11 @@
 /**
  * 未来喫茶 — Google AdSense
  *
- * - head の adsbygoogle.js で自動広告が有効（Console 側の設定が必要）
- * - slots に ID を入れると、手動配置の広告枠も表示
+ * ページを絞って広告を配置する:
+ *   - ホーム(#/)         … hero 直後に placements.home
+ *   - bigPages の各ページ … 見出し(.calc-header)直後に placements.big（大きな広告）
+ *   - 管理者(/admin)      … 広告なし
+ * 設定は js/ads-config.js（window.MIRAI_ADS_CONFIG）。
  */
 const MiraiAds = (function () {
   'use strict';
@@ -16,13 +19,6 @@ const MiraiAds = (function () {
     return !!(c.enabled && c.client);
   }
 
-  /** 広告を出さないページ */
-  function shouldShow(hash) {
-    if (!isEnabled()) return false;
-    const hidden = ['/admin'];
-    return !hidden.some((p) => hash === p || hash.startsWith(p + '/'));
-  }
-
   function pushAd() {
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -31,7 +27,7 @@ const MiraiAds = (function () {
     }
   }
 
-  /** 文字列/オブジェクトどちらの slot 指定も共通の形へ */
+  /** 文字列/オブジェクトどちらの指定も共通の形へ */
   function normalizeSlot(spec) {
     if (!spec) return null;
     if (typeof spec === 'string') {
@@ -50,17 +46,18 @@ const MiraiAds = (function () {
     ins.setAttribute('data-ad-client', cfg().client);
     ins.setAttribute('data-ad-slot', s.slot);
     ins.setAttribute('data-ad-format', s.format || 'auto');
+    if (s.layout) ins.setAttribute('data-ad-layout', s.layout);
     if (s.layoutKey) ins.setAttribute('data-ad-layout-key', s.layoutKey);
-    // fluid（インフィード）以外はレスポンシブ幅指定を付与
-    if (s.format !== 'fluid' && s.fullWidthResponsive !== false) {
+    // fluid / autorelaxed 以外はレスポンシブ幅指定を付与
+    if (s.format !== 'fluid' && s.format !== 'autorelaxed' && s.fullWidthResponsive !== false) {
       ins.setAttribute('data-full-width-responsive', 'true');
     }
     return ins;
   }
 
-  function wrapAd(ins) {
+  function wrapAd(ins, big) {
     const wrap = document.createElement('div');
-    wrap.className = 'ad-unit';
+    wrap.className = 'ad-unit ad-unit--injected' + (big ? ' ad-unit--big' : '');
     const label = document.createElement('p');
     label.className = 'ad-unit__label';
     label.textContent = '広告';
@@ -69,72 +66,61 @@ const MiraiAds = (function () {
     return wrap;
   }
 
-  function mountSlot(mountEl, slot) {
-    if (!mountEl || !slot) {
-      if (mountEl) mountEl.hidden = true;
-      return;
-    }
-    mountEl.hidden = false;
-    mountEl.innerHTML = '';
-    const ins = createIns(slot);
-    if (!ins) return;
-    mountEl.appendChild(wrapAd(ins));
+  function clearInjected() {
+    document.querySelectorAll('.ad-unit--injected').forEach((el) => el.remove());
+  }
+
+  function inject(anchor, spec, big) {
+    const ins = createIns(spec);
+    if (!anchor || !ins) return;
+    anchor.insertAdjacentElement('afterend', wrapAd(ins, big));
     pushAd();
   }
 
-  function initFooter() {
-    const mount = document.getElementById('adFooterMount');
-    if (!mount) return;
-    const slot = cfg().slots && cfg().slots.footer;
-    if (slot) {
-      mountSlot(mount, slot);
-      return;
-    }
-    // スロット未設定時: 自動広告用（Console で自動広告を有効にしてください）
-    mount.hidden = false;
-    mount.innerHTML = '';
-    const ins = document.createElement('ins');
-    ins.className = 'adsbygoogle';
-    ins.style.display = 'block';
-    ins.setAttribute('data-ad-client', cfg().client);
-    ins.setAttribute('data-ad-format', 'auto');
-    ins.setAttribute('data-full-width-responsive', 'true');
-    mount.appendChild(wrapAd(ins));
-    pushAd();
+  function normHash(hash) {
+    const h = (hash || '/').split('?')[0];
+    return h || '/';
   }
 
-  function refreshInline(hash) {
-    document.querySelectorAll('.ad-unit--inline').forEach((el) => el.remove());
-    const slot = cfg().slots && cfg().slots.content;
-    if (!shouldShow(hash) || !slot) return;
-
-    const app = document.getElementById('app');
-    if (!app) return;
-    const anchor = app.querySelector('.calc-header') || app.querySelector('.hero');
-    if (!anchor) return;
-
-    const ins = createIns(slot);
-    if (!ins) return;
-    const wrap = wrapAd(ins);
-    wrap.classList.add('ad-unit--inline');
-    anchor.insertAdjacentElement('afterend', wrap);
-    pushAd();
+  function isAdmin(hash) {
+    return hash === '/admin' || hash.indexOf('/admin/') === 0;
   }
 
   function onRouteChange(hash) {
-    const mount = document.getElementById('adFooterMount');
-    if (!shouldShow(hash)) {
-      if (mount) mount.hidden = true;
-      document.querySelectorAll('.ad-unit--inline').forEach((el) => el.remove());
+    if (!isEnabled()) return;
+    hash = normHash(hash);
+    clearInjected();
+    if (isAdmin(hash)) return;
+
+    const app = document.getElementById('app');
+    if (!app) return;
+
+    const c = cfg();
+    const placements = c.placements || {};
+    const bigPages = c.bigPages || [];
+
+    // 大きな広告（見出し直後）
+    if (bigPages.indexOf(hash) !== -1 && placements.big) {
+      const anchor = app.querySelector('.calc-header');
+      if (anchor) inject(anchor, placements.big, true);
       return;
     }
-    if (mount) mount.hidden = false;
-    refreshInline(hash);
+
+    // ホームの開いたところ（hero 直後）
+    if (hash === '/' && placements.home) {
+      const anchor = app.querySelector('.hero');
+      if (anchor) inject(anchor, placements.home, false);
+    }
   }
 
   function init() {
     if (!isEnabled()) return;
-    initFooter();
+    // 旧フッター広告枠は使用しない
+    const mount = document.getElementById('adFooterMount');
+    if (mount) {
+      mount.hidden = true;
+      mount.innerHTML = '';
+    }
     onRouteChange(location.hash.slice(1) || '/');
   }
 
