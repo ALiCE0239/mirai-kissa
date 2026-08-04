@@ -31,15 +31,30 @@ const MiraiAds = (function () {
     }
   }
 
-  function createIns(slot) {
-    if (!slot) return null;
+  /** 文字列/オブジェクトどちらの slot 指定も共通の形へ */
+  function normalizeSlot(spec) {
+    if (!spec) return null;
+    if (typeof spec === 'string') {
+      return { slot: spec, format: 'auto', fullWidthResponsive: true };
+    }
+    if (!spec.slot) return null;
+    return spec;
+  }
+
+  function createIns(spec) {
+    const s = normalizeSlot(spec);
+    if (!s) return null;
     const ins = document.createElement('ins');
     ins.className = 'adsbygoogle';
     ins.style.display = 'block';
     ins.setAttribute('data-ad-client', cfg().client);
-    ins.setAttribute('data-ad-slot', slot);
-    ins.setAttribute('data-ad-format', 'auto');
-    ins.setAttribute('data-full-width-responsive', 'true');
+    ins.setAttribute('data-ad-slot', s.slot);
+    ins.setAttribute('data-ad-format', s.format || 'auto');
+    if (s.layoutKey) ins.setAttribute('data-ad-layout-key', s.layoutKey);
+    // fluid（インフィード）以外はレスポンシブ幅指定を付与
+    if (s.format !== 'fluid' && s.fullWidthResponsive !== false) {
+      ins.setAttribute('data-full-width-responsive', 'true');
+    }
     return ins;
   }
 

@@ -9,7 +9,12 @@ window.MIRAI_ADS_CONFIG = {
   enabled: true,
   client: 'ca-pub-8136431649527522',
   slots: {
-    footer: '6463922836',  // フッター上（全ページ共通）／ユニット「未来喫茶ユニット」
-    content: '',           // 計算機ページの見出し下（別ユニット作成後に設定）
+    // 文字列 = ディスプレイ広告(auto)、オブジェクト = 形式指定(fluid など)
+    footer: '6463922836',  // フッター上（全ページ共通）ディスプレイ広告
+    content: {             // 計算機ページの見出し下（インフィード広告）
+      slot: '1020024468',
+      format: 'fluid',
+      layoutKey: '-fb+5w+4e-db+86',
+    },
   },
 };
