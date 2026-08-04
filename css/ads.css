@@ -17,6 +17,18 @@
   margin: 0 auto 1.25rem;
 }
 
+/* 大きな広告（イベラン診断・ポイント調整NEXT） */
+.ad-unit--big {
+  max-width: 970px;
+  margin: 1rem auto 1.5rem;
+}
+
+/* ページ内に差し込む広告の共通余白 */
+.ad-unit--injected {
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}
+
 #adFooterMount {
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-subtle);
