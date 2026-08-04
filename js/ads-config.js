@@ -7,9 +7,9 @@
  */
 window.MIRAI_ADS_CONFIG = {
   enabled: true,
-  client: 'ca-pub-3749566622644230',
+  client: 'ca-pub-8136431649527522',
   slots: {
-    footer: '',   // フッター上（全ページ共通）
-    content: '',  // 計算機ページの見出し下
+    footer: '6463922836',  // フッター上（全ページ共通）／ユニット「未来喫茶ユニット」
+    content: '',           // 計算機ページの見出し下（別ユニット作成後に設定）
   },
 };
