@@ -48,9 +48,14 @@ const MiraiFriends = (function () {
     const f = await fb();
     if (!f || !uid) return normalizeFriendRequestSources(null);
     const { doc, getDoc } = f.dbFns;
-    const snap = await getDoc(doc(f.db, 'users', uid, 'sns', 'settings'));
-    if (!snap.exists()) return normalizeFriendRequestSources(null);
-    return normalizeFriendRequestSources(snap.data().friendRequestSources);
+    try {
+      const snap = await safeGetDoc(getDoc, doc(f.db, 'users', uid, 'sns', 'settings'));
+      if (!snap.exists()) return normalizeFriendRequestSources(null);
+      return normalizeFriendRequestSources(snap.data().friendRequestSources);
+    } catch (e) {
+      console.warn('[friends] loadFriendRequestSources:', e);
+      return normalizeFriendRequestSources(null);
+    }
   }
 
   async function saveFriendRequestSources(uid, sources) {
@@ -503,10 +508,6 @@ const MiraiFriends = (function () {
       await setDoc(doc(f.db, 'users', targetUid, 'friendRequests', myUid), payload);
     } catch (e) {
       if (e && e.code === 'permission-denied') {
-        const latestSources = await loadFriendRequestSources(targetUid);
-        if (!isFriendRequestSourceAllowed(latestSources, requestSource)) {
-          throw new Error(friendRequestSourceLabel(requestSource) + 'からのフレンド申請は受け付けていません。');
-        }
         await setDoc(doc(f.db, 'users', myUid, 'shadowFriendRequests', targetUid), {
           targetUid,
           targetPublicId: (targetHub && targetHub.publicId) || '',
