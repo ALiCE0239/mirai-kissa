@@ -55,6 +55,15 @@ const MiraiAds = (function () {
     return ins;
   }
 
+  /** URL に adsdebug を含むときだけ広告枠を可視化（診断用） */
+  function isDebug() {
+    try {
+      return /adsdebug/.test(location.href) || localStorage.getItem('mirai_ads_debug') === '1';
+    } catch (e) {
+      return /adsdebug/.test(location.href);
+    }
+  }
+
   function wrapAd(ins, big) {
     const wrap = document.createElement('div');
     wrap.className = 'ad-unit ad-unit--injected' + (big ? ' ad-unit--big' : '');
@@ -63,6 +72,22 @@ const MiraiAds = (function () {
     label.textContent = '広告';
     wrap.appendChild(label);
     wrap.appendChild(ins);
+    if (isDebug()) {
+      wrap.classList.add('ad-unit--debug');
+      const slot = ins.getAttribute('data-ad-slot');
+      label.textContent = '広告[debug] slot=' + slot + ' status=…';
+      // 配信結果(filled/unfilled)を枠に表示
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries += 1;
+        const st = ins.getAttribute('data-ad-status');
+        if (st || tries > 20) {
+          label.textContent = '広告[debug] slot=' + slot + ' status=' + (st || '(応答なし)');
+          console.log('[未来喫茶] AdSense debug', { slot: slot, status: st, tries: tries });
+          clearInterval(timer);
+        }
+      }, 500);
+    }
     return wrap;
   }
 

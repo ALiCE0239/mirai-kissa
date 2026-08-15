@@ -46,3 +46,21 @@
 .ad-unit:has(ins.adsbygoogle[data-ad-status="unfilled"]) {
   display: none;
 }
+
+/* 診断用（URL に adsdebug を付けたときのみ）: 枠を必ず可視化 */
+.ad-unit--debug {
+  display: block !important;
+  outline: 2px dashed #e0559b;
+  min-height: 100px;
+  background: rgba(224, 85, 155, 0.06);
+}
+
+.ad-unit--debug ins.adsbygoogle {
+  display: block !important;
+  min-height: 90px;
+}
+
+.ad-unit--debug .ad-unit__label {
+  color: #e0559b;
+  font-weight: 600;
+}
