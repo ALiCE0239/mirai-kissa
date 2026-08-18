@@ -15,6 +15,7 @@
       ルールに isOwnRankingEntry が含まれているか確認し、Console で「公開」し直す
   - Storage ルール:   data/storage.rules
   - Firestore インデックス: data/firestore.indexes.json
+    ※ イベランレポート一覧が出ない場合: eventReports の複合インデックス（isPublished+updatedAtMs / authorUid+updatedAtMs）を Console で作成し、firestore.rules の eventReports を公開する
   - 管理者・ユーザー特典: data/管理者・ユーザー特典設定.txt
   - ランキング: data/ランキング設定手順.txt
 

@@ -9,7 +9,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="mirai-kissa-build" content="fbd130e">
+  <meta name="mirai-kissa-build" content="d01439a">
   <script>
   (function () {
     'use strict';
@@ -40,9 +40,9 @@
   <title>未来喫茶 — プロセカ計算機ツール集</title>
   <meta name="description" content="プロジェクトセカイの各種計算機をまとめた未来喫茶。あまつゆ・イベントPt・実効値・ポイント調整・キズナ・イベラン診断。">
   <link rel="icon" href="img/icon.png" type="image/png">
-  <link rel="stylesheet" href="css/style.css?v=fbd130e">
-  <link rel="stylesheet" href="css/community.css?v=fbd130e">
-  <link rel="stylesheet" href="css/ads.css?v=fbd130e">
+  <link rel="stylesheet" href="css/style.css?v=d01439a">
+  <link rel="stylesheet" href="css/community.css?v=d01439a">
+  <link rel="stylesheet" href="css/ads.css?v=d01439a">
 </head>
 <body>
 
@@ -592,6 +592,9 @@
                   <span class="admin-sidebar__item-label">ランキング審査</span>
                   <span class="admin-sidebar__badge" id="adminRankingsBadge" hidden>0</span>
                 </button>
+                <button type="button" class="admin-sidebar__item" data-admin-tab="gamedata">
+                  <span class="admin-sidebar__item-label">ゲームデータ</span>
+                </button>
               </nav>
               <div class="admin-sidebar__footer">
                 <button type="button" class="btn btn-secondary btn-sm btn-block" id="adminRefreshBtn">再読み込み</button>
@@ -817,6 +820,34 @@
     </div>
   </template>
 
+  <!-- ==================== イベラン支援（ハブ） ==================== -->
+  <template id="tmpl-mypage-event-support">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/mypage" class="back-link" data-link>← マイページに戻る</a>
+          <h1>📈 イベラン支援</h1>
+          <p>イベント中のPtを記録して、着地予想と周回プランを確認できます（最大3件保管）</p>
+        </div>
+        <div id="eventSupportRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ==================== イベラン支援（アーカイブ詳細） ==================== -->
+  <template id="tmpl-mypage-event-archive">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/mypage/event-support" class="back-link" data-link>← イベラン支援に戻る</a>
+          <h1>📈 イベントアーカイブ</h1>
+          <p>Pt・ボーダーを記録してグラフと周回プランを確認できます</p>
+        </div>
+        <div id="eventArchiveRoot"></div>
+      </div>
+    </div>
+  </template>
+
   <!-- ==================== 公開マイページ ==================== -->
   <template id="tmpl-public">
     <div class="page-content page-enter">
@@ -964,9 +995,34 @@
         <div class="calc-header">
           <a href="#/" class="back-link" data-link>← ホームに戻る</a>
           <h1>📚 攻略図書館</h1>
-          <p>プロジェクトセカイの攻略情報を集めています</p>
+          <p>イベランレポートや攻略メモを集めています</p>
         </div>
         <div id="guidesRoot" class="guides-library"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-guides-report">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/guides" class="back-link" data-link>← 攻略図書館に戻る</a>
+          <h1>🏆 イベランレポート</h1>
+        </div>
+        <div id="guidesReportRoot"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tmpl-mypage-event-report">
+    <div class="page-content page-enter">
+      <div class="calc-page calc-page--wide">
+        <div class="calc-header">
+          <a href="#/mypage/event-support" class="back-link" data-link>← イベラン支援に戻る</a>
+          <h1>📓 イベランレポート</h1>
+          <p>アーカイブの記録をもとに、攻略図書館へ投稿できるノート記事を作成します</p>
+        </div>
+        <div id="eventReportEditRoot"></div>
       </div>
     </div>
   </template>
@@ -996,30 +1052,31 @@
     </div>
   </template>
 
-  <script src="js/analytics-config.js?v=fbd130e"></script>
-  <script src="js/analytics.js?v=fbd130e"></script>
-  <script src="js/ads-config.js?v=fbd130e"></script>
-  <script src="js/ads.js?v=fbd130e"></script>
-  <script src="js/support-config.js?v=fbd130e"></script>
-  <script src="js/support.js?v=fbd130e"></script>
-  <script src="js/firebase-config.js?v=fbd130e"></script>
-  <script type="module" src="js/firebase.js?v=fbd130e"></script>
-  <script src="js/auth.js?v=fbd130e"></script>
+  <script src="js/analytics-config.js?v=d01439a"></script>
+  <script src="js/analytics.js?v=d01439a"></script>
+  <script src="js/ads-config.js?v=d01439a"></script>
+  <script src="js/ads.js?v=d01439a"></script>
+  <script src="js/support-config.js?v=d01439a"></script>
+  <script src="js/support.js?v=d01439a"></script>
+  <script src="js/firebase-config.js?v=d01439a"></script>
+  <script type="module" src="js/firebase.js?v=d01439a"></script>
+  <script src="js/auth.js?v=d01439a"></script>
   <script src="js/qrcode.min.js"></script>
-  <script src="js/qr-utils.js?v=fbd130e"></script>
-  <script src="js/friends.js?v=fbd130e"></script>
-  <script src="js/mypage.js?v=fbd130e"></script>
-  <script src="js/admin-config.js?v=fbd130e"></script>
-  <script src="js/admin.js?v=fbd130e"></script>
-  <script src="js/board.js?v=fbd130e"></script>
-  <script src="js/ranking.js?v=fbd130e"></script>
-  <script src="js/guides.js?v=fbd130e"></script>
-  <script src="js/router.js?v=fbd130e"></script>
-  <script src="js/border-rankings-data.js?v=fbd130e"></script>
-  <script src="js/song-kiso-data.js?v=fbd130e"></script>
-  <script src="js/song-kiso.js?v=fbd130e"></script>
-  <script src="js/pjsk-engine.js?v=fbd130e"></script>
-  <script src="js/calculators.js?v=fbd130e"></script>
-  <script src="js/app.js?v=fbd130e"></script>
+  <script src="js/qr-utils.js?v=d01439a"></script>
+  <script src="js/friends.js?v=d01439a"></script>
+  <script src="js/mypage.js?v=d01439a"></script>
+  <script src="js/admin-config.js?v=d01439a"></script>
+  <script src="js/admin.js?v=d01439a"></script>
+  <script src="js/board.js?v=d01439a"></script>
+  <script src="js/ranking.js?v=d01439a"></script>
+  <script src="js/guides.js?v=d01439a"></script>
+  <script src="js/router.js?v=d01439a"></script>
+  <script src="js/border-rankings-data.js?v=d01439a"></script>
+  <script src="js/song-kiso-data.js?v=d01439a"></script>
+  <script src="js/song-kiso.js?v=d01439a"></script>
+  <script src="js/pjsk-engine.js?v=d01439a"></script>
+  <script src="js/calculators.js?v=d01439a"></script>
+  <script src="js/event-support.js?v=d01439a"></script>
+  <script src="js/app.js?v=d01439a"></script>
 </body>
 </html>

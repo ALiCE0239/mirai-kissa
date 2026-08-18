@@ -799,6 +799,12 @@ const Calculators = {
     PjskEngine.ensureBorderData();
     this._fillDiagnosisFilterOptions();
 
+    if (typeof PjskEngine.loadBorderOverlay === 'function') {
+      PjskEngine.loadBorderOverlay()
+        .then(() => this._fillDiagnosisFilterOptions())
+        .catch(() => {});
+    }
+
     const typeSel = this._el('diagnosisFilterType');
     if (typeSel) {
       typeSel.onchange = () => this._fillDiagnosisFilterOptions();

@@ -4,6 +4,7 @@
 const SongKiso = {
   songs: [],
   customSongs: [],
+  remoteSongs: [],
   overrides: {},
   loaded: false,
   loadError: null,
@@ -95,22 +96,44 @@ const SongKiso = {
     return true;
   },
 
+  /** 管理ページから追加された共有オーバーレイ（Firestore）を読み込む */
+  async loadRemote(force = false) {
+    if (typeof MiraiGameData === 'undefined') return false;
+    try {
+      const songs = await MiraiGameData.loadSongOverlay(force);
+      this.remoteSongs = Array.isArray(songs)
+        ? songs.map((s) => ({
+            name: String(s.name).trim(),
+            kiso: parseInt(s.kiso, 10),
+            unit: s.unit ? String(s.unit) : '',
+          })).filter((s) => s.name && Number.isFinite(s.kiso))
+        : [];
+      return true;
+    } catch (e) {
+      console.warn('[未来喫茶] 楽曲オーバーレイの読み込みに失敗:', e);
+      return false;
+    }
+  },
+
   async load() {
     this.loadError = null;
     if (this.loadFromEmbedded()) {
       this._loadStorage();
+      await this.loadRemote();
       this.loaded = true;
       return true;
     }
     try {
       await this.loadFromText(this.MASTER_TXT);
       this._loadStorage();
+      await this.loadRemote();
       this.loaded = true;
       return true;
     } catch (errTxt) {
       try {
         await this.loadFromJson(this.MASTER_JSON);
         this._loadStorage();
+        await this.loadRemote();
         this.loaded = true;
         console.warn('[未来喫茶] 組み込みデータなし。txt を使用:', errTxt.message);
         return true;
@@ -148,12 +171,16 @@ const SongKiso = {
     localStorage.setItem(this.STORAGE_CUSTOM, JSON.stringify(this.customSongs));
   },
 
-  /** マスタ＋カスタム、上書き適用済みの一覧 */
+  /** マスタ＋共有オーバーレイ＋ローカルカスタム、上書き適用済みの一覧 */
   getAllSongs() {
     const map = new Map();
     for (const s of this.songs) {
       const kiso = this.overrides[s.name] !== undefined ? this.overrides[s.name] : s.kiso;
       map.set(s.name, { name: s.name, kiso, unit: s.unit, source: 'master' });
+    }
+    for (const s of this.remoteSongs) {
+      const kiso = this.overrides[s.name] !== undefined ? this.overrides[s.name] : s.kiso;
+      map.set(s.name, { name: s.name, kiso, unit: s.unit || '', source: 'remote' });
     }
     for (const s of this.customSongs) {
       const kiso = this.overrides[s.name] !== undefined ? this.overrides[s.name] : s.kiso;

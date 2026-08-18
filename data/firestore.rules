@@ -24,6 +24,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ゲームデータ（管理ページから追加する楽曲基礎点・イベントボーダーのオーバーレイ）
+    // 診断・ポイント調整は未ログインでも使うため read は全公開、書き込みは管理者のみ。
+    match /gameData/{docId} {
+      allow read: if true;
+      allow write: if isFirebaseAdmin();
+    }
+
     match /userRewards/{userId} {
       allow read: if request.auth != null
         && (request.auth.uid == userId || isFirebaseAdmin());
@@ -77,6 +84,35 @@ service cloud.firestore {
     }
     match /users/{userId}/eventBookmarks/{authorUid} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // イベラン支援アーカイブ（1ユーザー最大3件・件数制限はクライアント側で担保）
+    // 公開ページには isPublic == true のみ表示。本人は常に read/write 可。
+    match /users/{userId}/eventArchives/{archiveId} {
+      allow read: if resource.data.get('isPublic', true) == true
+        || (request.auth != null && request.auth.uid == userId);
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    // 攻略図書館のイベランレポート（アーカイブのスナップショット＋ノート本文）
+    match /eventReports/{reportId} {
+      allow get: if resource.data.get('isPublished', false) == true
+        || (request.auth != null && resource.data.authorUid == request.auth.uid);
+      allow list: if resource.data.get('isPublished', false) == true
+        || (request.auth != null && resource.data.authorUid == request.auth.uid);
+      allow create: if request.auth != null
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 80
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 4000;
+      allow update: if request.auth != null
+        && resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 80
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 4000;
+      allow delete: if request.auth != null
+        && (resource.data.authorUid == request.auth.uid || isFirebaseAdmin());
     }
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;

@@ -206,8 +206,10 @@
   ポイントの多い順に上位5件を取り、その平均を推定目標Ptとする
   （該当が5件未満の場合はある件数すべてで平均）
 
-  データ元: 参考データ/【完全版】プロセカボーダーランキング のコピー/*.html
-  更新: python3 scripts/build-border-rankings.py → js/border-rankings-data.js を再生成
+  データ元: data/イベントボーダー一覧.xlsx（編集用シート）
+  更新: Excel「イベント別」シートに追記・修正 → PYTHONPATH=./.pylibs python3 tools/import-border-xlsx.py
+        → js/border-rankings-data.js を再生成
+  参考: 現行データの Excel 化は tools/export-border-xlsx.py
 
   --- 周回プラン ---
   1回のクリスタル: 5炊き=50個、10炊き=100個

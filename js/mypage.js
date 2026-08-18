@@ -668,6 +668,7 @@ const MiraiMyPage = (function () {
       loadBoardSummaries(box, user);
       loadRankingSummaries(box, user);
       loadEventBookmarksSummary(box, user);
+      loadEventSupportSummary(box, user);
     }
 
     await renderPage();
@@ -822,9 +823,7 @@ const MiraiMyPage = (function () {
 
   function renderDashboard(box, user, hub, hubExisted, profileSaveError) {
     box.innerHTML = `
-      <section class="card community-editor mp-page">
-        <h2 class="community-editor__title">マイページ</h2>
-        <p class="text-muted mp-editor-lead">プロフィールと掲示板投稿を管理できます</p>
+      <section class="card community-editor mp-page mp-dashboard">
         ${profileSaveError
           ? '<div class="info-box mb-2"><p class="form-error">プロフィールの初期登録に失敗しました。ページを再読み込みするか、マイページ設定から表示名を保存してください。</p><p class="form-hint">' + esc(profileSaveError) + '</p></div>'
           : ''}
@@ -840,8 +839,6 @@ const MiraiMyPage = (function () {
           <a href="#/mypage/settings" class="btn btn-secondary" data-link>マイページ設定</a>
         </div>
 
-        <div class="divider"></div>
-
         <section class="mp-id-section card">
           <p class="adjust-filters__title">🪪 あなたのID</p>
           <p class="form-hint">このIDとQRコードで、他の人があなたのセカイノートを読み取れます</p>
@@ -855,96 +852,108 @@ const MiraiMyPage = (function () {
           <p class="form-hint mp-id-url"><a href="#/p/${esc(hub.publicId)}" data-link>公開ページを開く</a></p>
         </section>
 
-        <div class="divider"></div>
+        <div class="mp-cat-grid">
 
-        <div class="mp-sekai-entry">
-          <div class="mp-sekai-entry__head">
-            <div>
-              <p class="adjust-filters__title">💳 プロフィールカード</p>
-              <p class="mp-board-summary text-muted">名刺サイズのプロフィールカードを作成できます</p>
+          <div class="mp-cat-card mp-cat-card--feature">
+            <div class="mp-cat-card__head">
+              <span class="mp-cat-card__icon">📈</span>
+              <h3 class="mp-cat-card__title">イベラン支援</h3>
+              <span class="mp-cat-card__badge">NEW</span>
             </div>
-            <a href="#/mypage/profile-card" class="btn btn-secondary" data-link>プロフィールカードを作成</a>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="mp-sekai-entry">
-          <div class="mp-sekai-entry__head">
-            <div>
-              <p class="adjust-filters__title">📓 セカイノート</p>
-              <p id="mpSekaiSummary" class="mp-board-summary text-muted">${esc(sekaiSummaryText(hub, hubExisted))}</p>
+            <p id="mpEventSupportSummary" class="mp-cat-card__desc">読み込み中…</p>
+            <div class="mp-cat-card__actions">
+              <a href="#/mypage/event-support" class="btn btn-primary btn-sm" data-link>イベラン支援を開く</a>
             </div>
-            <a href="#/mypage/sekainote" class="btn btn-primary" data-link id="mpSekaiBtn">${hubExisted ? 'セカイノートを編集' : 'セカイノートを作成'}</a>
           </div>
-        </div>
 
-        <div class="divider"></div>
-
-        <section class="mp-friends-section">
-          <p class="adjust-filters__title">👥 フレンド</p>
-          <p class="form-hint">フレンド申請の確認と、フレンドのセカイノートへのリンク</p>
-          <div class="mp-friend-id-search">
-            <label for="mpFriendIdSearch">未来喫茶IDで検索</label>
-            <div class="mp-friend-id-search__row">
-              <input type="text" class="form-input" id="mpFriendIdSearch" maxlength="12" placeholder="例: a1b2c3d4" autocapitalize="off" autocomplete="off" spellcheck="false">
-              <button type="button" class="btn btn-secondary" id="mpFriendIdSearchBtn">検索</button>
+          <div class="mp-cat-card">
+            <div class="mp-cat-card__head">
+              <span class="mp-cat-card__icon">📓</span>
+              <h3 class="mp-cat-card__title">セカイノート</h3>
             </div>
-            <p class="form-hint">IDが分かれば、ここからセカイノートを開いてフレンド申請できます</p>
-          <div id="mpFriendIdSearchResult" class="mp-friend-id-search__result"></div>
-          </div>
-          <div class="mp-friends-actions">
-            <div class="mp-friends-btn-wrap">
-              <a href="#/mypage/friend-requests" class="btn btn-secondary" data-link id="mpFriendRequestsLink">フレンド申請</a>
-              <span id="mpFriendRequestBadge" class="mp-friend-notify-badge" hidden aria-label="未確認のフレンド申請"></span>
+            <p id="mpSekaiSummary" class="mp-cat-card__desc">${esc(sekaiSummaryText(hub, hubExisted))}</p>
+            <div class="mp-cat-card__actions">
+              <a href="#/mypage/sekainote" class="btn btn-primary btn-sm" data-link id="mpSekaiBtn">${hubExisted ? 'セカイノートを編集' : 'セカイノートを作成'}</a>
             </div>
-            <a href="#/mypage/friends" class="btn btn-secondary" data-link>フレンド一覧</a>
-            <a href="#/mypage/friend-settings" class="btn btn-secondary" data-link>拒否設定</a>
           </div>
-        </section>
 
-        <div class="divider"></div>
-        <div class="mp-board-block">
-          <div class="community-links-head">
-            <p class="adjust-filters__title">🏆 ランキング</p>
-            <a href="#/mypage/ranking" class="btn btn-secondary btn-sm" data-link id="mpRankingBtn">ランキングに登録</a>
-          </div>
-          <p id="mpRankingSummary" class="mp-board-summary text-muted">読み込み中…</p>
-          <p class="form-hint"><a href="#/ranking" data-link>ランキングを見る</a> · 各項目1件 · 更新は再申請</p>
-        </div>
-
-        <div class="divider"></div>
-        <div class="mp-board-block">
-          <div class="mp-board-block__head">
-            <div class="mp-board-block__main">
-              <p class="adjust-filters__title">📣 イベラン広告</p>
-              <p id="mpEventSummary" class="mp-board-summary text-muted">読み込み中…</p>
+          <div class="mp-cat-card">
+            <div class="mp-cat-card__head">
+              <span class="mp-cat-card__icon">💳</span>
+              <h3 class="mp-cat-card__title">プロフィールカード</h3>
             </div>
-            <div class="mp-board-block__actions">
-              <a href="#/board/event/edit" class="btn btn-secondary btn-sm" data-link id="mpEventBtn">作成する</a>
+            <p class="mp-cat-card__desc">名刺サイズのプロフィールカードを作成できます</p>
+            <div class="mp-cat-card__actions">
+              <a href="#/mypage/profile-card" class="btn btn-secondary btn-sm" data-link>カードを作成</a>
+            </div>
+          </div>
+
+          <div class="mp-cat-card">
+            <div class="mp-cat-card__head">
+              <span class="mp-cat-card__icon">🏆</span>
+              <h3 class="mp-cat-card__title">ランキング</h3>
+            </div>
+            <p id="mpRankingSummary" class="mp-cat-card__desc">読み込み中…</p>
+            <div class="mp-cat-card__actions">
+              <a href="#/mypage/ranking" class="btn btn-primary btn-sm" data-link id="mpRankingBtn">ランキングに登録</a>
+              <a href="#/ranking" class="btn btn-secondary btn-sm" data-link>見る</a>
+            </div>
+          </div>
+
+          <div class="mp-cat-card mp-cat-card--wide">
+            <div class="mp-cat-card__head">
+              <span class="mp-cat-card__icon">👥</span>
+              <h3 class="mp-cat-card__title">フレンド</h3>
+            </div>
+            <p class="mp-cat-card__desc">フレンド申請の確認と、フレンドのセカイノートへのリンク</p>
+            <div class="mp-friend-id-search">
+              <label for="mpFriendIdSearch">未来喫茶IDで検索</label>
+              <div class="mp-friend-id-search__row">
+                <input type="text" class="form-input" id="mpFriendIdSearch" maxlength="12" placeholder="例: a1b2c3d4" autocapitalize="off" autocomplete="off" spellcheck="false">
+                <button type="button" class="btn btn-secondary" id="mpFriendIdSearchBtn">検索</button>
+              </div>
+              <div id="mpFriendIdSearchResult" class="mp-friend-id-search__result"></div>
+            </div>
+            <div class="mp-friends-actions">
+              <div class="mp-friends-btn-wrap">
+                <a href="#/mypage/friend-requests" class="btn btn-secondary btn-sm" data-link id="mpFriendRequestsLink">フレンド申請</a>
+                <span id="mpFriendRequestBadge" class="mp-friend-notify-badge" hidden aria-label="未確認のフレンド申請"></span>
+              </div>
+              <a href="#/mypage/friends" class="btn btn-secondary btn-sm" data-link>フレンド一覧</a>
+              <a href="#/mypage/friend-settings" class="btn btn-secondary btn-sm" data-link>拒否設定</a>
+            </div>
+          </div>
+
+          <div class="mp-cat-card">
+            <div class="mp-cat-card__head">
+              <span class="mp-cat-card__icon">📣</span>
+              <h3 class="mp-cat-card__title">イベラン広告</h3>
               <p id="mpEventStatus" class="mp-board-status-wrap text-muted">読み込み中…</p>
             </div>
-          </div>
-          <p id="mpEventListingAction" class="mp-board-listing-action" hidden></p>
-          <p id="mpEventBookmarks" class="form-hint">ブックマークを読み込み中…</p>
-          <p class="form-hint"><a href="#/board/event/bookmarks" data-link>★ ブックマーク一覧ページ</a></p>
-          <p class="form-hint"><a href="#/board/event" data-link>掲示板で見る</a> · 1アカウント1件</p>
-        </div>
-
-        <div class="divider"></div>
-        <div class="mp-board-block">
-          <div class="mp-board-block__head">
-            <div class="mp-board-block__main">
-              <p class="adjust-filters__title">🌿 マイセカイ宣伝</p>
-              <p id="mpMysekaiSummary" class="mp-board-summary text-muted">読み込み中…</p>
+            <p id="mpEventSummary" class="mp-cat-card__desc">読み込み中…</p>
+            <p id="mpEventListingAction" class="mp-board-listing-action" hidden></p>
+            <p id="mpEventBookmarks" class="form-hint">ブックマークを読み込み中…</p>
+            <div class="mp-cat-card__actions">
+              <a href="#/board/event/edit" class="btn btn-primary btn-sm" data-link id="mpEventBtn">作成する</a>
+              <a href="#/board/event" class="btn btn-secondary btn-sm" data-link>掲示板で見る</a>
+              <a href="#/board/event/bookmarks" class="btn btn-secondary btn-sm" data-link>★ ブックマーク</a>
             </div>
-            <div class="mp-board-block__actions">
-              <a href="#/board/mysekai/edit" class="btn btn-secondary btn-sm" data-link id="mpMysekaiBtn">作成する</a>
+          </div>
+
+          <div class="mp-cat-card">
+            <div class="mp-cat-card__head">
+              <span class="mp-cat-card__icon">🌿</span>
+              <h3 class="mp-cat-card__title">マイセカイ宣伝</h3>
               <p id="mpMysekaiStatus" class="mp-board-status-wrap text-muted">読み込み中…</p>
             </div>
+            <p id="mpMysekaiSummary" class="mp-cat-card__desc">読み込み中…</p>
+            <p id="mpMysekaiListingAction" class="mp-board-listing-action" hidden></p>
+            <div class="mp-cat-card__actions">
+              <a href="#/board/mysekai/edit" class="btn btn-primary btn-sm" data-link id="mpMysekaiBtn">作成する</a>
+              <a href="#/board/mysekai" class="btn btn-secondary btn-sm" data-link>掲示板で見る</a>
+            </div>
           </div>
-          <p id="mpMysekaiListingAction" class="mp-board-listing-action" hidden></p>
-          <p class="form-hint"><a href="#/board/mysekai" data-link>掲示板で見る</a> · 1アカウント1件</p>
+
         </div>
 
         <button type="button" class="btn btn-secondary btn-block mt-3" id="mpLogout">ログアウト</button>
@@ -1681,6 +1690,23 @@ const MiraiMyPage = (function () {
     ]).then(([ev, ms]) => refresh(ev, ms)).catch((e) => console.error(e));
   }
 
+  function loadEventSupportSummary(box, user) {
+    const el = box.querySelector('#mpEventSupportSummary');
+    if (!el || !window.MiraiEventSupport || !MiraiEventSupport.fetchArchiveCount) return;
+    const max = MiraiEventSupport.MAX_ARCHIVES || 3;
+    MiraiEventSupport.fetchArchiveCount(user.uid).then((count) => {
+      if (count == null) {
+        el.textContent = `イベント中のPtを記録してグラフ・プランを確認できます（最大${max}件）`;
+        return;
+      }
+      el.textContent = count > 0
+        ? `保管 ${count}/${max} 件 · イベント中のPtを記録してグラフ・プランを確認`
+        : `イベント中のPtを記録してグラフ・プランを確認できます（最大${max}件）`;
+    }).catch(() => {
+      el.textContent = 'イベント中のPtを記録してグラフ・プランを確認できます';
+    });
+  }
+
   function loadRankingSummaries(box, user) {
     if (!window.MiraiRanking) return;
     const el = box.querySelector('#mpRankingSummary');
@@ -2130,6 +2156,22 @@ const MiraiMyPage = (function () {
     }
   }
 
+  async function loadPublicArchives(box, hub, isStale) {
+    const root = box.querySelector('#publicArchivesRoot');
+    if (!root || !hub || !hub.uid || !window.MiraiEventSupport || !MiraiEventSupport.listPublicArchives) return;
+    try {
+      const items = await MiraiEventSupport.listPublicArchives(hub.uid);
+      if (isStale && isStale()) return;
+      const html = MiraiEventSupport.publicArchivesHtml(items);
+      if (html) root.outerHTML = html;
+      else root.remove();
+    } catch (e) {
+      console.warn('[public] archive load failed:', e);
+      if (isStale && isStale()) return;
+      if (root.parentNode) root.remove();
+    }
+  }
+
   async function initPublic(params) {
     const root = document.getElementById('app');
     const box = root.querySelector('#publicProfileRoot');
@@ -2173,6 +2215,7 @@ const MiraiMyPage = (function () {
         if (embedLoading) {
           loadPublicEmbeds(box, hub, viewer, isStale);
         }
+        loadPublicArchives(box, hub, isStale);
       } catch (e) {
         if (isStale()) return;
         currentHub = null;
@@ -2257,6 +2300,7 @@ const MiraiMyPage = (function () {
       );
     }
     const notesSection = notesHtml(hub, opts);
+    const archivesBlock = '<div id="publicArchivesRoot"></div>';
 
     return `
       <div class="public-profile-card-wrap">
@@ -2269,6 +2313,7 @@ const MiraiMyPage = (function () {
       ${embedBlock}
       <div class="linkhub-links">${linksHtml || '<p class="linkhub-empty">リンクはまだありません</p>'}</div>
       ${notesSection}
+      ${archivesBlock}
     `;
   }
 
