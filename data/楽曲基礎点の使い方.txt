@@ -9,15 +9,24 @@
   data/楽曲基礎点.txt
 
   手順:
-  1. data/楽曲基礎点.txt を編集して保存
-  2. js/song-kiso-data.js を再生成（下記）
+  1. data/楽曲基礎点.txt の「■ リスト」以下に「曲名<TAB>基礎点<TAB>ユニット」を追記/修正
+  2. js/song-kiso-data.js と data/楽曲基礎点.json を再生成（下記）
   3. ブラウザを強制再読み込み → git push
 
-■ song-kiso-data.js の再生成（開発者向け）
+■ 再生成（開発者向け）
   プロジェクトフォルダで:
-    python3 scripts/build-song-kiso-data.py
+    python3 tools/build-song-kiso-data.py
 
-  data/楽曲基礎点.txt から js/song-kiso-data.js を出力します。
+  data/楽曲基礎点.txt から js/song-kiso-data.js と data/楽曲基礎点.json を出力します。
+  出力順は txt の記載順をそのまま反映します（並べ替えは txt 側で行う）。
+
+■ Excel シートで編集したい場合
+  1. PYTHONPATH=./.pylibs python3 tools/export-song-kiso-xlsx.py
+       → data/楽曲基礎点.xlsx を出力
+  2. 「楽曲基礎点」シートを編集（曲名 / 基礎点 / ユニット）
+  3. PYTHONPATH=./.pylibs python3 tools/import-song-kiso-xlsx.py
+       → data/楽曲基礎点.txt を書き戻し、js/song-kiso-data.js と .json を再生成
+  4. ブラウザを強制再読み込み → git push
 
 ■ ポイント調整NEXT
   「楽曲」プルダウンから選択すると基礎点が自動で入ります。

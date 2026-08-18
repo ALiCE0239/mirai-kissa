@@ -35,6 +35,18 @@
   - イベラン診断 → js/border-rankings-data.js（コード内蔵・HTTP不要）
 
 ■ ボーダーデータの更新（イベラン診断）
-  参考データの HTML を差し替えたあと:
-    python3 scripts/build-border-rankings.py
-  で js/border-rankings-data.js を再生成し、ブラウザを再読み込みしてください。
+  Excel シートで編集 → スクリプトで再生成する方式です。
+
+  1. 現行データを Excel 化（初回・最新化したいとき）
+       PYTHONPATH=./.pylibs python3 tools/export-border-xlsx.py
+       → data/イベントボーダー一覧.xlsx を出力
+  2. data/イベントボーダー一覧.xlsx の「イベント別」シートを編集
+       - 1イベント＝1行。T10 / T50 / T100 / T500 / T1000 / T5000 列にボーダーPtを入力
+       - その順位帯のデータが無ければ空欄でOK（詰めなくてよい）
+       - バナー / ユニット / 種別 / 日数 / ボーナスも各行に入力
+  3. Excel から本番データを再生成
+       PYTHONPATH=./.pylibs python3 tools/import-border-xlsx.py
+       → js/border-rankings-data.js を再生成
+  4. ブラウザで未来喫茶を強制再読み込み（Cmd+Shift+R）→ git commit / push
+
+  ※ 表示用の「約○億○万P」はポイントから自動生成されます（手入力不要）。

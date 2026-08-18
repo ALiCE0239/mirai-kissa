@@ -150,8 +150,25 @@
     };
   }
 
+  function isLocalDev() {
+    const h = location.hostname;
+    return h === 'localhost'
+      || h === '127.0.0.1'
+      || h === '0.0.0.0'
+      || h === ''
+      || h.endsWith('.local')
+      || /^192\.168\./.test(h)
+      || /^10\./.test(h)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(h);
+  }
+
   function initRouter() {
     const router = new Router();
+
+    // ローカル開発時はトップアクセスをマイページに寄せる（本番は従来どおりホーム）
+    if (isLocalDev() && (location.hash === '' || location.hash === '#/')) {
+      location.hash = '#/mypage';
+    }
 
     router
       .add('/',         'tmpl-home',      () => initHome())
@@ -163,6 +180,7 @@
       .add('/kizuna',   'tmpl-kizuna',    () => Calculators.initKizuna())
       .add('/diagnosis','tmpl-diagnosis', () => Calculators.initDiagnosis())
       .add('/guides',   'tmpl-guides',    () => GuidesPage.init())
+      .add('/guides/reports/:id', 'tmpl-guides-report', (params) => GuidesPage.initReportDetail(params))
       .add('/support',  'tmpl-support',   () => MiraiSupport.initPage())
       .add('/admin',    'tmpl-admin',     () => AdminPage.init())
       .add('/login',    'tmpl-login',     () => MiraiMyPage.initLogin())
@@ -175,6 +193,9 @@
       .add('/mypage/profile-card', 'tmpl-profile-card', () => guardCommunity(() => MiraiMyPage.initProfileCard())())
       .add('/mypage/ranking', 'tmpl-ranking-hub', () => guardCommunity(() => MiraiRanking.initMypageHub())())
       .add('/mypage/ranking/:type', 'tmpl-ranking-edit', (params) => guardCommunity(() => MiraiRanking.initEdit(params))())
+      .add('/mypage/event-support', 'tmpl-mypage-event-support', () => guardCommunity(() => MiraiEventSupport.initHub())())
+      .add('/mypage/event-support/:id/report', 'tmpl-mypage-event-report', (params) => guardCommunity(() => GuidesPage.initReportEditor(params))())
+      .add('/mypage/event-support/:id', 'tmpl-mypage-event-archive', (params) => guardCommunity(() => MiraiEventSupport.initArchive(params))())
       .add('/ranking', 'tmpl-ranking', () => MiraiRanking.initHub())
       .add('/ranking/:type', 'tmpl-ranking', (params) => MiraiRanking.initView(params))
       .add('/sekainote/read', 'tmpl-sekainote-read', () => MiraiMyPage.initSekaiNoteRead())
@@ -212,6 +233,7 @@
         '/mypage/sekainote': 'セカイノートを編集 — 未来喫茶',
         '/mypage/profile-card': 'プロフィールカード — 未来喫茶',
         '/mypage/ranking': 'ランキング登録 — 未来喫茶',
+        '/mypage/event-support': 'イベラン支援 — 未来喫茶',
         '/ranking': 'ランキング — 未来喫茶',
         '/sekainote/read': 'セカイノートを読み取る — 未来喫茶',
         '/board/event':        'イベラン広告 — 未来喫茶',

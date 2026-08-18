@@ -31,6 +31,22 @@
       "fields": [
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "eventReports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isPublished", "order": "ASCENDING" },
+        { "fieldPath": "updatedAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "eventReports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "authorUid", "order": "ASCENDING" },
+        { "fieldPath": "updatedAtMs", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

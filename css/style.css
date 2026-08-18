@@ -1249,6 +1249,214 @@ input, select {
   display: block;
 }
 
+.guides-section-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0 0 0.75rem;
+  color: var(--text-primary);
+}
+
+.guides-post-hint { margin: 0 0 1rem; }
+
+.guides-own { margin: 0 0 1.5rem; }
+
+.guides-event { margin-bottom: 2rem; }
+
+.guides-more { margin-top: 0.5rem; }
+
+.guides-report-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.guide-report-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.guide-report-card:hover {
+  transform: translateY(-2px);
+}
+
+.guide-report-card__thumb {
+  aspect-ratio: 16 / 9;
+  background: #0f172a;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.guide-report-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.guide-report-card__thumb--empty {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(20, 184, 166, 0.18));
+}
+
+.guide-report-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+.guide-report-card__kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--brand-teal);
+}
+
+.guide-report-card__draft,
+.guide-report__draft {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(100, 116, 139, 0.12);
+}
+
+.guide-report-card__title {
+  margin: 0;
+  font-size: 1.02rem;
+  color: var(--text-primary);
+}
+
+.guide-report-card__meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.guide-report-card__summary {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.guide-report {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.guide-report__head {
+  text-align: left;
+}
+
+.guide-report__kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--brand-teal);
+}
+
+.guide-report__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.45rem;
+  line-height: 1.35;
+}
+
+.guide-report__meta {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.guide-report__meta a { color: var(--brand-teal); }
+
+.guide-report__edit { margin: 0.6rem 0 0; }
+
+.guide-report-hero {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #0f172a;
+  aspect-ratio: 16 / 9;
+}
+
+.guide-report-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.guide-report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.guide-report-stats__cell {
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius-md);
+  background: rgba(var(--rgb-teal), 0.07);
+}
+
+.guide-report-stats dt {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.2rem;
+}
+
+.guide-report-stats dd {
+  margin: 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.guide-report-section,
+.guide-report-note {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+}
+
+.guide-report-note__body {
+  font-size: 0.95rem;
+  line-height: 1.75;
+  color: var(--text-primary);
+  white-space: normal;
+}
+
+.guide-report-team__summary {
+  margin: 0 0 0.6rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.guide-report-preview { margin-top: 1.25rem; }
+
+.guide-report-tpl-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--brand-teal);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .community-login-gate {
   max-width: 480px;
   margin: 0 auto;

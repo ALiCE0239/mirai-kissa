@@ -1,6 +1,6 @@
 /**
  * 楽曲・基礎点マスタ（data/楽曲基礎点.txt と同期）
- * 生成: python3 scripts/build-song-kiso-data.py
+ * 生成: python3 tools/build-song-kiso-data.py
  */
 const SONG_KISO_DATA = [
   { name: "*ハロー、プラネット。", kiso: 112, unit: "6:バチャ" },
@@ -332,6 +332,7 @@ const SONG_KISO_DATA = [
   { name: "チームメイト", kiso: 111, unit: "2:モモ" },
   { name: "ツギハギスタッカート", kiso: 113, unit: "2:モモ" },
   { name: "テオ", kiso: 112, unit: "1:レオニ" },
+  { name: "テスト曲ZZZ", kiso: 118, unit: "3:ビビ" },
   { name: "テトリス", kiso: 105, unit: "6:バチャ" },
   { name: "テレキャスタービーボーイ", kiso: 106, unit: "4:ダショ" },
   { name: "デビルじゃないもん", kiso: 113, unit: "6:バチャ" },
@@ -458,7 +459,7 @@ const SONG_KISO_DATA = [
   { name: "レグルス", kiso: 115, unit: "1:レオニ" },
   { name: "レッドランドマーカー", kiso: 115, unit: "6:バチャ" },
   { name: "ロウワー", kiso: 109, unit: "5:ニーゴ" },
-  { name: "ロキ", kiso: 109, unit: "" },
+  { name: "ロキ", kiso: 109, unit: "1:レオニ" },
   { name: "ロケットサイダー", kiso: 116, unit: "1:レオニ" },
   { name: "ロストアンブレラ", kiso: 113, unit: "5:ニーゴ" },
   { name: "ロストエンファウンド", kiso: 122, unit: "1:レオニ" },

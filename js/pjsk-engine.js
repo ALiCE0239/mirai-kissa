@@ -306,14 +306,84 @@ const PjskEngine = {
       console.error('[未来喫茶] EMBEDDED_BORDER_DATA がありません。border-rankings-data.js を読み込んでください。');
       return false;
     }
+    this._borderBase = EMBEDDED_BORDER_DATA;
     this.borderData = EMBEDDED_BORDER_DATA;
     this.borderDataLoaded = true;
+    this._borderOverlayApplied = false;
     return true;
   },
 
   ensureBorderData() {
     if (this.borderDataLoaded && this.borderData?.ranks) return true;
     return this.initBorderData();
+  },
+
+  /** points → 表示用文字列（例: 約2億3000万P / 約159万P）。内蔵データの pointsDisplay と同形式 */
+  _borderPtDisplay(n) {
+    const v = Math.round(n);
+    const oku = Math.floor(v / 100000000);
+    const man = Math.floor((v % 100000000) / 10000);
+    if (oku > 0) return man > 0 ? `約${oku}億${man}万P` : `約${oku}億P`;
+    if (man > 0) return `約${man}万P`;
+    return `約${v}P`;
+  },
+
+  /** 内蔵データ（base）に管理ページの追加イベント（overlay）を重ねて borderData を作り直す */
+  _rebuildBorderData(overlayEvents) {
+    const base = this._borderBase;
+    if (!base || !base.ranks) return;
+    const ranks = {};
+    for (const t of Object.keys(base.ranks)) {
+      ranks[t] = (base.ranks[t] || []).slice();
+    }
+    const banners = new Set(base.banners || []);
+    const units = new Set(base.units || []);
+
+    for (const ev of overlayEvents || []) {
+      const pts = ev.points || {};
+      for (const t of Object.keys(pts)) {
+        const p = parseInt(pts[t], 10);
+        if (!Number.isFinite(p) || p <= 0 || !ranks[t]) continue;
+        const arr = ranks[t].filter((r) => r.eventName !== ev.eventName);
+        arr.push({
+          eventName: ev.eventName,
+          pointsDisplay: this._borderPtDisplay(p),
+          eventType: ev.eventType || '',
+          banner: ev.banner || '',
+          unit: ev.unit || '',
+          days: ev.days || '',
+          bonus: ev.bonus || '',
+          points: p,
+        });
+        arr.sort((a, b) => b.points - a.points);
+        ranks[t] = arr;
+      }
+      if (ev.banner) banners.add(ev.banner);
+      if (ev.unit) units.add(ev.unit);
+    }
+
+    this.borderData = {
+      source: base.source,
+      ranks,
+      banners: Array.from(banners),
+      units: Array.from(units),
+    };
+  },
+
+  /** 管理ページから追加された共有オーバーレイ（Firestore）を取り込む */
+  async loadBorderOverlay(force = false) {
+    if (this._borderOverlayApplied && !force) return true;
+    if (!this.ensureBorderData()) return false;
+    if (typeof MiraiGameData === 'undefined') return false;
+    try {
+      const events = await MiraiGameData.loadBorderOverlay(force);
+      this._rebuildBorderData(events);
+      this._borderOverlayApplied = true;
+      return true;
+    } catch (e) {
+      console.warn('[未来喫茶] ボーダーオーバーレイの読み込みに失敗:', e);
+      return false;
+    }
   },
 
   /** バナーキャラクター表示順（イベラン診断プルダウン） */
