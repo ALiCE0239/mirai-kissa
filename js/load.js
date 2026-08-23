@@ -21,6 +21,9 @@ const MiraiLoad = (function () {
       'js/border-rankings-data.js',
       'js/calculators.js',
     ],
+    eventSupportLite: [
+      'js/event-support.js',
+    ],
     eventSupport: [
       'js/pjsk-engine.js',
       'js/border-rankings-data.js',
@@ -33,38 +36,18 @@ const MiraiLoad = (function () {
       'js/guides.js',
     ],
     mypage: [
-      'js/qrcode.min.js',
       'js/qr-utils.js',
       'js/friends.js',
       'js/mypage.js',
     ],
     board: [
-      'js/qrcode.min.js',
-      'js/qr-utils.js',
       'js/friends.js',
-      'js/mypage.js',
       'js/board.js',
     ],
     ranking: [
-      'js/qrcode.min.js',
-      'js/qr-utils.js',
-      'js/friends.js',
-      'js/mypage.js',
       'js/ranking.js',
-    ],
-    mypageHub: [
-      'js/qrcode.min.js',
-      'js/qr-utils.js',
-      'js/friends.js',
-      'js/mypage.js',
-      'js/board.js',
-      'js/ranking.js',
-      'js/pjsk-engine.js',
-      'js/border-rankings-data.js',
-      'js/event-support.js',
     ],
     admin: [
-      'js/qrcode.min.js',
       'js/qr-utils.js',
       'js/friends.js',
       'js/mypage.js',
