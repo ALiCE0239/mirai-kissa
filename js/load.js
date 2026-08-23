@@ -30,9 +30,7 @@ const MiraiLoad = (function () {
       'js/event-support.js',
     ],
     guides: [
-      'js/pjsk-engine.js',
-      'js/border-rankings-data.js',
-      'js/event-support.js',
+      'js/guide-articles.js',
       'js/guides.js',
     ],
     mypage: [
