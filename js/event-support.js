@@ -8,7 +8,7 @@
  *
  * データ:
  *   users/{uid}/eventArchives/{archiveId}   … isPublic のとき公開 read、write は本人のみ
- *   Storage users/{uid}/eventArchives/{archiveId}.jpg … バナー画像1枚
+ *   Storage users/{uid}/eventArchive_{archiveId}.jpg … バナー画像1枚
  *
  * 計算は js/pjsk-engine.js の既存関数を再利用（新規式なし）。
  */
@@ -476,7 +476,7 @@ const MiraiEventSupport = (function () {
     if (file.size > 8 * 1024 * 1024) throw new Error('画像は8MB以下を選んでください。');
     const blob = await compressImage(file, 1280, 0.85);
     const { ref, uploadBytes, getDownloadURL } = f.storageFns;
-    const r = ref(f.storage, `users/${uid}/eventArchives/${id}.jpg`);
+    const r = ref(f.storage, `users/${uid}/eventArchive_${id}.jpg`);
     await uploadBytes(r, blob, { contentType: 'image/jpeg' });
     return getDownloadURL(r);
   }
@@ -1840,18 +1840,25 @@ const MiraiEventSupport = (function () {
         finalSave.disabled = true;
         finalSave.textContent = '保存中…';
         try {
-          if (pendingImageFile) {
-            if (imgStatus) imgStatus.textContent = '画像をアップロード中…';
-            archive.finalImageURL = await uploadBannerImage(user.uid, archive.id, pendingImageFile);
-            pendingImageFile = null;
-            if (previewObjectUrl) { URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = null; }
-            if (fileInput) fileInput.value = '';
-            if (imgStatus) imgStatus.textContent = '';
-          }
           archive.finalRank = numOrNull(box.querySelector('#esFinalRank').value);
           archive.finalPt = numOrNull(box.querySelector('#esFinalPt').value);
           archive.crystalsUsed = numOrNull(box.querySelector('#esFinalCrystals').value);
+          let imageError = null;
+          if (pendingImageFile) {
+            if (imgStatus) imgStatus.textContent = '画像をアップロード中…';
+            try {
+              archive.finalImageURL = await uploadBannerImage(user.uid, archive.id, pendingImageFile);
+              pendingImageFile = null;
+              if (previewObjectUrl) { URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = null; }
+              if (fileInput) fileInput.value = '';
+              if (imgStatus) imgStatus.textContent = '';
+            } catch (e) {
+              imageError = e;
+              if (imgStatus) imgStatus.textContent = '';
+            }
+          }
           await saveArchive(user.uid, archive);
+          if (imageError) throw imageError;
           const preview = box.querySelector('#esFinalPreview');
           if (preview && archive.finalImageURL) {
             preview.innerHTML = `<img src="${esc(archive.finalImageURL)}" alt="バナーページのスクショ" decoding="async">`;
