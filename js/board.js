@@ -675,6 +675,82 @@ const MiraiBoard = (function () {
     return base + hashPath;
   }
 
+  function publicSiteOrigin() {
+    const host = location.hostname || '';
+    if (host === 'localhost' || host === '127.0.0.1') return 'https://39cafe.fictionscale.jp';
+    return location.origin;
+  }
+
+  function escMeta(s, max) {
+    return String(s == null ? '' : s)
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, max || 180)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function eventSharePageHtml(post, pageUrl) {
+    const title = (post && post.eventName ? post.eventName : 'イベラン広告') + ' — 未来喫茶';
+    const desc = (post && post.body) || '未来喫茶のイベラン広告です。';
+    const imageUrl = (post && post.imageURL) || (publicSiteOrigin() + '/img/icon.png');
+    const card = post && post.imageURL ? 'summary_large_image' : 'summary';
+    return (
+      '<!DOCTYPE html><html lang="ja"><head>' +
+      '<meta charset="UTF-8">' +
+      '<title>' + escMeta(title, 80) + '</title>' +
+      '<meta name="description" content="' + escMeta(desc, 160) + '">' +
+      '<meta property="og:type" content="article">' +
+      '<meta property="og:site_name" content="未来喫茶">' +
+      '<meta property="og:title" content="' + escMeta(title, 80) + '">' +
+      '<meta property="og:description" content="' + escMeta(desc, 160) + '">' +
+      '<meta property="og:url" content="' + escMeta(pageUrl, 300) + '">' +
+      '<meta property="og:image" content="' + escMeta(imageUrl, 500) + '">' +
+      '<meta property="og:image:alt" content="' + escMeta(title, 80) + '">' +
+      '<meta name="twitter:card" content="' + card + '">' +
+      '<meta name="twitter:title" content="' + escMeta(title, 80) + '">' +
+      '<meta name="twitter:description" content="' + escMeta(desc, 160) + '">' +
+      '<meta name="twitter:image" content="' + escMeta(imageUrl, 500) + '">' +
+      '<link rel="canonical" href="' + escMeta(pageUrl, 300) + '">' +
+      '</head><body>' +
+      '<p><a href="' + escMeta(pageUrl, 300) + '">イベラン広告を開く</a></p>' +
+      '<script>location.replace(' + JSON.stringify(pageUrl) + ');</script>' +
+      '</body></html>'
+    );
+  }
+
+  async function publishEventSharePage(post) {
+    if (!post || !post.authorUid) return '';
+    const f = await fb();
+    if (!f || !f.configured) return '';
+    const pageUrl = eventDetailUrl(post.authorUid);
+    const html = eventSharePageHtml(post, pageUrl);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const { ref, uploadBytes, getDownloadURL } = f.storageFns;
+    const r = ref(f.storage, 'board/' + post.authorUid + '/share.html');
+    await uploadBytes(r, blob, { contentType: 'text/html;charset=utf-8' });
+    const url = await getDownloadURL(r);
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now();
+  }
+
+  async function ensureEventSharePage(post) {
+    if (!post || !post.authorUid) return post;
+    const user = window.MiraiAuth && MiraiAuth.getUser && MiraiAuth.getUser();
+    if (!user || user.uid !== post.authorUid) return post;
+    try {
+      const shareURL = await publishEventSharePage(post);
+      if (shareURL) {
+        post.shareURL = shareURL;
+        await saveDoc('boardEventAds', post.authorUid, { authorUid: post.authorUid, shareURL }, false);
+      }
+    } catch (e) {
+      console.warn('[board] share page:', e);
+    }
+    return post;
+  }
+
   function boardDetailShareHtml(pageUrl, shareText) {
     const xUrl = 'https://twitter.com/intent/tweet?' + new URLSearchParams({
       text: shareText,
@@ -683,7 +759,7 @@ const MiraiBoard = (function () {
     return (
       '<section class="board-detail-share" aria-label="リンクを共有">' +
       '<p class="board-detail-share__label">リンクを共有</p>' +
-      '<p class="form-hint board-detail-share__hint">URLをコピーするか、Xなどで投稿できます</p>' +
+      '<p class="form-hint board-detail-share__hint">URLをコピーするか、Xなどで投稿できます。募集画像がある広告は、Xでプレビューされます。</p>' +
       '<div class="board-detail-share__row">' +
       '<input type="text" class="form-input board-detail-share__url" readonly value="' + esc(pageUrl) + '" aria-label="詳細ページのURL">' +
       '<button type="button" class="btn btn-secondary btn-sm board-detail-share__copy">コピー</button>' +
@@ -1490,6 +1566,7 @@ const MiraiBoard = (function () {
       return;
     }
 
+    post = await ensureEventSharePage(post);
     const enriched = (await enrichPostsWithAvatars([post]))[0];
     const bookmarked = viewer ? (await loadBookmarkedUids(viewer.uid)).has(authorUid) : false;
     let supportTeamsHtml = '';
@@ -1541,7 +1618,7 @@ const MiraiBoard = (function () {
       conditionTags ? `<div class="board-chips">${conditionTags}</div>` : '',
       eventTags ? `<div class="board-chips board-chips--event">${eventTags}</div>` : '',
     ].filter(Boolean).join('');
-    const pageUrl = eventDetailUrl(p.authorUid);
+    const pageUrl = p.shareURL || eventDetailUrl(p.authorUid);
     const shareText = '【イベラン広告】' + (p.eventName || 'イベラン') + ' — 未来喫茶';
     const shareHtml = boardDetailShareHtml(pageUrl, shareText);
 
@@ -1741,6 +1818,11 @@ const MiraiBoard = (function () {
           showSupportTeams: box.querySelector('#evShowSupportTeams').checked,
           listingHold: 0,
         };
+        try {
+          data.shareURL = await publishEventSharePage(Object.assign({}, post, data, { authorUid: user.uid }));
+        } catch (e) {
+          console.warn('[board] share page:', e);
+        }
         await saveDoc('boardEventAds', user.uid, data, !docExists);
         docExists = true;
         post = Object.assign(post, data);
