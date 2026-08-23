@@ -929,17 +929,6 @@ const MiraiMyPage = (function () {
 
           <div class="mp-cat-card">
             <div class="mp-cat-card__head">
-              <span class="mp-cat-card__icon">💳</span>
-              <h3 class="mp-cat-card__title">プロフィールカード</h3>
-            </div>
-            <p class="mp-cat-card__desc">名刺サイズのプロフィールカードを作成できます</p>
-            <div class="mp-cat-card__actions">
-              <a href="#/mypage/profile-card" class="btn btn-secondary btn-sm" data-link>カードを作成</a>
-            </div>
-          </div>
-
-          <div class="mp-cat-card">
-            <div class="mp-cat-card__head">
               <span class="mp-cat-card__icon">🏆</span>
               <h3 class="mp-cat-card__title">ランキング</h3>
             </div>
@@ -1230,6 +1219,11 @@ const MiraiMyPage = (function () {
             <label for="mpBio">自己紹介</label>
             <textarea class="form-input" id="mpBio" rows="3" maxlength="200" placeholder="プロフィールや活動内容など">${esc(hub.bio)}</textarea>
           </div>
+
+        <div class="divider"></div>
+        <p class="adjust-filters__title">💳 プロフィールカード</p>
+        <p class="form-hint">名刺サイズのプロフィールカードを作成できます</p>
+        <a href="#/mypage/profile-card" class="btn btn-secondary btn-block" data-link>カードを作成</a>
 
         <div class="divider"></div>
         ${authProvidersSectionHtml(user)}
