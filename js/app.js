@@ -150,6 +150,26 @@
     };
   }
 
+  function withScripts(names, fn) {
+    return async (params) => {
+      try {
+        if (window.MiraiLoad) {
+          for (let i = 0; i < names.length; i++) {
+            await MiraiLoad.ensure(names[i]);
+          }
+        }
+      } catch (e) {
+        console.error('[未来喫茶] スクリプト読み込み:', e);
+        const app = document.getElementById('app');
+        if (app) {
+          app.innerHTML = '<div class="info-box"><p>必要なファイルの読み込みに失敗しました。再読み込みしてください。</p></div>';
+        }
+        return;
+      }
+      return fn(params);
+    };
+  }
+
   function isLocalDev() {
     const h = location.hostname;
     return h === 'localhost'
@@ -172,41 +192,41 @@
 
     router
       .add('/',         'tmpl-home',      () => initHome())
-      .add('/amatsuyu', 'tmpl-amatsuyu',  () => Calculators.initAmatsuyu())
-      .add('/event',    'tmpl-event',     () => Calculators.initEvent())
-      .add('/exec',     'tmpl-exec',      () => Calculators.initExec())
-      .add('/adjust',      'tmpl-adjust',      () => Calculators.initAdjust())
-      .add('/adjust-next', 'tmpl-adjust-next', () => Calculators.initAdjustNext())
-      .add('/kizuna',   'tmpl-kizuna',    () => Calculators.initKizuna())
-      .add('/diagnosis','tmpl-diagnosis', () => Calculators.initDiagnosis())
-      .add('/guides',   'tmpl-guides',    () => GuidesPage.init())
-      .add('/guides/reports/:id', 'tmpl-guides-report', (params) => GuidesPage.initReportDetail(params))
+      .add('/amatsuyu', 'tmpl-amatsuyu',  withScripts(['calc'], () => Calculators.initAmatsuyu()))
+      .add('/event',    'tmpl-event',     withScripts(['calc'], () => Calculators.initEvent()))
+      .add('/exec',     'tmpl-exec',      withScripts(['calc'], () => Calculators.initExec()))
+      .add('/adjust',      'tmpl-adjust',      withScripts(['calc'], () => Calculators.initAdjust()))
+      .add('/adjust-next', 'tmpl-adjust-next', withScripts(['calc'], () => Calculators.initAdjustNext()))
+      .add('/kizuna',   'tmpl-kizuna',    withScripts(['calc'], () => Calculators.initKizuna()))
+      .add('/diagnosis','tmpl-diagnosis', withScripts(['diagnosis'], () => Calculators.initDiagnosis()))
+      .add('/guides',   'tmpl-guides',    withScripts(['guides'], () => GuidesPage.init()))
+      .add('/guides/reports/:id', 'tmpl-guides-report', withScripts(['guides'], (params) => GuidesPage.initReportDetail(params)))
       .add('/support',  'tmpl-support',   () => MiraiSupport.initPage())
-      .add('/admin',    'tmpl-admin',     () => AdminPage.init())
-      .add('/login',    'tmpl-login',     () => MiraiMyPage.initLogin())
-      .add('/mypage',   'tmpl-mypage',    () => guardCommunity(() => MiraiMyPage.initMyPage())())
-      .add('/mypage/settings', 'tmpl-mypage-settings', () => guardCommunity(() => MiraiMyPage.initSettings())())
-      .add('/mypage/friend-requests', 'tmpl-mypage-friend-requests', () => guardCommunity(() => MiraiFriends.initFriendRequestsPage())())
-      .add('/mypage/friends', 'tmpl-mypage-friends', () => guardCommunity(() => MiraiFriends.initFriendsPage())())
-      .add('/mypage/friend-settings', 'tmpl-mypage-friend-settings', () => guardCommunity(() => MiraiFriends.initFriendRequestSettingsPage())())
-      .add('/mypage/sekainote', 'tmpl-mypage-sekainote', () => guardCommunity(() => MiraiMyPage.initSekaiNoteEdit())())
-      .add('/mypage/profile-card', 'tmpl-profile-card', () => guardCommunity(() => MiraiMyPage.initProfileCard())())
-      .add('/mypage/ranking', 'tmpl-ranking-hub', () => guardCommunity(() => MiraiRanking.initMypageHub())())
-      .add('/mypage/ranking/:type', 'tmpl-ranking-edit', (params) => guardCommunity(() => MiraiRanking.initEdit(params))())
-      .add('/mypage/event-support', 'tmpl-mypage-event-support', () => guardCommunity(() => MiraiEventSupport.initHub())())
-      .add('/mypage/event-support/:id/report', 'tmpl-mypage-event-report', (params) => guardCommunity(() => GuidesPage.initReportEditor(params))())
-      .add('/mypage/event-support/:id', 'tmpl-mypage-event-archive', (params) => guardCommunity(() => MiraiEventSupport.initArchive(params))())
-      .add('/ranking', 'tmpl-ranking', () => MiraiRanking.initHub())
-      .add('/ranking/:type', 'tmpl-ranking', (params) => MiraiRanking.initView(params))
-      .add('/sekainote/read', 'tmpl-sekainote-read', () => MiraiMyPage.initSekaiNoteRead())
-      .add('/p/:id',    'tmpl-public',    (params) => MiraiMyPage.initPublic(params))
-      .add('/board/event/bookmarks', 'tmpl-board-event-bookmarks', () => guardCommunity(() => MiraiBoard.initEventBookmarks())())
-      .add('/board/event',       'tmpl-board-event',       () => MiraiBoard.initEventList())
-      .add('/board/event/:uid',  'tmpl-board-event-detail', (params) => MiraiBoard.initEventDetail(params))
-      .add('/board/event/edit',  'tmpl-board-event-edit',  () => guardCommunity(() => MiraiBoard.initEventEdit())())
-      .add('/board/mysekai',     'tmpl-board-mysekai',     () => MiraiBoard.initMysekaiList())
-      .add('/board/mysekai/:uid','tmpl-board-mysekai-detail', (params) => MiraiBoard.initMysekaiDetail(params))
-      .add('/board/mysekai/edit','tmpl-board-mysekai-edit',() => guardCommunity(() => MiraiBoard.initMysekaiEdit())())
+      .add('/admin',    'tmpl-admin',     withScripts(['admin'], () => AdminPage.init()))
+      .add('/login',    'tmpl-login',     withScripts(['mypage'], () => MiraiMyPage.initLogin()))
+      .add('/mypage',   'tmpl-mypage',    withScripts(['mypageHub'], () => guardCommunity(() => MiraiMyPage.initMyPage())()))
+      .add('/mypage/settings', 'tmpl-mypage-settings', withScripts(['mypage'], () => guardCommunity(() => MiraiMyPage.initSettings())()))
+      .add('/mypage/friend-requests', 'tmpl-mypage-friend-requests', withScripts(['mypage'], () => guardCommunity(() => MiraiFriends.initFriendRequestsPage())()))
+      .add('/mypage/friends', 'tmpl-mypage-friends', withScripts(['mypage'], () => guardCommunity(() => MiraiFriends.initFriendsPage())()))
+      .add('/mypage/friend-settings', 'tmpl-mypage-friend-settings', withScripts(['mypage'], () => guardCommunity(() => MiraiFriends.initFriendRequestSettingsPage())()))
+      .add('/mypage/sekainote', 'tmpl-mypage-sekainote', withScripts(['board'], () => guardCommunity(() => MiraiMyPage.initSekaiNoteEdit())()))
+      .add('/mypage/profile-card', 'tmpl-profile-card', withScripts(['mypage'], () => guardCommunity(() => MiraiMyPage.initProfileCard())()))
+      .add('/mypage/ranking', 'tmpl-ranking-hub', withScripts(['ranking'], () => guardCommunity(() => MiraiRanking.initMypageHub())()))
+      .add('/mypage/ranking/:type', 'tmpl-ranking-edit', withScripts(['ranking'], (params) => guardCommunity(() => MiraiRanking.initEdit(params))()))
+      .add('/mypage/event-support', 'tmpl-mypage-event-support', withScripts(['eventSupport'], () => guardCommunity(() => MiraiEventSupport.initHub())()))
+      .add('/mypage/event-support/:id/report', 'tmpl-mypage-event-report', withScripts(['guides'], (params) => guardCommunity(() => GuidesPage.initReportEditor(params))()))
+      .add('/mypage/event-support/:id', 'tmpl-mypage-event-archive', withScripts(['eventSupport'], (params) => guardCommunity(() => MiraiEventSupport.initArchive(params))()))
+      .add('/ranking', 'tmpl-ranking', withScripts(['ranking'], () => MiraiRanking.initHub()))
+      .add('/ranking/:type', 'tmpl-ranking', withScripts(['ranking'], (params) => MiraiRanking.initView(params)))
+      .add('/sekainote/read', 'tmpl-sekainote-read', withScripts(['mypage'], () => MiraiMyPage.initSekaiNoteRead()))
+      .add('/p/:id',    'tmpl-public',    withScripts(['board'], (params) => MiraiMyPage.initPublic(params)))
+      .add('/board/event/bookmarks', 'tmpl-board-event-bookmarks', withScripts(['board'], () => guardCommunity(() => MiraiBoard.initEventBookmarks())()))
+      .add('/board/event',       'tmpl-board-event',       withScripts(['board'], () => MiraiBoard.initEventList()))
+      .add('/board/event/:uid',  'tmpl-board-event-detail', withScripts(['board'], (params) => MiraiBoard.initEventDetail(params)))
+      .add('/board/event/edit',  'tmpl-board-event-edit',  withScripts(['board'], () => guardCommunity(() => MiraiBoard.initEventEdit())()))
+      .add('/board/mysekai',     'tmpl-board-mysekai',     withScripts(['board'], () => MiraiBoard.initMysekaiList()))
+      .add('/board/mysekai/:uid','tmpl-board-mysekai-detail', withScripts(['board'], (params) => MiraiBoard.initMysekaiDetail(params)))
+      .add('/board/mysekai/edit','tmpl-board-mysekai-edit', withScripts(['board'], () => guardCommunity(() => MiraiBoard.initMysekaiEdit())()))
       .add('404',       'tmpl-404',       null);
 
     router.onRouteChange = (hash) => {
@@ -259,12 +279,6 @@
       }
     }
     initRouter();
-    if (typeof PjskEngine !== 'undefined') {
-      if (PjskEngine.loadMultiplierData) {
-        PjskEngine.loadMultiplierData().catch(() => {});
-      }
-      if (PjskEngine.initBorderData) PjskEngine.initBorderData();
-    }
     if (typeof MiraiAds !== 'undefined') MiraiAds.init();
     if (typeof MiraiSupport !== 'undefined') MiraiSupport.init();
   });

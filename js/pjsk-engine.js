@@ -26,7 +26,9 @@ const PjskEngine = {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
     try {
-      const res = await fetch(`${path}?v=${Date.now()}`, controller ? { signal: controller.signal } : {});
+      const meta = typeof document !== 'undefined' ? document.querySelector('meta[name="mirai-kissa-build"]') : null;
+      const ver = (meta && meta.getAttribute('content')) || '1';
+      const res = await fetch(`${path}?v=${encodeURIComponent(ver)}`, controller ? { signal: controller.signal } : {});
       if (timer) clearTimeout(timer);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       this.applyMultiplierText(await res.text());

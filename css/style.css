@@ -3,8 +3,6 @@
    Theme: Light White × Green & Blue
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Orbitron:wght@400;600;700&display=swap');
-
 :root {
   /* Primary palette — bright white base */
   --bg-primary: #ffffff;
