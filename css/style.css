@@ -1239,12 +1239,45 @@ input, select {
 
 .guides-article-card {
   padding: 1.25rem 1.5rem;
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.guides-article-card:hover {
+  text-decoration: none;
 }
 
 .guides-article-card__emoji {
   font-size: 1.5rem;
   margin-bottom: 0.35rem;
   display: block;
+}
+
+.guides-official-cat { margin-bottom: 1.75rem; }
+
+.guides-article-detail { padding: 1.4rem 1.5rem 1.6rem; }
+
+.guides-article-detail__kicker {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.guides-article-detail h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.35rem;
+}
+
+.guides-article-detail__summary {
+  margin: 0 0 1rem;
+  color: var(--text-secondary);
+}
+
+.guides-article-body {
+  line-height: 1.8;
+  color: var(--text-primary);
 }
 
 .guides-section-title {

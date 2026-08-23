@@ -1,11 +1,13 @@
 /**
  * 未来喫茶 — 攻略図書館
  *
- * - #/guides                         一覧（イベランレポート＋カテゴリ）
+ * - #/guides                         一覧（公式記事＋イベランレポート）
+ * - #/guides/articles/:id            公式記事の詳細
  * - #/guides/reports/:id             イベランレポート詳細（公開）
  * - #/mypage/event-support/:id/report  アーカイブからレポート作成・編集（要ログイン）
  *
- * データ: eventReports/{uid}_{archiveId}
+ * 公式記事: js/guide-articles.js（Firebase 不要）
+ * レポート: eventReports/{uid}_{archiveId}
  *   公開記事は isPublished == true のみ一覧・詳細に出る。
  *   本文はセカイノートと同じくタイトル＋本文のノート形式。
  *   成績・グラフ・編成はイベントアーカイブのスナップショット。
@@ -33,6 +35,7 @@ const GuidesPage = (function () {
     { id: 'team', name: '編成・育成', emoji: '📐' },
     { id: 'other', name: 'その他', emoji: '📖' },
   ];
+  const ARTICLES = Array.isArray(window.MiraiGuideArticles) ? window.MiraiGuideArticles : [];
 
   const SECTION_DEFS = [
     { id: 'image', label: '結果画像' },
@@ -413,7 +416,12 @@ const GuidesPage = (function () {
         limit(LIST_LIMIT)
       ));
     } catch (e) {
-      snap = await getDocs(query(col, where('isPublished', '==', true), limit(LIST_LIMIT)));
+      try {
+        snap = await getDocs(query(col, where('isPublished', '==', true), limit(LIST_LIMIT)));
+      } catch (e2) {
+        console.warn('[guides] listPublishedReports:', e2);
+        throw e2;
+      }
     }
     const items = [];
     snap.forEach((d) => items.push(normalizeReport(d.data(), d.id)));
@@ -437,7 +445,12 @@ const GuidesPage = (function () {
         orderBy('updatedAtMs', 'desc')
       ));
     } catch (e) {
-      snap = await getDocs(query(col, where('authorUid', '==', uid)));
+      try {
+        snap = await getDocs(query(col, where('authorUid', '==', uid)));
+      } catch (e2) {
+        console.warn('[guides] listOwnReports:', e2);
+        throw e2;
+      }
     }
     const items = [];
     snap.forEach((d) => items.push(normalizeReport(d.data(), d.id)));
@@ -933,6 +946,66 @@ const GuidesPage = (function () {
     );
   }
 
+  function findArticle(id) {
+    const key = String(id || '');
+    return ARTICLES.find((a) => a && String(a.id) === key) || null;
+  }
+
+  function articleCardHtml(article) {
+    return (
+      '<a class="card guides-article-card" href="#/guides/articles/' + esc(article.id) + '" data-link>' +
+      '<span class="guides-article-card__emoji">' + esc(article.emoji || '📄') + '</span>' +
+      '<h3>' + esc(article.title || '無題') + '</h3>' +
+      (article.summary ? '<p class="text-muted">' + esc(article.summary) + '</p>' : '') +
+      '</a>'
+    );
+  }
+
+  function officialLibraryHtml() {
+    const byCat = {};
+    ARTICLES.forEach((a) => {
+      if (!a || !a.id || !a.title) return;
+      const cat = CATEGORIES.some((c) => c.id === a.category) ? a.category : 'other';
+      if (!byCat[cat]) byCat[cat] = [];
+      byCat[cat].push(a);
+    });
+    const filled = CATEGORIES.filter((c) => byCat[c.id] && byCat[c.id].length);
+    const empty = CATEGORIES.filter((c) => !(byCat[c.id] && byCat[c.id].length));
+    let html = '';
+    filled.forEach((c) => {
+      html +=
+        '<section class="guides-official-cat">' +
+        '<h2 class="guides-section-title">' + c.emoji + ' ' + esc(c.name) + '</h2>' +
+        '<div class="guides-list">' + byCat[c.id].map(articleCardHtml).join('') + '</div>' +
+        '</section>';
+    });
+    if (empty.length) {
+      html +=
+        '<section class="guides-more">' +
+        '<h2 class="guides-section-title">' + (filled.length ? 'その他の棚' : '攻略の棚') + '</h2>' +
+        '<div class="guides-categories">' +
+        empty.map((c) =>
+          '<div class="guides-category-card card">' +
+          '<span class="guides-category-card__emoji">' + c.emoji + '</span>' +
+          '<h3>' + esc(c.name) + '</h3>' +
+          '<p class="text-muted">記事を追加予定</p>' +
+          '</div>'
+        ).join('') +
+        '</div></section>';
+    }
+    if (!filled.length) {
+      html =
+        '<div class="guides-empty">' +
+        '<div class="info-box">' +
+        '<p><strong>公式記事は順次追加します</strong></p>' +
+        '<p class="mt-1">イベント周回・編成・マイセカイなど、プロセカの攻略記事をここに置いていきます。</p>' +
+        '</div>' +
+        html +
+        '</div>';
+    }
+    return html;
+  }
+
   function reportCardHtml(report) {
     const archive = snapshotToArchive(report.snapshot);
     const title = report.title || archive.title || '無題のレポート';
@@ -966,102 +1039,25 @@ const GuidesPage = (function () {
 
   // ================= 一覧 =================
 
-  async function init() {
-    const root = document.getElementById('guidesRoot');
-    if (!root) return;
-
-    root.innerHTML = '<p class="text-muted">読み込み中…</p>';
-
-    if (!(await isConfigured()) && !useLocalPreview()) {
-      root.innerHTML = notConfiguredHtml();
-      return;
-    }
-
-    const user = (typeof MiraiAuth !== 'undefined' && MiraiAuth.getUser) ? MiraiAuth.getUser() : null;
-    let published = [];
-    let own = [];
-    try {
-      published = await listPublishedReports();
-      if (user) own = await listOwnReports(user.uid);
-    } catch (e) {
-      console.error(e);
-      root.innerHTML =
-        '<div class="info-box"><p>読み込みに失敗しました。</p>' +
-        '<p class="form-error mt-1">' + esc(e.message || String(e)) + '</p></div>';
-      return;
-    }
-
-    const ownUnpublished = own.filter((r) => !r.isPublished);
+  function reportsShellHtml(user) {
     const postHint = user
-      ? '<p class="form-hint guides-post-hint">投稿は<a href="#/mypage/event-support" data-link>イベラン支援</a>のイベントアーカイブから、ノート形式で作成できます。</p>'
-      : '<p class="form-hint guides-post-hint">投稿するには<a href="#/login" data-link>ログイン</a>して、イベラン支援のアーカイブからレポートを作成してください。</p>';
-
-    const ownBlock = ownUnpublished.length
-      ? (
-        '<section class="guides-own">' +
-        '<h2 class="guides-section-title">自分の下書き</h2>' +
-        '<div class="guides-report-list">' + ownUnpublished.map(reportCardHtml).join('') + '</div>' +
-        '</section>'
-      )
-      : '';
-
-    const usedChars = [];
-    published.forEach((r) => {
-      const c = reportEventChar(r);
-      if (c && !usedChars.includes(c)) usedChars.push(c);
-    });
-    usedChars.sort((a, b) => {
-      const list = getEventCharList();
-      const ia = list.indexOf(a);
-      const ib = list.indexOf(b);
-      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
-    });
-
-    const otherCats = CATEGORIES.filter((c) => c.id !== 'event').map((c) =>
-      '<div class="guides-category-card card">' +
-      '<span class="guides-category-card__emoji">' + c.emoji + '</span>' +
-      '<h3>' + esc(c.name) + '</h3>' +
-      '<p class="text-muted">記事を追加予定</p>' +
-      '</div>'
-    ).join('');
-
-    function charChipHtml(name, active) {
-      return '<button type="button" class="board-tag board-tag--event' + (active ? ' is-active' : '') + '" data-char="' + esc(name) + '">' + esc(name) + '</button>';
-    }
-
-    const quickChips = usedChars.length
-      ? usedChars.map((c) => charChipHtml(c, false)).join('')
-      : '';
-    const allChips = getEventCharList().map((c) => charChipHtml(c, false)).join('');
-
-    root.innerHTML =
+      ? '<p class="form-hint guides-post-hint">投稿は<a href="#/mypage/event-support" data-link>イベラン支援</a>のイベントアーカイブから、ノート形式で作成できます。現在は準備中です。</p>'
+      : '<p class="form-hint guides-post-hint">ユーザー投稿のイベランレポートは準備中です。</p>';
+    return (
       '<section class="guides-event">' +
       '<div class="guides-event__head">' +
       '<h2 class="guides-section-title">🏆 イベランレポート</h2>' +
       '</div>' +
       postHint +
-      '<div class="guides-report-filter">' +
-      '<label class="guides-report-filter__label" for="grFilterQ">キャラタグ・本文で探す</label>' +
-      '<input type="search" class="form-input" id="grFilterQ" placeholder="例: 奏 / 睡眠 / 10炊き">' +
-      '<div class="guides-char-tags" id="grCharTags">' +
-      '<button type="button" class="board-tag is-active" data-char="">すべて</button>' +
-      quickChips +
-      '</div>' +
-      '<details class="guides-char-all">' +
-      '<summary>すべてのキャラから選ぶ</summary>' +
-      '<div class="guides-char-tags guides-char-tags--all" id="grCharTagsAll">' + allChips + '</div>' +
-      '</details>' +
-      '</div>' +
-      ownBlock +
-      '<div id="grPublishedList"></div>' +
-      '</section>' +
-      '<section class="guides-more">' +
-      '<h2 class="guides-section-title">その他の棚</h2>' +
-      '<div class="guides-categories">' + otherCats + '</div>' +
-      '</section>';
+      '<div id="grReportsMount"><p class="text-muted">読み込み中…</p></div>' +
+      '</section>'
+    );
+  }
 
+  function wirePublishedReports(root, published) {
     const listEl = root.querySelector('#grPublishedList');
     const qEl = root.querySelector('#grFilterQ');
+    if (!listEl) return;
     let selectedChar = '';
 
     function reportMatches(report, q, char) {
@@ -1082,7 +1078,7 @@ const GuidesPage = (function () {
       const q = qEl ? qEl.value : '';
       const filtered = published.filter((r) => reportMatches(r, q, selectedChar));
       if (!published.length) {
-        listEl.innerHTML = '<div class="info-box"><p>まだ公開されているイベランレポートはありません。</p><p class="mt-1">イベントアーカイブの記録をもとに、最初のレポートを書いてみましょう。</p></div>';
+        listEl.innerHTML = '<div class="info-box"><p>まだ公開されているイベランレポートはありません。</p></div>';
         return;
       }
       if (!filtered.length) {
@@ -1108,6 +1104,115 @@ const GuidesPage = (function () {
     });
     if (qEl) qEl.addEventListener('input', renderPublished);
     renderPublished();
+  }
+
+  function fillReportsMount(root, published, own, errorText) {
+    const mount = root.querySelector('#grReportsMount');
+    if (!mount) return;
+    if (errorText) {
+      mount.innerHTML =
+        '<div class="info-box"><p>イベランレポートはいま読み込めません。公式記事はそのままご覧いただけます。</p></div>';
+      return;
+    }
+
+    const ownUnpublished = (own || []).filter((r) => !r.isPublished);
+    const ownBlock = ownUnpublished.length
+      ? (
+        '<section class="guides-own">' +
+        '<h2 class="guides-section-title">自分の下書き</h2>' +
+        '<div class="guides-report-list">' + ownUnpublished.map(reportCardHtml).join('') + '</div>' +
+        '</section>'
+      )
+      : '';
+
+    const usedChars = [];
+    published.forEach((r) => {
+      const c = reportEventChar(r);
+      if (c && !usedChars.includes(c)) usedChars.push(c);
+    });
+    usedChars.sort((a, b) => {
+      const list = getEventCharList();
+      const ia = list.indexOf(a);
+      const ib = list.indexOf(b);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+    });
+
+    function charChipHtml(name, active) {
+      return '<button type="button" class="board-tag board-tag--event' + (active ? ' is-active' : '') + '" data-char="' + esc(name) + '">' + esc(name) + '</button>';
+    }
+
+    const quickChips = usedChars.length ? usedChars.map((c) => charChipHtml(c, false)).join('') : '';
+    const allChips = getEventCharList().map((c) => charChipHtml(c, false)).join('');
+
+    mount.innerHTML =
+      '<div class="guides-report-filter">' +
+      '<label class="guides-report-filter__label" for="grFilterQ">キャラタグ・本文で探す</label>' +
+      '<input type="search" class="form-input" id="grFilterQ" placeholder="例: 奏 / 睡眠 / 10炊き">' +
+      '<div class="guides-char-tags" id="grCharTags">' +
+      '<button type="button" class="board-tag is-active" data-char="">すべて</button>' +
+      quickChips +
+      '</div>' +
+      '<details class="guides-char-all">' +
+      '<summary>すべてのキャラから選ぶ</summary>' +
+      '<div class="guides-char-tags guides-char-tags--all" id="grCharTagsAll">' + allChips + '</div>' +
+      '</details>' +
+      '</div>' +
+      ownBlock +
+      '<div id="grPublishedList"></div>';
+    wirePublishedReports(root, published);
+  }
+
+  async function init() {
+    const root = document.getElementById('guidesRoot');
+    if (!root) return;
+
+    const user = (typeof MiraiAuth !== 'undefined' && MiraiAuth.getUser) ? MiraiAuth.getUser() : null;
+    root.innerHTML = officialLibraryHtml() + reportsShellHtml(user);
+
+    let configured = false;
+    try {
+      configured = await isConfigured();
+    } catch (e) {
+      console.warn('[guides] firebase:', e);
+    }
+    if (!configured && !useLocalPreview()) {
+      fillReportsMount(root, [], [], 'unavailable');
+      return;
+    }
+
+    let published = [];
+    let own = [];
+    try {
+      published = await listPublishedReports();
+      if (user) own = await listOwnReports(user.uid);
+      fillReportsMount(root, published, own, '');
+    } catch (e) {
+      console.warn('[guides] reports:', e);
+      fillReportsMount(root, [], [], e.message || String(e));
+    }
+  }
+
+  function initArticle(params) {
+    const root = document.getElementById('app');
+    const box = root && root.querySelector('#guidesArticleRoot');
+    if (!box) return;
+    const article = findArticle(params && params.id);
+    if (!article) {
+      box.innerHTML =
+        '<div class="info-box"><p>記事が見つかりませんでした。</p>' +
+        '<p class="mt-2"><a href="#/guides" class="btn btn-secondary" data-link>攻略図書館に戻る</a></p></div>';
+      return;
+    }
+    const cat = CATEGORIES.find((c) => c.id === article.category);
+    document.title = (article.title || '攻略記事') + ' — 未来喫茶';
+    box.innerHTML =
+      '<article class="card guides-article-detail">' +
+      '<p class="guides-article-detail__kicker">' + esc((cat && (cat.emoji + ' ' + cat.name)) || '攻略記事') + '</p>' +
+      '<h2>' + esc(article.emoji || '') + ' ' + esc(article.title || '無題') + '</h2>' +
+      (article.summary ? '<p class="guides-article-detail__summary">' + esc(article.summary) + '</p>' : '') +
+      '<div class="guides-article-body">' + esc(article.body || '').replace(/\n/g, '<br>') + '</div>' +
+      '</article>' +
+      '<p class="mt-3"><a href="#/guides" class="btn btn-secondary btn-block" data-link>攻略図書館に戻る</a></p>';
   }
 
   // ================= 詳細 =================
@@ -1624,6 +1729,7 @@ const GuidesPage = (function () {
 
   return {
     init,
+    initArticle,
     initReportDetail,
     initReportEditor,
     loadReport,
