@@ -1571,6 +1571,9 @@ const MiraiBoard = (function () {
     const bookmarked = viewer ? (await loadBookmarkedUids(viewer.uid)).has(authorUid) : false;
     let supportTeamsHtml = '';
     if (enriched.showSupportTeams && enriched.authorPublicId) {
+      if (!window.MiraiMyPage && window.MiraiLoad) {
+        try { await MiraiLoad.ensure('mypage'); } catch (e) { console.warn(e); }
+      }
       const authorHub = await loadPublicHub(enriched.authorPublicId);
       if (authorHub && window.MiraiMyPage && typeof MiraiMyPage.supportTeamsDetailHtml === 'function') {
         supportTeamsHtml = MiraiMyPage.supportTeamsDetailHtml(authorHub.supportTeams);

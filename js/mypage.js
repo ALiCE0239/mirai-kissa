@@ -710,10 +710,7 @@ const MiraiMyPage = (function () {
       if (isStale()) return;
 
       renderDashboard(box, user, hub, sekaiSaved, profileSaveError);
-      loadBoardSummaries(box, user);
-      loadRankingSummaries(box, user);
-      loadEventBookmarksSummary(box, user);
-      loadEventSupportSummary(box, user);
+      loadDashboardExtras(box, user, isStale);
     }
 
     await renderPage();
@@ -1664,6 +1661,25 @@ const MiraiMyPage = (function () {
     });
   }
 
+  function loadDashboardExtras(box, user, isStale) {
+    const fill = () => {
+      if (typeof isStale === 'function' && isStale()) return;
+      loadBoardSummaries(box, user);
+      loadRankingSummaries(box, user);
+      loadEventBookmarksSummary(box, user);
+      loadEventSupportSummary(box, user);
+    };
+    if (!window.MiraiLoad) {
+      fill();
+      return;
+    }
+    Promise.all([
+      MiraiLoad.ensure('board'),
+      MiraiLoad.ensure('ranking'),
+      MiraiLoad.ensure('eventSupportLite'),
+    ]).then(fill).catch((e) => console.warn('[mypage] extras:', e));
+  }
+
   function loadEventBookmarksSummary(box, user) {
     const el = box.querySelector('#mpEventBookmarks');
     if (!el || !window.MiraiBoard || !MiraiBoard.listEventBookmarks) return;
@@ -2201,7 +2217,12 @@ const MiraiMyPage = (function () {
 
   async function loadPublicArchives(box, hub, isStale) {
     const root = box.querySelector('#publicArchivesRoot');
-    if (!root || !hub || !hub.uid || !window.MiraiEventSupport || !MiraiEventSupport.listPublicArchives) return;
+    if (!root || !hub || !hub.uid) return;
+    if (!window.MiraiEventSupport && window.MiraiLoad) {
+      try { await MiraiLoad.ensure('eventSupportLite'); } catch (e) { console.warn(e); }
+    }
+    if (isStale && isStale()) return;
+    if (!window.MiraiEventSupport || !MiraiEventSupport.listPublicArchives) return;
     try {
       const items = await MiraiEventSupport.listPublicArchives(hub.uid);
       if (isStale && isStale()) return;
