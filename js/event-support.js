@@ -459,26 +459,54 @@ const MiraiEventSupport = (function () {
     });
   }
 
+  function blobToDataUrl(blob) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = () => rej(new Error('画像の読み込みに失敗しました'));
+      r.readAsDataURL(blob);
+    });
+  }
+
+  function isStorageDenied(e) {
+    const text = String((e && (e.code || e.message)) || e || '');
+    return /storage\/unauthorized|permission-denied|does not have permission/i.test(text);
+  }
+
   async function uploadBannerImage(uid, id, file) {
-    if (useLocalPreview()) {
-      if (!/^image\//i.test(file.type)) throw new Error('画像ファイルを選んでください。');
-      const blob = await compressImage(file, 1280, 0.85);
-      return new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(r.result);
-        r.onerror = () => rej(new Error('画像の読み込みに失敗しました'));
-        r.readAsDataURL(blob);
-      });
-    }
-    const f = await fb();
-    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     if (!/^image\//i.test(file.type)) throw new Error('画像ファイルを選んでください。');
     if (file.size > 8 * 1024 * 1024) throw new Error('画像は8MB以下を選んでください。');
     const blob = await compressImage(file, 1280, 0.85);
+
+    if (useLocalPreview()) return blobToDataUrl(blob);
+
+    const f = await fb();
+    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
+    const authUid = (f.auth && f.auth.currentUser && f.auth.currentUser.uid) || uid;
     const { ref, uploadBytes, getDownloadURL } = f.storageFns;
-    const r = ref(f.storage, `users/${uid}/eventArchive_${id}.jpg`);
-    await uploadBytes(r, blob, { contentType: 'image/jpeg' });
-    return getDownloadURL(r);
+    const paths = [
+      `users/${authUid}/eventArchive_${id}.jpg`,
+      `board/${authUid}/eventArchive_${id}.jpg`,
+    ];
+    let lastErr = null;
+    for (let i = 0; i < paths.length; i++) {
+      try {
+        const r = ref(f.storage, paths[i]);
+        await uploadBytes(r, blob, { contentType: 'image/jpeg' });
+        return await getDownloadURL(r);
+      } catch (e) {
+        lastErr = e;
+        if (!isStorageDenied(e)) throw e;
+      }
+    }
+
+    let stored = blob;
+    if (stored.size > 450 * 1024) stored = await compressImage(file, 960, 0.7);
+    if (stored.size > 450 * 1024) stored = await compressImage(file, 800, 0.62);
+    if (stored.size > 450 * 1024) {
+      throw lastErr || new Error('画像のアップロードに失敗しました。');
+    }
+    return blobToDataUrl(stored);
   }
 
   // ---------- 計算（プラン） ----------
