@@ -18,6 +18,47 @@ const MiraiEventSupport = (function () {
   const MAX_ARCHIVES = 3;
   const TITLE_MAX = 60;
   const NOTE_MAX = 120;
+  const EVENT_VOCALOID_CHARS = ['初音ミク', '鏡音リン', '鏡音レン', '巡音ルカ', 'MEIKO', 'KAITO'];
+  const FALLBACK_EVENT_CHARS = [
+    '一歌', '咲希', '穂波', '志歩', 'みのり', '遥', '愛莉', '雫', 'こはね', '杏',
+    '彰人', '冬弥', '司', 'えむ', '寧々', '類', '奏', 'まふゆ', '絵名', '瑞希',
+  ].concat(EVENT_VOCALOID_CHARS);
+
+  function getEventCharList() {
+    const engine = window.PjskEngine;
+    if (engine && Array.isArray(engine.BANNER_DISPLAY_ORDER)) {
+      return engine.BANNER_DISPLAY_ORDER.concat(EVENT_VOCALOID_CHARS);
+    }
+    return FALLBACK_EVENT_CHARS.slice();
+  }
+
+  function normalizeEventChar(v) {
+    const s = String(v || '').trim();
+    if (!s) return '';
+    return getEventCharList().includes(s) ? s : s.slice(0, 20);
+  }
+
+  /** 明示指定がなければ、ボーダー推定用バナーがキャラ名のときそれを使う（既存データ互換） */
+  function resolveEventChar(a) {
+    const explicit = normalizeEventChar(a && a.eventChar);
+    if (explicit) return explicit;
+    const banner = a && a.banner ? String(a.banner).trim() : '';
+    return getEventCharList().includes(banner) ? banner : '';
+  }
+
+  function eventCharOptions(selected) {
+    const sel = String(selected || '');
+    const opts = ['<option value="">未指定</option>'];
+    getEventCharList().forEach((name) => {
+      opts.push('<option value="' + esc(name) + '"' + (sel === name ? ' selected' : '') + '>' + esc(name) + '</option>');
+    });
+    return opts.join('');
+  }
+
+  function eventCharTagHtml(name) {
+    if (!name) return '';
+    return '<span class="char-tag">' + esc(name) + '</span>';
+  }
 
   // ---------- 汎用ヘルパー ----------
 
@@ -71,6 +112,60 @@ const MiraiEventSupport = (function () {
     if (!ms) return '—';
     const d = new Date(ms);
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function targetRankLabel(rank) {
+    if (rank == null) return '指定なし';
+    const preset = window.PjskEngine && PjskEngine.TARGET_RANK_PRESETS
+      ? PjskEngine.TARGET_RANK_PRESETS.find((p) => p.id === rank)
+      : null;
+    return preset ? preset.label : rank + '位';
+  }
+
+  function normalizeTargetRankHistory(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+      .map((x) => ({
+        rank: x && x.rank != null && x.rank !== '' ? Number(x.rank) : null,
+        prevRank: x && x.prevRank != null && x.prevRank !== '' ? Number(x.prevRank) : null,
+        at: Number(x && x.at) || 0,
+      }))
+      .filter((x) => x.at)
+      .slice(-20);
+  }
+
+  function recordTargetRankChange(archive, nextRank) {
+    const prev = archive.targetRank != null ? archive.targetRank : null;
+    const next = nextRank != null ? nextRank : null;
+    if (prev === next) return false;
+    const at = Date.now();
+    archive.targetRank = next;
+    archive.targetRankChangedAt = at;
+    const hist = Array.isArray(archive.targetRankHistory) ? archive.targetRankHistory.slice() : [];
+    hist.push({ rank: next, prevRank: prev, at });
+    archive.targetRankHistory = hist.slice(-20);
+    return true;
+  }
+
+  function rankStatusHtml(archive) {
+    const current = '現在 ' + targetRankLabel(archive.targetRank);
+    const changed = archive.targetRankChangedAt
+      ? ' · 変更 ' + fmtDateTime(archive.targetRankChangedAt)
+      : '';
+    return current + changed;
+  }
+
+  function rankHistoryHtml(archive) {
+    const hist = Array.isArray(archive.targetRankHistory) ? archive.targetRankHistory : [];
+    if (!hist.length) return '<p class="form-hint">まだ変更記録はありません。</p>';
+    return (
+      '<ul class="es-rank-history">' +
+      hist.slice().reverse().map((h) =>
+        '<li><span>' + esc(targetRankLabel(h.prevRank)) + ' → ' + esc(targetRankLabel(h.rank)) + '</span>' +
+        '<time>' + esc(fmtDateTime(h.at)) + '</time></li>'
+      ).join('') +
+      '</ul>'
+    );
   }
 
   function toInputDate(ms) {
@@ -131,10 +226,13 @@ const MiraiEventSupport = (function () {
       id: a.id,
       title: String(a.title || '').slice(0, TITLE_MAX),
       eventType: String(a.eventType || '').slice(0, 30),
+      eventChar: resolveEventChar(a),
       filterType: a.filterType === 'unit' ? 'unit' : 'banner',
       banner: String(a.banner || ''),
       unit: String(a.unit || ''),
       targetRank: a.targetRank != null && a.targetRank !== '' ? Number(a.targetRank) : null,
+      targetRankChangedAt: numOrNull(a.targetRankChangedAt),
+      targetRankHistory: normalizeTargetRankHistory(a.targetRankHistory),
       targetPtManual: numOrNull(a.targetPtManual),
       startAt: numOrNull(a.startAt),
       endAt: numOrNull(a.endAt),
@@ -157,13 +255,81 @@ const MiraiEventSupport = (function () {
       finalImageURL: String(a.finalImageURL || ''),
       finalRank: numOrNull(a.finalRank),
       finalPt: numOrNull(a.finalPt),
+      resultTargetRank: numOrNull(a.resultTargetRank),
+      resultTargetPt: numOrNull(a.resultTargetPt),
+      crystalsUsed: numOrNull(a.crystalsUsed),
       isPublic: a.isPublic !== false,
       createdAtMs: Number(a.createdAtMs) || Date.now(),
       updatedAtMs: Number(a.updatedAtMs) || 0,
     };
   }
 
+  function isLocalGuest() {
+    return !!(window.MiraiAuth && MiraiAuth.isLocalGuest && MiraiAuth.isLocalGuest());
+  }
+
+  function useLocalPreview() {
+    if (isLocalGuest()) return true;
+    const u = window.MiraiAuth && MiraiAuth.getUser && MiraiAuth.getUser();
+    if (u && u.uid === 'local-guest') return true;
+    return !!(window.MiraiAuth && typeof MiraiAuth.isLocalDev === 'function' && MiraiAuth.isLocalDev());
+  }
+
+  const LOCAL_ARCHIVES_KEY = 'miraiLocalGuestArchives';
+
+  function readLocalArchives() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LOCAL_ARCHIVES_KEY) || '[]');
+      return Array.isArray(raw) ? raw.map((a) => normalizeArchive(a)) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writeLocalArchives(items) {
+    localStorage.setItem(LOCAL_ARCHIVES_KEY, JSON.stringify(items.map((a) => normalizeArchive(a))));
+  }
+
+  function seedLocalDemoArchive() {
+    const items = readLocalArchives();
+    if (items.length) return items;
+    const now = Date.now();
+    const day = 86400000;
+    const demo = normalizeArchive({
+      id: 'demoarchive01',
+      title: 'プレビュー用イベント',
+      startAt: now - 5 * day,
+      endAt: now - 6 * 3600000,
+      eventChar: '奏',
+      filterType: 'banner',
+      banner: '奏',
+      targetRank: 1000,
+      params: { sougouryokuMan: 30, jikkochiPct: 130, bonusPct: 435, crystals: 8000, cook: 5 },
+      logs: [
+        { at: now - 5 * day + 2 * 3600000, myPt: 180000, borderPt: 210000, note: '開始直後' },
+        { at: now - 4 * day, myPt: 520000, borderPt: 580000 },
+        { at: now - 2 * day, myPt: 1100000, borderPt: 1210000, note: '中日' },
+        { at: now - 8 * 3600000, myPt: 1480000, borderPt: 1550000 },
+        { at: now - 7 * 3600000, myPt: 1620000, borderPt: 1590000, note: '終了前' },
+      ],
+      finalRank: 480,
+      finalPt: 1620000,
+      resultTargetRank: 1000,
+      resultTargetPt: 1590000,
+      crystalsUsed: 8000,
+      isPublic: true,
+      createdAtMs: now - 5 * day,
+      updatedAtMs: now,
+    });
+    writeLocalArchives([demo]);
+    return [demo];
+  }
+
   async function listArchives(uid) {
+    if (useLocalPreview()) {
+      const items = readLocalArchives();
+      return items.length ? items : seedLocalDemoArchive();
+    }
     const f = await fb();
     if (!f || !f.configured) return [];
     const { collection, getDocs } = f.dbFns;
@@ -189,6 +355,10 @@ const MiraiEventSupport = (function () {
   }
 
   async function listPublicArchives(uid) {
+    if (useLocalPreview()) {
+      const items = readLocalArchives();
+      return (items.length ? items : seedLocalDemoArchive()).filter((a) => a.isPublic !== false);
+    }
     if (!uid) return [];
     const f = await fb();
     if (!f || !f.configured) return [];
@@ -212,6 +382,12 @@ const MiraiEventSupport = (function () {
   }
 
   async function loadArchive(uid, id) {
+    if (useLocalPreview()) {
+      const items = readLocalArchives();
+      const found = items.find((a) => a.id === id);
+      if (found) return found;
+      return seedLocalDemoArchive().find((a) => a.id === id) || null;
+    }
     const f = await fb();
     if (!f || !f.configured) return null;
     const { doc, getDoc } = f.dbFns;
@@ -223,6 +399,14 @@ const MiraiEventSupport = (function () {
   }
 
   async function saveArchive(uid, archive) {
+    if (useLocalPreview()) {
+      archive.updatedAtMs = Date.now();
+      const data = normalizeArchive(archive);
+      const items = readLocalArchives().filter((a) => a.id !== data.id);
+      items.unshift(data);
+      writeLocalArchives(items);
+      return data;
+    }
     const f = await fb();
     if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     const { doc, setDoc, serverTimestamp } = f.dbFns;
@@ -236,6 +420,10 @@ const MiraiEventSupport = (function () {
   }
 
   async function deleteArchive(uid, id) {
+    if (useLocalPreview()) {
+      writeLocalArchives(readLocalArchives().filter((a) => a.id !== id));
+      return;
+    }
     const f = await fb();
     if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     const { doc, deleteDoc } = f.dbFns;
@@ -272,6 +460,16 @@ const MiraiEventSupport = (function () {
   }
 
   async function uploadBannerImage(uid, id, file) {
+    if (useLocalPreview()) {
+      if (!/^image\//i.test(file.type)) throw new Error('画像ファイルを選んでください。');
+      const blob = await compressImage(file, 1280, 0.85);
+      return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = () => rej(new Error('画像の読み込みに失敗しました'));
+        r.readAsDataURL(blob);
+      });
+    }
     const f = await fb();
     if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     if (!/^image\//i.test(file.type)) throw new Error('画像ファイルを選んでください。');
@@ -320,24 +518,38 @@ const MiraiEventSupport = (function () {
    * （イベラン診断が過去平均の上位ボーダーを参照する箇所を、実データの外挿で置き換える）
    */
   function getBorderProjection(a) {
-    if (!a.endAt) return null;
-    const bl = a.logs.filter((l) => l.borderPt != null);
-    if (bl.length < 2) return null;
-    const now = Date.now();
+    const bl = (a.logs || []).filter((l) => l.borderPt != null);
+    if (!bl.length) return null;
     const last = bl[bl.length - 1];
+    if (bl.length < 2 || !a.endAt) {
+      return {
+        pt: Math.round(last.borderPt),
+        label: window.PjskEngine ? PjskEngine.formatPtLabel(last.borderPt) : fmtPt(last.borderPt),
+        pace: null,
+        source: 'last',
+      };
+    }
     const prev = bl[bl.length - 2];
     const first = bl[0];
     const recentH = (last.at - prev.at) / 3600000;
     const spanH = (last.at - first.at) / 3600000;
     let pace = recentH > 0 ? (last.borderPt - prev.borderPt) / recentH : null;
     if (pace == null && spanH > 0) pace = (last.borderPt - first.borderPt) / spanH;
-    if (pace == null) return null;
-    const hoursRemaining = Math.max((a.endAt - now) / 3600000, 0);
-    const projected = Math.max(Math.round(last.borderPt + pace * hoursRemaining), Math.round(last.borderPt));
+    if (pace == null) {
+      return {
+        pt: Math.round(last.borderPt),
+        label: window.PjskEngine ? PjskEngine.formatPtLabel(last.borderPt) : fmtPt(last.borderPt),
+        pace: null,
+        source: 'last',
+      };
+    }
+    const hoursToEnd = Math.max((a.endAt - last.at) / 3600000, 0);
+    const projected = Math.max(Math.round(last.borderPt + pace * hoursToEnd), Math.round(last.borderPt));
     return {
       pt: projected,
       label: window.PjskEngine ? PjskEngine.formatPtLabel(projected) : fmtPt(projected),
       pace,
+      source: 'projection',
     };
   }
 
@@ -764,7 +976,7 @@ const MiraiEventSupport = (function () {
     const box = root && root.querySelector('#eventSupportRoot');
     if (!box) return;
 
-    if (!(await isConfigured())) {
+    if (!(await isConfigured()) && !useLocalPreview()) {
       box.innerHTML = '<div class="info-box"><p><strong>ログイン機能は準備中です。</strong></p><p class="mt-1">Firebase の設定後に利用できます。</p></div>';
       return;
     }
@@ -805,6 +1017,7 @@ const MiraiEventSupport = (function () {
       thumb +
       '<div class="es-card__body">' +
       '<p class="es-card__title">' + esc(a.title || '無題のイベント') + '</p>' +
+      (resolveEventChar(a) ? '<p class="es-card__char">' + eventCharTagHtml(resolveEventChar(a)) + '</p>' : '') +
       '<p class="es-card__period">' + esc(period) + '</p>' +
       '<div class="es-card__stats">' +
       '<span>記録 ' + a.logs.length + '件</span>' +
@@ -823,7 +1036,11 @@ const MiraiEventSupport = (function () {
 
   function renderHub(box, user, archives) {
     const canCreate = archives.length < MAX_ARCHIVES;
+    const guestNote = useLocalPreview()
+      ? '<div class="info-box mb-2"><p><strong>ローカルゲストプレビュー</strong></p><p class="mt-1">この環境ではログインせずに操作できます。記録はブラウザ内だけに保存され、本番には送られません。</p></div>'
+      : '';
     box.innerHTML = `
+      ${guestNote}
       <section class="card community-editor es-hub">
         <div class="es-hub__head">
           <div>
@@ -843,22 +1060,28 @@ const MiraiEventSupport = (function () {
             <label for="esNewTitle">イベント名</label>
             <input type="text" class="form-input" id="esNewTitle" maxlength="${TITLE_MAX}" placeholder="例: ○○のイベント">
           </div>
+          <div class="form-group">
+            <label for="esNewEventChar">イベントキャラ</label>
+            <select class="form-select" id="esNewEventChar">${eventCharOptions('')}</select>
+            <p class="form-hint">攻略図書館のイベランレポートで、キャラタグとして検索できます。</p>
+          </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="esNewStartDate">開始日時（任意）</label>
+              <label for="esNewStartDate">開始日時</label>
               <div class="es-datetime">
-                <input type="date" class="form-input" id="esNewStartDate" aria-label="開始日">
-                <input type="time" class="form-input" id="esNewStartTime" aria-label="開始時刻">
+                <input type="date" class="form-input" id="esNewStartDate" aria-label="開始日" required>
+                <input type="time" class="form-input" id="esNewStartTime" aria-label="開始時刻" value="15:00" required>
               </div>
             </div>
             <div class="form-group">
-              <label for="esNewEndDate">終了日時（任意）</label>
+              <label for="esNewEndDate">終了日時</label>
               <div class="es-datetime">
-                <input type="date" class="form-input" id="esNewEndDate" aria-label="終了日">
-                <input type="time" class="form-input" id="esNewEndTime" aria-label="終了時刻">
+                <input type="date" class="form-input" id="esNewEndDate" aria-label="終了日" required>
+                <input type="time" class="form-input" id="esNewEndTime" aria-label="終了時刻" value="20:59" required>
               </div>
             </div>
           </div>
+          <p class="form-hint">開始・終了は必須です。イベランレポートのタイムテーブルは、この期間を1時間ごとに割ります。</p>
           <p id="esNewError" class="form-error" hidden></p>
           <button type="button" class="btn btn-primary btn-block" id="esNewCreate">作成してひらく</button>
         </div>
@@ -893,6 +1116,18 @@ const MiraiEventSupport = (function () {
           errEl.hidden = false;
           return;
         }
+        const startAt = combineDateTime(box.querySelector('#esNewStartDate').value, box.querySelector('#esNewStartTime').value);
+        const endAt = combineDateTime(box.querySelector('#esNewEndDate').value, box.querySelector('#esNewEndTime').value);
+        if (!startAt || !endAt) {
+          errEl.textContent = 'イベント期間（開始・終了）を入力してください。';
+          errEl.hidden = false;
+          return;
+        }
+        if (endAt <= startAt) {
+          errEl.textContent = '終了日時は開始日時より後にしてください。';
+          errEl.hidden = false;
+          return;
+        }
         let current = [];
         try {
           current = await listArchives(user.uid);
@@ -907,11 +1142,14 @@ const MiraiEventSupport = (function () {
         createBtn.disabled = true;
         createBtn.textContent = '作成中…';
         try {
+          const eventChar = (box.querySelector('#esNewEventChar') || {}).value || '';
           const archive = normalizeArchive({
             id: newId(),
             title,
-            startAt: combineDateTime(box.querySelector('#esNewStartDate').value, box.querySelector('#esNewStartTime').value),
-            endAt: combineDateTime(box.querySelector('#esNewEndDate').value, box.querySelector('#esNewEndTime').value),
+            eventChar,
+            banner: eventChar,
+            startAt,
+            endAt,
             isPublic: true,
             createdAtMs: Date.now(),
           });
@@ -954,7 +1192,7 @@ const MiraiEventSupport = (function () {
 
     const id = params && params.id ? String(params.id) : '';
 
-    if (!(await isConfigured())) {
+    if (!(await isConfigured()) && !useLocalPreview()) {
       box.innerHTML = '<div class="info-box"><p><strong>ログイン機能は準備中です。</strong></p></div>';
       return;
     }
@@ -983,7 +1221,16 @@ const MiraiEventSupport = (function () {
       return;
     }
 
-    renderArchive(box, user, archive);
+    let report = null;
+    if (window.GuidesPage && typeof GuidesPage.loadReport === 'function' && typeof GuidesPage.reportIdForArchive === 'function') {
+      try {
+        report = await GuidesPage.loadReport(GuidesPage.reportIdForArchive(user.uid, archive.id));
+      } catch (e) {
+        console.warn('[event-support] report load failed:', e);
+      }
+    }
+
+    renderArchive(box, user, archive, report);
   }
 
   function targetRankOptions(selected) {
@@ -1005,7 +1252,7 @@ const MiraiEventSupport = (function () {
     return opts.join('');
   }
 
-  function renderArchive(box, user, archive) {
+  function renderArchive(box, user, archive, report) {
     archive.uid = user.uid;
     const plan = computePlan(archive);
 
@@ -1014,12 +1261,16 @@ const MiraiEventSupport = (function () {
         <section class="card community-editor es-record">
           <div class="es-record__head">
             <h2 class="community-editor__title" id="esTitleDisplay">${esc(archive.title || '無題のイベント')}</h2>
+            <p class="es-event-char-line" id="esEventCharDisplay">${resolveEventChar(archive) ? eventCharTagHtml(resolveEventChar(archive)) : '<span class="text-muted">イベントキャラ未指定</span>'}</p>
             <p class="text-muted es-record__period">${esc((archive.startAt || archive.endAt) ? fmtDateTime(archive.startAt) + ' 〜 ' + fmtDateTime(archive.endAt) : '期間未設定')}</p>
           </div>
           <div class="es-top-actions">
             <button type="button" class="btn btn-primary btn-block es-action-btn" id="esTeamOpen">${teamOpenLabel(archive)}</button>
             <p class="form-hint es-top-actions__hint">イベント開始時に一度登録すると、エビ1回あたりのPtと周回プランが出ます。</p>
             <p id="esTeamSaved" class="community-saved" hidden>登録しました ✓</p>
+            <button type="button" class="btn btn-secondary btn-block es-action-btn" id="esRankOpen">🎯 目標順位を変更する</button>
+            <p class="form-hint es-top-actions__hint" id="esRankStatus">${esc(rankStatusHtml(archive))}</p>
+            <p id="esRankSaved" class="community-saved" hidden>変更しました ✓</p>
           </div>
           <p class="form-hint">今の自分のPt（と、任意で目標順位のボーダーPt）を記録すると、下のグラフとプランに反映されます。</p>
           <div class="form-row es-record__inputs">
@@ -1078,6 +1329,26 @@ const MiraiEventSupport = (function () {
           </div>
         </dialog>
 
+        <dialog class="es-modal" id="esRankModal">
+          <div class="es-modal__body">
+            <p class="es-modal__title">🎯 目標順位を変更</p>
+            <p class="form-hint">変更すると日時が記録され、着地予想と周回プランの目標が更新されます。</p>
+            <div class="form-group">
+              <label for="esRankSelect">目標順位</label>
+              <select class="form-select" id="esRankSelect">${targetRankOptions(archive.targetRank)}</select>
+            </div>
+            <div class="es-rank-history-wrap">
+              <p class="adjust-filters__title">変更履歴</p>
+              <div id="esRankHistory">${rankHistoryHtml(archive)}</div>
+            </div>
+            <p id="esRankError" class="form-error" hidden></p>
+            <div class="es-modal__actions">
+              <button type="button" class="btn btn-secondary" id="esRankCancel">キャンセル</button>
+              <button type="button" class="btn btn-primary" id="esRankSave">変更する</button>
+            </div>
+          </div>
+        </dialog>
+
         <section class="card es-plan-card">
           <p class="adjust-filters__title">🧭 着地予想・周回プラン</p>
           <div id="esPlanWrap">${planCardHtml(archive, plan)}</div>
@@ -1105,14 +1376,14 @@ const MiraiEventSupport = (function () {
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="esSetStartDate">開始日時</label>
+                <label for="esSetStartDate">開始日時（必須）</label>
                 <div class="es-datetime">
                   <input type="date" class="form-input" id="esSetStartDate" aria-label="開始日" value="${esc(toInputDate(archive.startAt))}">
                   <input type="time" class="form-input" id="esSetStartTime" aria-label="開始時刻" value="${esc(toInputTime(archive.startAt))}">
                 </div>
               </div>
               <div class="form-group">
-                <label for="esSetEndDate">終了日時</label>
+                <label for="esSetEndDate">終了日時（必須）</label>
                 <div class="es-datetime">
                   <input type="date" class="form-input" id="esSetEndDate" aria-label="終了日" value="${esc(toInputDate(archive.endAt))}">
                   <input type="time" class="form-input" id="esSetEndTime" aria-label="終了時刻" value="${esc(toInputTime(archive.endAt))}">
@@ -1154,7 +1425,7 @@ const MiraiEventSupport = (function () {
 
         <section class="card es-final">
           <p class="adjust-filters__title">🏁 イベント終了時の記録</p>
-          <p class="form-hint">イベントバナーページのスクショを1枚だけ保存できます。最終順位・Ptも記録できます。</p>
+          <p class="form-hint">イベントバナーページのスクショを1枚だけ保存できます。最終順位と最終着地Ptを記録できます。当初の目標はイベランレポート側で記入します。</p>
           <div class="es-final__image">
             <div id="esFinalPreview" class="es-final__preview">${archive.finalImageURL
         ? `<img src="${esc(archive.finalImageURL)}" alt="バナーページのスクショ" decoding="async">`
@@ -1173,13 +1444,24 @@ const MiraiEventSupport = (function () {
               <input type="number" class="form-input" id="esFinalRank" min="0" inputmode="numeric" value="${archive.finalRank != null ? esc(archive.finalRank) : ''}" placeholder="例: 480">
             </div>
             <div class="form-group">
-              <label for="esFinalPt">最終Pt（任意）</label>
+              <label for="esFinalPt">最終着地Pt（任意）</label>
               <input type="number" class="form-input" id="esFinalPt" min="0" inputmode="numeric" value="${archive.finalPt != null ? esc(archive.finalPt) : ''}" placeholder="例: 1620000">
             </div>
+          </div>
+          <div class="form-group">
+            <label for="esFinalCrystals">消化したクリスタル（任意）</label>
+            <input type="number" class="form-input" id="esFinalCrystals" min="0" inputmode="numeric" value="${archive.crystalsUsed != null ? esc(archive.crystalsUsed) : ''}" placeholder="例: 8000">
+            <p class="form-hint">実際に使った数。イベランレポートにそのまま掲載できます。</p>
           </div>
           <p id="esFinalError" class="form-error" hidden></p>
           <button type="button" class="btn btn-primary btn-block" id="esFinalSave">終了時の記録を保存</button>
           <p id="esFinalSaved" class="community-saved mt-2" hidden>保存しました ✓</p>
+        </section>
+
+        <section class="card es-report-cta">
+          <p class="adjust-filters__title">📓 イベランレポート</p>
+          <p class="form-hint">この記録をもとに、攻略図書館へ投稿できるノート記事を作れます。現在準備中です。</p>
+          <div id="esReportCta">${reportCtaHtml(archive, report)}</div>
         </section>
 
         <button type="button" class="btn btn-secondary btn-block mt-2" id="esDeleteArchive">このイベントを削除</button>
@@ -1188,6 +1470,26 @@ const MiraiEventSupport = (function () {
     `;
 
     wireArchive(box, user, archive);
+  }
+
+  function reportCtaHtml(archive, report) {
+    const href = '#/mypage/event-support/' + esc(archive.id) + '/report';
+    if (report && report.isPublished) {
+      return (
+        '<p class="es-report-cta__status">公開中です</p>' +
+        '<div class="es-card__actions">' +
+        '<a href="' + href + '" class="btn btn-primary btn-sm" data-link>レポートを編集</a>' +
+        '<a href="#/guides/reports/' + esc(report.id) + '" class="btn btn-secondary btn-sm" data-link>攻略図書館で見る</a>' +
+        '</div>'
+      );
+    }
+    if (report) {
+      return (
+        '<p class="es-report-cta__status">下書きがあります</p>' +
+        '<a href="' + href + '" class="btn btn-primary btn-block" data-link>レポートを編集する</a>'
+      );
+    }
+    return '<button type="button" class="btn btn-primary btn-block" disabled>レポートを書く（準備中）</button>';
   }
 
   function logListHtml(archive) {
@@ -1335,6 +1637,78 @@ const MiraiEventSupport = (function () {
       teamModal.addEventListener('cancel', (e) => { e.preventDefault(); closeTeamModal(); });
     }
 
+    const rankModal = box.querySelector('#esRankModal');
+    const rankOpen = box.querySelector('#esRankOpen');
+    const rankCancel = box.querySelector('#esRankCancel');
+    const rankSave = box.querySelector('#esRankSave');
+
+    function openRankModal() {
+      if (!rankModal) return;
+      const errEl = box.querySelector('#esRankError');
+      if (errEl) errEl.hidden = true;
+      const sel = box.querySelector('#esRankSelect');
+      if (sel) sel.innerHTML = targetRankOptions(archive.targetRank);
+      const histEl = box.querySelector('#esRankHistory');
+      if (histEl) histEl.innerHTML = rankHistoryHtml(archive);
+      if (typeof rankModal.showModal === 'function') rankModal.showModal();
+      else rankModal.setAttribute('open', '');
+    }
+    function closeRankModal() {
+      if (!rankModal) return;
+      if (typeof rankModal.close === 'function' && rankModal.open) rankModal.close();
+      else rankModal.removeAttribute('open');
+    }
+    function syncRankUi() {
+      const statusEl = box.querySelector('#esRankStatus');
+      if (statusEl) statusEl.textContent = rankStatusHtml(archive);
+      const setRank = box.querySelector('#esSetRank');
+      if (setRank) setRank.innerHTML = targetRankOptions(archive.targetRank);
+      const histEl = box.querySelector('#esRankHistory');
+      if (histEl) histEl.innerHTML = rankHistoryHtml(archive);
+    }
+
+    if (rankOpen) rankOpen.addEventListener('click', openRankModal);
+    if (rankCancel) rankCancel.addEventListener('click', closeRankModal);
+    if (rankModal) {
+      rankModal.addEventListener('cancel', (e) => { e.preventDefault(); closeRankModal(); });
+    }
+
+    if (rankSave) {
+      rankSave.addEventListener('click', async () => {
+        const errEl = box.querySelector('#esRankError');
+        const savedEl = box.querySelector('#esRankSaved');
+        if (errEl) errEl.hidden = true;
+        const nextRank = numOrNull(box.querySelector('#esRankSelect').value);
+        if (!recordTargetRankChange(archive, nextRank)) {
+          if (errEl) {
+            errEl.textContent = '目標順位は変わっていません。';
+            errEl.hidden = false;
+          }
+          return;
+        }
+        rankSave.disabled = true;
+        rankSave.textContent = '変更中…';
+        try {
+          await saveArchive(user.uid, archive);
+          closeRankModal();
+          if (savedEl) {
+            savedEl.hidden = false;
+            setTimeout(() => { savedEl.hidden = true; }, 2200);
+          }
+          syncRankUi();
+          refreshDynamic(box, archive);
+        } catch (e) {
+          if (errEl) {
+            errEl.textContent = e.message || String(e);
+            errEl.hidden = false;
+          }
+        } finally {
+          rankSave.disabled = false;
+          rankSave.textContent = '変更する';
+        }
+      });
+    }
+
     if (teamSave) {
       teamSave.addEventListener('click', async () => {
         const errEl = box.querySelector('#esTeamError');
@@ -1395,7 +1769,17 @@ const MiraiEventSupport = (function () {
         archive.title = title;
         archive.startAt = combineDateTime(box.querySelector('#esSetStartDate').value, box.querySelector('#esSetStartTime').value);
         archive.endAt = combineDateTime(box.querySelector('#esSetEndDate').value, box.querySelector('#esSetEndTime').value);
-        archive.targetRank = numOrNull(box.querySelector('#esSetRank').value);
+        if (!archive.startAt || !archive.endAt) {
+          errEl.textContent = 'イベント期間（開始・終了）を入力してください。';
+          errEl.hidden = false;
+          return;
+        }
+        if (archive.endAt <= archive.startAt) {
+          errEl.textContent = '終了日時は開始日時より後にしてください。';
+          errEl.hidden = false;
+          return;
+        }
+        recordTargetRankChange(archive, numOrNull(box.querySelector('#esSetRank').value));
         archive.filterType = box.querySelector('#esSetFilterType').value === 'unit' ? 'unit' : 'banner';
         const fv = box.querySelector('#esSetFilterValue').value;
         if (archive.filterType === 'unit') { archive.unit = fv; } else { archive.banner = fv; }
@@ -1412,6 +1796,7 @@ const MiraiEventSupport = (function () {
           if (titleDisplay) titleDisplay.textContent = archive.title || '無題のイベント';
           const periodEl = box.querySelector('.es-record__period');
           if (periodEl) periodEl.textContent = (archive.startAt || archive.endAt) ? fmtDateTime(archive.startAt) + ' 〜 ' + fmtDateTime(archive.endAt) : '期間未設定';
+          if (typeof syncRankUi === 'function') syncRankUi();
           refreshDynamic(box, archive);
         } catch (e) {
           errEl.textContent = e.message || String(e);
@@ -1465,6 +1850,7 @@ const MiraiEventSupport = (function () {
           }
           archive.finalRank = numOrNull(box.querySelector('#esFinalRank').value);
           archive.finalPt = numOrNull(box.querySelector('#esFinalPt').value);
+          archive.crystalsUsed = numOrNull(box.querySelector('#esFinalCrystals').value);
           await saveArchive(user.uid, archive);
           const preview = box.querySelector('#esFinalPreview');
           if (preview && archive.finalImageURL) {
@@ -1520,6 +1906,7 @@ const MiraiEventSupport = (function () {
       thumb +
       '<div class="es-public-card__body">' +
       '<h3 class="es-public-card__title">' + esc(a.title || '無題のイベント') + '</h3>' +
+      (resolveEventChar(a) ? '<p class="es-public-card__char">' + eventCharTagHtml(resolveEventChar(a)) + '</p>' : '') +
       '<p class="es-public-card__period">' + esc(period) + '</p>' +
       (stats.length ? '<p class="es-public-card__stats">' + esc(stats.join(' · ')) + '</p>' : '') +
       chart +
@@ -1562,6 +1949,8 @@ const MiraiEventSupport = (function () {
     teamSummaryText,
     fmtPt,
     fmtDateTime,
+    getEventCharList,
+    resolveEventChar,
     MAX_ARCHIVES,
   };
 })();

@@ -81,7 +81,7 @@
       "web": { "route": "#/guides", "files": ["js/guides.js", "js/event-support.js", "index.html", "css/style.css"] },
       "app": { "screen": "（未）", "files": [] },
       "status": "web_only",
-      "notes": "イベントアーカイブのスナップショット＋ノート本文を eventReports に保存。公開記事は攻略図書館に一覧。1アーカイブ1件・最大10件。下書きは本人のみ。"
+      "notes": "イベントアーカイブのスナップショット＋ノート本文を eventReports に保存。公開記事は攻略図書館に一覧。1アーカイブ1件・最大10件。下書きは本人のみ。アーカイブのイベントキャラはレポートの検索タグになる。"
     },
     {
       "id": "admin",

@@ -2638,6 +2638,12 @@
   margin: 0;
 }
 
+.es-card__char,
+.es-event-char-line,
+.es-public-card__char {
+  margin: 0.15rem 0 0;
+}
+
 .es-card__period {
   font-size: 0.82rem;
   color: var(--text-secondary);
@@ -2756,6 +2762,32 @@
 
 .es-top-actions__hint {
   margin: 0;
+}
+
+.es-rank-history-wrap {
+  margin-top: 0.25rem;
+}
+
+.es-rank-history {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.es-rank-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.es-rank-history time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .es-action-btn {

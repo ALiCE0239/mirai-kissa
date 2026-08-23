@@ -396,7 +396,27 @@ const MiraiMyPage = (function () {
     return hub;
   }
 
+  function isLocalGuest() {
+    return !!(window.MiraiAuth && MiraiAuth.isLocalGuest && MiraiAuth.isLocalGuest());
+  }
+
+  const LOCAL_HUB_KEY = 'miraiLocalGuestHub';
+
+  function readLocalHub(uid) {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LOCAL_HUB_KEY) || 'null');
+      return raw && raw.uid === uid ? raw : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeLocalHub(hub) {
+    localStorage.setItem(LOCAL_HUB_KEY, JSON.stringify(hub));
+  }
+
   async function loadOwnHub(uid) {
+    if (isLocalGuest()) return readLocalHub(uid);
     const f = await fb();
     if (!f || !f.configured) return null;
     const { doc, getDoc } = f.dbFns;
@@ -453,6 +473,16 @@ const MiraiMyPage = (function () {
   }
 
   async function saveHub(uid, hub) {
+    if (isLocalGuest()) {
+      const data = Object.assign({}, hub, {
+        uid,
+        displayName: hub.displayName || 'ゲスト（ローカル）',
+        headline: normalizeHeadline(hub.headline),
+        updatedAtMs: Date.now(),
+      });
+      writeLocalHub(data);
+      return data;
+    }
     const f = await fb();
     if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     const { doc, setDoc, serverTimestamp } = f.dbFns;
@@ -525,10 +555,14 @@ const MiraiMyPage = (function () {
       return;
     }
 
+    const guestBtnHtml = (window.MiraiAuth && MiraiAuth.isLocalDev && MiraiAuth.isLocalDev())
+      ? '<button type="button" class="btn btn-secondary btn-block mt-2" id="loginGuest">ゲストでプレビュー（ローカルのみ）</button>'
+      : '';
     box.innerHTML =
       '<p class="text-muted community-login__lead">ログインすると、セカイノートからプロフィール・イベラン広告・マイセカイ宣伝を編集できます。</p>' +
       '<button type="button" class="btn community-btn-x btn-block" id="loginX">𝕏（X）でログイン</button>' +
       '<button type="button" class="btn btn-primary btn-block mt-2" id="loginGoogle">Google でログイン</button>' +
+      guestBtnHtml +
       '<p class="form-hint mt-2">初回ログイン時は自動で新規登録されます。もう一方のログイン方法は、ログイン後に<a href="#/mypage/settings" data-link>マイページ設定</a>から連携できます。</p>' +
       '<p id="loginError" class="form-error mt-3" hidden></p>';
 
@@ -559,6 +593,13 @@ const MiraiMyPage = (function () {
 
     box.querySelector('#loginX').addEventListener('click', () => run(() => window.MiraiAuth.signInWithX()));
     box.querySelector('#loginGoogle').addEventListener('click', () => run(() => window.MiraiAuth.signInWithGoogle()));
+    const guestBtn = box.querySelector('#loginGuest');
+    if (guestBtn) {
+      guestBtn.addEventListener('click', () => {
+        window.MiraiAuth.enableLocalGuest();
+        location.hash = window.MiraiAuth.consumeLoginReturn('#/mypage');
+      });
+    }
 
     // ログイン状態が変わったら自動遷移
     const off = window.MiraiAuth.onChange((user) => {
@@ -624,7 +665,7 @@ const MiraiMyPage = (function () {
     if (!box) return;
 
     const configured = await isConfigured();
-    if (!configured) {
+    if (!configured && !isLocalGuest()) {
       box.innerHTML =
         '<div class="info-box"><p><strong>ログイン機能は準備中です。</strong></p>' +
         '<p class="mt-1">Firebase の設定後に利用できます。</p></div>';
@@ -655,7 +696,11 @@ const MiraiMyPage = (function () {
       let profileSaveError = '';
       if (!hubExisted) {
         try {
-          await saveHubWithRetry(user.uid, hub);
+          if (isLocalGuest()) {
+            await saveHub(user.uid, hub);
+          } else {
+            await saveHubWithRetry(user.uid, hub);
+          }
           sekaiSaved = true;
         } catch (e) {
           console.error(e);
@@ -773,8 +818,8 @@ const MiraiMyPage = (function () {
     if (!hub) {
       hub = {
         uid: user.uid,
-        publicId: newPublicId(),
-        displayName: '',
+        publicId: isLocalGuest() ? 'guestloc' : newPublicId(),
+        displayName: isLocalGuest() ? 'ゲスト（ローカル）' : '',
         headline: '',
         bio: '',
         avatarURL: '',
@@ -796,6 +841,8 @@ const MiraiMyPage = (function () {
     hub.notes = Array.isArray(hub.notes) ? hub.notes : [];
     hub.supportTeams = normalizeSupportTeams(hub.supportTeams);
     hub.headline = normalizeHeadline(hub.headline);
+    hub.pinEventAd = hub.pinEventAd === true;
+    hub.pinMysekai = hub.pinMysekai === true;
     return { hub, hubExisted };
   }
 
@@ -824,6 +871,9 @@ const MiraiMyPage = (function () {
   function renderDashboard(box, user, hub, hubExisted, profileSaveError) {
     box.innerHTML = `
       <section class="card community-editor mp-page mp-dashboard">
+        ${isLocalGuest()
+          ? '<div class="info-box mb-2"><p><strong>ローカルゲストプレビュー</strong></p><p class="mt-1">ログインせずにマイページとイベランレポートを確認できます。データはブラウザ内だけに保存されます。</p></div>'
+          : ''}
         ${profileSaveError
           ? '<div class="info-box mb-2"><p class="form-error">プロフィールの初期登録に失敗しました。ページを再読み込みするか、マイページ設定から表示名を保存してください。</p><p class="form-hint">' + esc(profileSaveError) + '</p></div>'
           : ''}
@@ -1294,46 +1344,47 @@ const MiraiMyPage = (function () {
     const ownEvent = boardCtx.ownEvent || null;
     const ownMysekai = boardCtx.ownMysekai || null;
 
-    function canPinEvent() {
-      return window.MiraiBoard && MiraiBoard.canEmbedBoardPost
-        ? MiraiBoard.canEmbedBoardPost(ownEvent, 'eventName')
-        : !!(ownEvent && ownEvent.eventName && ownEvent.isPublished !== false);
+    function hasEventPost() {
+      return !!(ownEvent && ownEvent.eventName);
     }
 
-    function canPinMysekai() {
-      return window.MiraiBoard && MiraiBoard.canEmbedBoardPost
-        ? MiraiBoard.canEmbedBoardPost(ownMysekai, 'title')
-        : !!(ownMysekai && ownMysekai.title && ownMysekai.isPublished !== false);
+    function hasMysekaiPost() {
+      return !!(ownMysekai && ownMysekai.title);
+    }
+
+    function pinStatusHint(post, contentKey, createHref, createLabel) {
+      if (!post || !post[contentKey]) {
+        return '<p class="form-hint mp-sekai-pin-hint">まだ投稿がありません。<a href="' + esc(createHref) + '" data-link>' + esc(createLabel) + '</a></p>';
+      }
+      const title = String(post[contentKey] || '');
+      if (post.isPublished === false) {
+        return '<p class="form-hint mp-sekai-pin-hint">「' + esc(title) + '」（非公開 — 公開するとノートに表示されます）</p>';
+      }
+      return '<p class="form-hint mp-sekai-pin-hint">「' + esc(title) + '」</p>';
     }
 
     function sekaiPinsSectionHtml() {
-      if (!canPinEvent() && !canPinMysekai()) return '';
-      let html = '<div class="divider"></div><div class="mp-sekai-pins">';
-      html += '<p class="adjust-filters__title">📌 掲示板の引用</p>';
-      html += '<p class="form-hint mp-sekai-pins-lead">公開中の投稿をセカイノートにカード形式で載せられます</p>';
-      if (canPinEvent()) {
-        html +=
-          '<label class="form-toggle mp-sekai-pin">' +
-          '<input type="checkbox" id="mpPinEventAd"' + (hub.pinEventAd ? ' checked' : '') + '>' +
-          '<span class="toggle-track"></span>' +
-          '<span class="toggle-label">イベラン広告を載せる</span></label>' +
-          '<p class="form-hint mp-sekai-pin-hint">「' + esc(ownEvent.eventName) + '」</p>';
-      }
-      if (canPinMysekai()) {
-        html +=
-          '<label class="form-toggle mp-sekai-pin">' +
-          '<input type="checkbox" id="mpPinMysekai"' + (hub.pinMysekai ? ' checked' : '') + '>' +
-          '<span class="toggle-track"></span>' +
-          '<span class="toggle-label">マイセカイ宣伝を載せる</span></label>' +
-          '<p class="form-hint mp-sekai-pin-hint">「' + esc(ownMysekai.title) + '」</p>';
-      }
-      html += '</div>';
-      return html;
+      return (
+        '<div class="divider"></div><div class="mp-sekai-pins">' +
+        '<p class="adjust-filters__title">📌 掲示板の引用</p>' +
+        '<p class="form-hint mp-sekai-pins-lead">イベラン広告・マイセカイ宣伝をセカイノートに載せるかを、ここで切り替えます。掲示板への掲載とは別に設定できます。</p>' +
+        '<label class="form-toggle mp-sekai-pin">' +
+        '<input type="checkbox" id="mpPinEventAd"' + (hub.pinEventAd ? ' checked' : '') + '>' +
+        '<span class="toggle-track"></span>' +
+        '<span class="toggle-label">イベラン広告を載せる</span></label>' +
+        pinStatusHint(ownEvent, 'eventName', '#/board/event/edit', 'イベラン広告を作成') +
+        '<label class="form-toggle mp-sekai-pin">' +
+        '<input type="checkbox" id="mpPinMysekai"' + (hub.pinMysekai ? ' checked' : '') + '>' +
+        '<span class="toggle-track"></span>' +
+        '<span class="toggle-label">マイセカイ宣伝を載せる</span></label>' +
+        pinStatusHint(ownMysekai, 'title', '#/board/mysekai/edit', 'マイセカイ宣伝を作成') +
+        '</div>'
+      );
     }
 
     function embedPostsForPreview() {
-      const eventPost = hub.pinEventAd && canPinEvent() ? ownEvent : null;
-      const mysekaiPost = hub.pinMysekai && canPinMysekai() ? ownMysekai : null;
+      const eventPost = hub.pinEventAd && hasEventPost() ? ownEvent : null;
+      const mysekaiPost = hub.pinMysekai && hasMysekaiPost() ? ownMysekai : null;
       return { eventPost, mysekaiPost };
     }
 
@@ -1421,10 +1472,8 @@ const MiraiMyPage = (function () {
       });
       const pinEventEl = box.querySelector('#mpPinEventAd');
       const pinMysekaiEl = box.querySelector('#mpPinMysekai');
-      if (pinEventEl) hub.pinEventAd = pinEventEl.checked;
-      else hub.pinEventAd = false;
-      if (pinMysekaiEl) hub.pinMysekai = pinMysekaiEl.checked;
-      else hub.pinMysekai = false;
+      if (pinEventEl && !pinEventEl.disabled) hub.pinEventAd = pinEventEl.checked;
+      if (pinMysekaiEl && !pinMysekaiEl.disabled) hub.pinMysekai = pinMysekaiEl.checked;
     }
 
     function noteRow(note) {
