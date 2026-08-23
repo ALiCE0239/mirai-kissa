@@ -19,6 +19,57 @@ const MiraiAuth = (function () {
   const LOGIN_RETURN_KEY = 'miraiLoginReturn';
   const AUTH_ERROR_KEY = 'miraiAuthError';
   const AUTH_REDIRECT_PENDING_KEY = 'miraiAuthRedirectPending';
+  const LOCAL_GUEST_OFF_KEY = 'miraiLocalGuestOff';
+  const LOCAL_GUEST_UID = 'local-guest';
+
+  function isLocalDevHost() {
+    const h = location.hostname;
+    return h === 'localhost'
+      || h === '127.0.0.1'
+      || h === '0.0.0.0'
+      || h === ''
+      || h.endsWith('.local')
+      || /^192\.168\./.test(h)
+      || /^10\./.test(h)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(h);
+  }
+
+  function createLocalGuestUser() {
+    return {
+      uid: LOCAL_GUEST_UID,
+      displayName: 'ゲスト（ローカル）',
+      email: null,
+      emailVerified: false,
+      isAnonymous: true,
+      isLocalGuest: true,
+      photoURL: null,
+      providerId: 'local-guest',
+      providerData: [],
+    };
+  }
+
+  function isLocalGuestUser(user) {
+    return !!(user && user.isLocalGuest && user.uid === LOCAL_GUEST_UID);
+  }
+
+  function localGuestDisabled() {
+    try { return sessionStorage.getItem(LOCAL_GUEST_OFF_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function setLocalGuestDisabled(off) {
+    try {
+      if (off) sessionStorage.setItem(LOCAL_GUEST_OFF_KEY, '1');
+      else sessionStorage.removeItem(LOCAL_GUEST_OFF_KEY);
+    } catch (e) { /* ignore */ }
+  }
+
+  function enableLocalGuest() {
+    if (!isLocalDevHost()) return null;
+    setLocalGuestDisabled(false);
+    currentUser = createLocalGuestUser();
+    notify();
+    return currentUser;
+  }
 
   function notify() {
     listeners.forEach((cb) => {
@@ -108,8 +159,11 @@ const MiraiAuth = (function () {
     ready = true;
 
     if (!fb.configured) {
-      updateNav();
-      notify();
+      if (isLocalDevHost() && !localGuestDisabled()) enableLocalGuest();
+      else {
+        updateNav();
+        notify();
+      }
       return;
     }
 
@@ -120,11 +174,20 @@ const MiraiAuth = (function () {
     }
 
     onAuthStateChanged(fb.auth, (user) => {
-      currentUser = user || null;
-      notify();
-      if (user && location.hash === '#/login') {
-        location.hash = consumeLoginReturn('#/mypage');
+      if (user) {
+        currentUser = user;
+        notify();
+        if (location.hash === '#/login') {
+          location.hash = consumeLoginReturn('#/mypage');
+        }
+        return;
       }
+      if (isLocalDevHost() && !localGuestDisabled()) {
+        enableLocalGuest();
+        return;
+      }
+      currentUser = null;
+      notify();
     });
 
     let hadRedirectPending = false;
@@ -162,6 +225,11 @@ const MiraiAuth = (function () {
 
     if (!currentUser && fb.auth.currentUser) {
       currentUser = fb.auth.currentUser;
+    }
+
+    if (!currentUser && isLocalDevHost() && !localGuestDisabled()) {
+      enableLocalGuest();
+      return;
     }
 
     notify();
@@ -378,7 +446,17 @@ const MiraiAuth = (function () {
         twitter: hasProvider(u, 'twitter.com'),
       };
     },
+    isLocalDev: isLocalDevHost,
+    isLocalGuest: () => isLocalGuestUser(currentUser),
+    enableLocalGuest,
+    LOCAL_GUEST_UID,
     async signOut() {
+      if (isLocalGuestUser(currentUser)) {
+        setLocalGuestDisabled(true);
+        currentUser = null;
+        notify();
+        return;
+      }
       if (!fb || !fb.configured) return;
       await fb.authFns.signOut(fb.auth);
     },

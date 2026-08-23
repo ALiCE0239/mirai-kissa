@@ -967,6 +967,19 @@ const MiraiBoard = (function () {
     return isBoardPostListed(post);
   }
 
+  /** セカイノート掲載。掲示板の掲載停止（listingHold）とは独立。 */
+  function canShowOnSekaiNote(post, contentKey, viewerUid, friendUids, blockedUids) {
+    if (!post || !post[contentKey]) return false;
+    if (post.isPublished === false) return false;
+    if (blockedUids && post.authorUid && blockedUids.has(post.authorUid) && post.authorUid !== viewerUid) {
+      return false;
+    }
+    if (postVisibility(post) === 'public') return true;
+    if (!viewerUid) return false;
+    if (post.authorUid === viewerUid) return true;
+    return !!(friendUids && friendUids.has(post.authorUid));
+  }
+
   function eventSekaiEmbedHtml(p) {
     const detailUrl = '#/board/event/' + encodeURIComponent(p.authorUid);
     const thumb = p.imageURL
@@ -1013,10 +1026,10 @@ const MiraiBoard = (function () {
       fetchEventAd(authorUid),
       fetchMysekaiPost(authorUid),
     ]);
-    if (ev && isPostVisible(ev, viewerUid, friendUids, blockedUids) && canEmbedBoardPost(ev, 'eventName')) {
+    if (ev && canShowOnSekaiNote(ev, 'eventName', viewerUid, friendUids, blockedUids)) {
       result.eventPost = (await enrichPostsWithAvatars([ev]))[0];
     }
-    if (ms && isPostVisible(ms, viewerUid, friendUids, blockedUids) && canEmbedBoardPost(ms, 'title')) {
+    if (ms && canShowOnSekaiNote(ms, 'title', viewerUid, friendUids, blockedUids)) {
       result.mysekaiPost = (await enrichPostsWithAvatars([ms]))[0];
     }
     return result;
@@ -2071,7 +2084,7 @@ const MiraiBoard = (function () {
     mountEventEditor, mountMysekaiEditor,
     fetchOwnEventAd, fetchOwnMysekai,
     listEventBookmarks, loadBookmarkedUids, toggleEventBookmark,
-    fetchSekaiEmbedPosts, eventSekaiEmbedHtml, mysekaiSekaiEmbedHtml, canEmbedBoardPost,
+    fetchSekaiEmbedPosts, eventSekaiEmbedHtml, mysekaiSekaiEmbedHtml, canEmbedBoardPost, canShowOnSekaiNote,
     isBoardPostListed, extendBoardListing, boardListingPausedMessage,
     LISTING_INACTIVE_DAYS,
   };
