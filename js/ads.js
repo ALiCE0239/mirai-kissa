@@ -138,8 +138,19 @@ const MiraiAds = (function () {
     }
   }
 
+  function loadAdSense() {
+    if (document.querySelector('script[data-mirai-adsense]')) return;
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + encodeURIComponent(cfg().client);
+    s.crossOrigin = 'anonymous';
+    s.setAttribute('data-mirai-adsense', '1');
+    document.head.appendChild(s);
+  }
+
   function init() {
     if (!isEnabled()) return;
+    loadAdSense();
     // 旧フッター広告枠は使用しない
     const mount = document.getElementById('adFooterMount');
     if (mount) {
