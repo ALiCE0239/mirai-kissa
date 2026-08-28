@@ -602,32 +602,129 @@ const MiraiBoard = (function () {
     return user;
   }
 
-  async function uploadImage(uid, file, name) {
-    const f = await fb();
-    const { ref, uploadBytes, getDownloadURL } = f.storageFns;
-    const r = ref(f.storage, `board/${uid}/${name}`);
-    await uploadBytes(r, file);
-    return getDownloadURL(r);
+  const IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+
+  function isStorageDenied(e) {
+    const text = String((e && (e.code || e.message)) || e || '');
+    return /storage\/unauthorized|does not have permission to access/i.test(text);
+  }
+
+  function storageErrorMessage(e) {
+    const text = String((e && (e.code || e.message)) || e || '');
+    if (isStorageDenied(e)) {
+      return '画像の保存が許可されていません。ログインし直してから、もう一度お試しください。';
+    }
+    if (/retry-limit|network-request-failed|canceled/i.test(text)) {
+      return '画像のアップロードに失敗しました。通信環境を確認して、もう一度お試しください。';
+    }
+    if (/quota/i.test(text)) {
+      return '画像の保存容量がいっぱいです。時間をおいてもう一度お試しください。';
+    }
+    if (e && e.message && !/firebase storage/i.test(e.message)) return e.message;
+    return '画像のアップロードに失敗しました。JPEGまたはPNGの画像をお試しください。';
+  }
+
+  function boardSaveErrorMessage(e) {
+    const text = String((e && (e.code || e.message)) || e || '');
+    if (isStorageDenied(e) || /storage\/|画像/.test(text)) return storageErrorMessage(e);
+    if (/permission-denied/i.test(text)) {
+      return '保存する権限がありません。ログインし直してから、もう一度お試しください。';
+    }
+    if (e && e.message) return e.message;
+    return '保存に失敗しました。もう一度お試しください。';
+  }
+
+  function isLikelyImageFile(file) {
+    if (!file) return false;
+    if (file.type && /^image\//i.test(file.type)) return true;
+    if (/\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(file.name || '')) return true;
+    return !file.type;
+  }
+
+  function assertImageFile(file) {
+    if (!isLikelyImageFile(file)) throw new Error('画像ファイルを選んでください。');
+    if (file.size > IMAGE_MAX_BYTES) throw new Error('画像が大きすぎます。別の画像を選んでください。');
+  }
+
+  function canvasToJpegBlob(canvas, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('画像の処理に失敗しました。JPEGまたはPNGをお試しください。'));
+      }, 'image/jpeg', quality);
+    });
   }
 
   function loadImageFromFile(file) {
     return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve(img);
+      const fail = () => reject(new Error('この形式の画像は使えません。JPEGまたはPNGを選んでください。'));
+      const reader = new FileReader();
+      reader.onerror = fail;
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = fail;
+        img.src = reader.result;
       };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('画像の読み込みに失敗しました'));
-      };
-      img.src = url;
+      reader.readAsDataURL(file);
     });
+  }
+
+  async function compressImageFile(file, maxDim, quality) {
+    const img = await loadImageFromFile(file);
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('画像の処理に失敗しました');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvasToJpegBlob(canvas, quality);
+  }
+
+  async function toJpegBlob(file) {
+    assertImageFile(file);
+    if (file && file.type === 'image/jpeg' && !(file instanceof File)) return file;
+    return compressImageFile(file, 1280, 0.85);
+  }
+
+  async function uploadImage(uid, file, name) {
+    const blob = await toJpegBlob(file);
+    const f = await fb();
+    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
+    if (window.MiraiAuth && MiraiAuth.isLocalGuest && MiraiAuth.isLocalGuest()) {
+      throw new Error('ローカルプレビューでは画像を保存できません。公開サイトにログインして保存してください。');
+    }
+    const authUid = (f.auth && f.auth.currentUser && f.auth.currentUser.uid) || uid;
+    if (!authUid || authUid === 'local-guest') {
+      throw new Error('画像の保存にはログインが必要です。');
+    }
+    const { ref, uploadBytes, getDownloadURL } = f.storageFns;
+    const paths = [
+      'board/' + authUid + '/' + name,
+      'users/' + authUid + '/board_' + name,
+    ];
+    let lastErr = null;
+    for (let i = 0; i < paths.length; i++) {
+      try {
+        const r = ref(f.storage, paths[i]);
+        await uploadBytes(r, blob, { contentType: 'image/jpeg' });
+        return await getDownloadURL(r);
+      } catch (e) {
+        lastErr = e;
+        if (!isStorageDenied(e)) throw new Error(storageErrorMessage(e));
+      }
+    }
+    throw new Error(storageErrorMessage(lastErr));
   }
 
   /** マイセカイ画像を16:9に中央トリミング（余白・レターボックスを避ける） */
   async function processMysekaiImage(file) {
+    assertImageFile(file);
     const img = await loadImageFromFile(file);
     const targetRatio = 16 / 9;
     const srcRatio = img.width / img.height;
@@ -654,12 +751,7 @@ const MiraiBoard = (function () {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('画像の処理に失敗しました');
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error('画像の処理に失敗しました'));
-      }, 'image/jpeg', 0.9);
-    });
+    return canvasToJpegBlob(canvas, 0.85);
   }
 
   function mysekaiDetailUrl(uid) {
@@ -1834,7 +1926,8 @@ const MiraiBoard = (function () {
         if (typeof opts.onSaved === 'function') opts.onSaved(post);
         setTimeout(() => { savedEl.hidden = true; }, 2500);
       } catch (e) {
-        errEl.textContent = e.message || String(e); errEl.hidden = false;
+        errEl.textContent = boardSaveErrorMessage(e);
+        errEl.hidden = false;
       } finally {
         btn.disabled = false;
         if (btn.textContent === '保存中…') btn.textContent = hasPost ? '更新する' : '保存する';
@@ -2124,7 +2217,8 @@ const MiraiBoard = (function () {
         if (typeof opts.onSaved === 'function') opts.onSaved(post);
         setTimeout(() => { savedEl.hidden = true; }, 2500);
       } catch (e) {
-        errEl.textContent = e.message || String(e); errEl.hidden = false;
+        errEl.textContent = boardSaveErrorMessage(e);
+        errEl.hidden = false;
       } finally {
         btn.disabled = false;
         if (btn.textContent === '保存中…') btn.textContent = hasPost ? '更新する' : '保存する';
