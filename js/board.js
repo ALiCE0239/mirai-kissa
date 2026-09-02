@@ -692,32 +692,86 @@ const MiraiBoard = (function () {
     return compressImageFile(file, 1280, 0.85);
   }
 
-  async function uploadImage(uid, file, name) {
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+      r.readAsDataURL(blob);
+    });
+  }
+
+  async function shrinkToMaxBytes(file, maxBytes) {
+    let stored = await toJpegBlob(file);
+    if (stored.size <= maxBytes) return stored;
+    const steps = [[960, 0.72], [800, 0.64], [640, 0.52], [480, 0.42], [360, 0.35]];
+    for (let i = 0; i < steps.length; i++) {
+      stored = await compressImageFile(file, steps[i][0], steps[i][1]);
+      if (stored.size <= maxBytes) return stored;
+    }
+    return stored;
+  }
+
+  function listStorageTargets(f, authUid, name) {
+    const storages = [];
+    if (f.storage) storages.push(f.storage);
+    if (f.app && f.storageFns && typeof f.storageFns.getStorage === 'function') {
+      try {
+        const alt = f.storageFns.getStorage(f.app, 'gs://cafe-9d3b7.appspot.com');
+        if (alt && storages.indexOf(alt) < 0) storages.push(alt);
+      } catch (e) { /* ignore */ }
+    }
+    const paths = [
+      'users/' + authUid + '/' + name,
+      'users/' + authUid + '/board_' + name,
+      'board/' + authUid + '/' + name,
+    ];
+    const out = [];
+    for (let s = 0; s < storages.length; s++) {
+      for (let p = 0; p < paths.length; p++) {
+        out.push({ storage: storages[s], path: paths[p] });
+      }
+    }
+    return out;
+  }
+
+  async function uploadImage(uid, file, name, opts) {
+    opts = opts || {};
+    const maxInlineBytes = opts.maxInlineBytes || 380 * 1024;
     const blob = await toJpegBlob(file);
     const f = await fb();
     if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     if (window.MiraiAuth && MiraiAuth.isLocalGuest && MiraiAuth.isLocalGuest()) {
       throw new Error('ローカルプレビューでは画像を保存できません。公開サイトにログインして保存してください。');
     }
-    const authUid = (f.auth && f.auth.currentUser && f.auth.currentUser.uid) || uid;
+    if (f.auth && typeof f.auth.authStateReady === 'function') {
+      try { await f.auth.authStateReady(); } catch (e) { /* ignore */ }
+    }
+    const authUser = f.auth && f.auth.currentUser;
+    if (!authUser) {
+      throw new Error('ログインの有効期限が切れている可能性があります。ログインし直してから、もう一度お試しください。');
+    }
+    const authUid = authUser.uid || uid;
     if (!authUid || authUid === 'local-guest') {
       throw new Error('画像の保存にはログインが必要です。');
     }
     const { ref, uploadBytes, getDownloadURL } = f.storageFns;
-    const paths = [
-      'board/' + authUid + '/' + name,
-      'users/' + authUid + '/board_' + name,
-    ];
+    const targets = listStorageTargets(f, authUid, name);
     let lastErr = null;
-    for (let i = 0; i < paths.length; i++) {
+    for (let i = 0; i < targets.length; i++) {
       try {
-        const r = ref(f.storage, paths[i]);
+        const r = ref(targets[i].storage, targets[i].path);
         await uploadBytes(r, blob, { contentType: 'image/jpeg' });
         return await getDownloadURL(r);
       } catch (e) {
         lastErr = e;
         if (!isStorageDenied(e)) throw new Error(storageErrorMessage(e));
       }
+    }
+    const inline = await shrinkToMaxBytes(file, maxInlineBytes);
+    if (inline && inline.size <= maxInlineBytes) {
+      console.warn('[board] storage denied, inline image', lastErr);
+      return blobToDataUrl(inline);
     }
     throw new Error(storageErrorMessage(lastErr));
   }
@@ -787,8 +841,10 @@ const MiraiBoard = (function () {
   function eventSharePageHtml(post, pageUrl) {
     const title = (post && post.eventName ? post.eventName : 'イベラン広告') + ' — 未来喫茶';
     const desc = (post && post.body) || '未来喫茶のイベラン広告です。';
-    const imageUrl = (post && post.imageURL) || (publicSiteOrigin() + '/img/icon.png');
-    const card = post && post.imageURL ? 'summary_large_image' : 'summary';
+    const rawImage = post && post.imageURL;
+    const usableImage = rawImage && /^https?:\/\//i.test(rawImage) ? rawImage : '';
+    const imageUrl = usableImage || (publicSiteOrigin() + '/img/icon.png');
+    const card = usableImage ? 'summary_large_image' : 'summary';
     return (
       '<!DOCTYPE html><html lang="ja"><head>' +
       '<meta charset="UTF-8">' +
@@ -941,6 +997,33 @@ const MiraiBoard = (function () {
       ).join('') + '</div>'
       : '';
     return '<div class="board-mysekai-gallery">' + heroHtml + subsHtml + '</div>';
+  }
+
+  function wireEventImagePreview(input, previewEl) {
+    if (!input || !previewEl) return;
+    let objectUrl = '';
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = '';
+      }
+      if (!file) return;
+      objectUrl = URL.createObjectURL(file);
+      previewEl.hidden = false;
+      previewEl.innerHTML = '<img src="' + objectUrl + '" alt="">';
+    });
+  }
+
+  function setEventImagePreview(previewEl, url) {
+    if (!previewEl) return;
+    if (!url) {
+      previewEl.hidden = true;
+      previewEl.innerHTML = '';
+      return;
+    }
+    previewEl.hidden = false;
+    previewEl.innerHTML = '<img src="' + esc(url) + '" alt="">';
   }
 
   function wireMysekaiImageInput(input, previewEl, hintEl, existingUrls) {
@@ -1830,7 +1913,7 @@ const MiraiBoard = (function () {
           <input type="text" class="form-input" id="evRunUrl" value="${esc(post.runLocationURL)}" placeholder="https://..."></div>
         <div class="form-group"><label for="evImg">バナー画像（任意・1枚）</label>
           <input type="file" class="form-input" id="evImg" accept="image/*">
-          ${post.imageURL ? `<div class="board-aspect-16x9 mt-2" style="max-height:200px"><img src="${esc(post.imageURL)}" alt="" loading="lazy"></div>` : ''}</div>
+          <div id="evImgPreview" class="board-aspect-16x9 mt-2"${post.imageURL ? '' : ' hidden'} style="max-height:200px">${post.imageURL ? `<img src="${esc(post.imageURL)}" alt="">` : ''}</div></div>
         ${visibilitySelectHtml('evVisibility', post.visibility)}
         <div class="form-group">
           <label class="form-toggle"><input type="checkbox" id="evShowSupportTeams"${post.showSupportTeams ? ' checked' : ''}><span class="toggle-track"></span><span class="toggle-label">お返し編成情報を記載する</span></label>
@@ -1868,6 +1951,7 @@ const MiraiBoard = (function () {
       });
     }
     wireSingleSelectEventTags(box);
+    wireEventImagePreview(box.querySelector('#evImg'), box.querySelector('#evImgPreview'));
 
     box.querySelector('#evSave').addEventListener('click', async () => {
       errEl.hidden = true; savedEl.hidden = true;
@@ -1921,6 +2005,8 @@ const MiraiBoard = (function () {
         await saveDoc('boardEventAds', user.uid, data, !docExists);
         docExists = true;
         post = Object.assign(post, data);
+        if (fileInput) fileInput.value = '';
+        setEventImagePreview(box.querySelector('#evImgPreview'), imageURL);
         btn.textContent = '更新する';
         savedEl.hidden = false;
         if (typeof opts.onSaved === 'function') opts.onSaved(post);
@@ -2187,7 +2273,7 @@ const MiraiBoard = (function () {
           imageURLs = [];
           for (let i = 0; i < files.length; i++) {
             const cropped = await processMysekaiImage(files[i]);
-            imageURLs.push(await uploadImage(user.uid, cropped, `mysekai-${i}.jpg`));
+            imageURLs.push(await uploadImage(user.uid, cropped, 'mysekai-' + i + '.jpg', { maxInlineBytes: 160 * 1024 }));
           }
         }
         const data = {
