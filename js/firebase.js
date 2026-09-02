@@ -111,6 +111,7 @@ if (!isConfigured(cfg)) {
       ref: storageRef,
       uploadBytes,
       getDownloadURL,
+      getStorage,
     },
   };
 }
