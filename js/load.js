@@ -49,6 +49,7 @@ const MiraiLoad = (function () {
       'js/qr-utils.js',
       'js/friends.js',
       'js/mypage.js',
+      'js/ranking.js',
       'js/admin-config.js',
       'js/admin.js',
     ],
