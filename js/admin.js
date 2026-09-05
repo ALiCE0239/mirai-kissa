@@ -392,9 +392,22 @@ const AdminPage = (function () {
     }
   }
 
+  async function ensureRankingLoaded() {
+    if (window.MiraiRanking) return true;
+    if (window.MiraiLoad && typeof MiraiLoad.ensure === 'function') {
+      try {
+        await MiraiLoad.ensure('ranking');
+      } catch (e) {
+        console.warn('[admin] ranking script:', e);
+      }
+    }
+    return !!window.MiraiRanking;
+  }
+
   async function updateRankingsBadge(root) {
     const badge = root.querySelector('#adminRankingsBadge');
-    if (!badge || !window.MiraiRanking) return;
+    if (!badge) return;
+    if (!(await ensureRankingLoaded())) return;
     try {
       const isAdmin = await checkFirebaseAdmin();
       if (!isAdmin) {
@@ -462,7 +475,15 @@ const AdminPage = (function () {
   async function loadRankingsQueue(root, adminUid) {
     const listEl = root.querySelector('#adminRankingsList');
     const errEl = root.querySelector('#adminRankingsError');
-    if (!listEl || !window.MiraiRanking) return;
+    if (!listEl) return;
+    if (!(await ensureRankingLoaded())) {
+      if (errEl) {
+        errEl.textContent = 'ランキング審査のスクリプトを読み込めませんでした。再読み込みしてください。';
+        errEl.hidden = false;
+      }
+      listEl.innerHTML = '';
+      return;
+    }
     errEl.hidden = true;
     root.querySelectorAll('#adminRankingsContent .admin-diagnostic').forEach((node) => node.remove());
     listEl.innerHTML = '<p class="text-muted">読み込み中…</p>';
@@ -866,6 +887,7 @@ const AdminPage = (function () {
       refresh.addEventListener('click', () => {
         loadDashboard(root);
         if (activeTab === 'users') loadUserCount(root);
+        if (activeTab === 'rankings') refreshFirebaseState(root);
       });
     }
 

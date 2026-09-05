@@ -217,6 +217,20 @@ const MiraiRanking = (function () {
       throw new Error('審査待ち一覧の取得が拒否されました。' + permissionHint);
     }
 
+    if (!(fromQueue || []).length && !fromLegacy.length && !legacyDenied) {
+      try {
+        const snap = await getDocs(query(collection(f.db, COLLECTION), limit(1000)));
+        fromLegacy = snap.docs
+          .map((d) => Object.assign({ id: d.id }, d.data()))
+          .filter((e) => e.moderationStatus === 'pending');
+      } catch (e) {
+        console.warn('[ranking] pending scan failed:', e);
+        if (e.code === 'permission-denied' && !(fromQueue || []).length) {
+          throw new Error('審査待ち一覧の取得が拒否されました。' + permissionHint);
+        }
+      }
+    }
+
     const merged = new Map();
     fromLegacy.forEach((entry) => merged.set(entry.id, entry));
     (fromQueue || []).forEach((entry) => merged.set(entry.id, entry));
