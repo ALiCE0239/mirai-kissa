@@ -630,8 +630,32 @@ const MiraiBoard = (function () {
     if (/permission-denied/i.test(text)) {
       return '保存する権限がありません。ログインし直してから、もう一度お試しください。';
     }
+    if (isDocTooLarge(e)) {
+      return '画像が大きすぎて保存できませんでした。枚数を減らすか、別の画像を試してください。';
+    }
     if (e && e.message) return e.message;
     return '保存に失敗しました。もう一度お試しください。';
+  }
+
+  function isDocTooLarge(e) {
+    const text = String((e && (e.code || e.message)) || e || '');
+    return /invalid-argument|exceeds|too large|larger than/i.test(text);
+  }
+
+  function inlineBudgetForCount(n) {
+    const count = Math.max(1, n);
+    return Math.max(48 * 1024, Math.min(380 * 1024, Math.floor((620 * 1024) / count / 1.4)));
+  }
+
+  async function uploadMysekaiImages(uid, files, maxInlineBytes) {
+    const list = (files || []).slice(0, MYSEKAI_IMAGE_MAX);
+    const budget = maxInlineBytes || inlineBudgetForCount(list.length);
+    const urls = [];
+    for (let i = 0; i < list.length; i++) {
+      const cropped = await processMysekaiImage(list[i]);
+      urls.push(await uploadImage(uid, cropped, 'mysekai-' + i + '.jpg', { maxInlineBytes: budget }));
+    }
+    return urls;
   }
 
   function isLikelyImageFile(file) {
@@ -704,7 +728,7 @@ const MiraiBoard = (function () {
   async function shrinkToMaxBytes(file, maxBytes) {
     let stored = await toJpegBlob(file);
     if (stored.size <= maxBytes) return stored;
-    const steps = [[960, 0.72], [800, 0.64], [640, 0.52], [480, 0.42], [360, 0.35]];
+    const steps = [[960, 0.72], [800, 0.64], [640, 0.52], [480, 0.42], [360, 0.35], [240, 0.3]];
     for (let i = 0; i < steps.length; i++) {
       stored = await compressImageFile(file, steps[i][0], steps[i][1]);
       if (stored.size <= maxBytes) return stored;
@@ -769,7 +793,7 @@ const MiraiBoard = (function () {
       }
     }
     const inline = await shrinkToMaxBytes(file, maxInlineBytes);
-    if (inline && inline.size <= maxInlineBytes) {
+    if (inline && inline.size) {
       console.warn('[board] storage denied, inline image', lastErr);
       return blobToDataUrl(inline);
     }
@@ -797,7 +821,7 @@ const MiraiBoard = (function () {
       sx = 0;
       sy = (img.height - sh) / 2;
     }
-    const outW = 1280;
+    const outW = 960;
     const outH = Math.round(outW / targetRatio);
     const canvas = document.createElement('canvas');
     canvas.width = outW;
@@ -805,7 +829,7 @@ const MiraiBoard = (function () {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('画像の処理に失敗しました');
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
-    return canvasToJpegBlob(canvas, 0.85);
+    return canvasToJpegBlob(canvas, 0.72);
   }
 
   function mysekaiDetailUrl(uid) {
@@ -1044,10 +1068,12 @@ const MiraiBoard = (function () {
     input.addEventListener('change', () => {
       let files = Array.from(input.files || []);
       if (files.length > MYSEKAI_IMAGE_MAX) {
-        const dt = new DataTransfer();
-        files.slice(0, MYSEKAI_IMAGE_MAX).forEach((f) => dt.items.add(f));
-        input.files = dt.files;
         files = files.slice(0, MYSEKAI_IMAGE_MAX);
+        try {
+          const dt = new DataTransfer();
+          files.forEach((f) => dt.items.add(f));
+          input.files = dt.files;
+        } catch (e) { /* 一部ブラウザは DataTransfer 非対応 */ }
         if (hintEl) {
           hintEl.textContent = '画像は最大' + MYSEKAI_IMAGE_MAX + '枚までです。' + MYSEKAI_IMAGE_MAX + '枚に絞りました。';
           hintEl.hidden = false;
@@ -2270,11 +2296,7 @@ const MiraiBoard = (function () {
         const files = Array.from(box.querySelector('#msImgs').files || []).slice(0, MYSEKAI_IMAGE_MAX);
         let imageURLs = post.imageURLs || [];
         if (files.length) {
-          imageURLs = [];
-          for (let i = 0; i < files.length; i++) {
-            const cropped = await processMysekaiImage(files[i]);
-            imageURLs.push(await uploadImage(user.uid, cropped, 'mysekai-' + i + '.jpg', { maxInlineBytes: 160 * 1024 }));
-          }
+          imageURLs = await uploadMysekaiImages(user.uid, files);
         }
         const data = {
           authorUid: user.uid,
@@ -2289,7 +2311,14 @@ const MiraiBoard = (function () {
           listingHold: 0,
         };
         if (typeof post.likeCount === 'number') data.likeCount = post.likeCount;
-        await saveDoc('boardMysekai', user.uid, data, !docExists);
+        try {
+          await saveDoc('boardMysekai', user.uid, data, !docExists);
+        } catch (e) {
+          if (!files.length || !isDocTooLarge(e)) throw e;
+          imageURLs = await uploadMysekaiImages(user.uid, files, Math.floor(inlineBudgetForCount(files.length) / 2));
+          data.imageURLs = imageURLs;
+          await saveDoc('boardMysekai', user.uid, data, !docExists);
+        }
         docExists = true;
         post = Object.assign(post, data);
         btn.textContent = '更新する';
