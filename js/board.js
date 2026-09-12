@@ -603,10 +603,24 @@ const MiraiBoard = (function () {
   }
 
   const IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+  const STORAGE_ATTEMPT_MS = 8000;
+  let storageWriteOk = true;
+
+  function withTimeout(promise, ms, message) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(message || 'timeout'));
+      }, ms);
+      Promise.resolve(promise).then(
+        (value) => { clearTimeout(timer); resolve(value); },
+        (err) => { clearTimeout(timer); reject(err); }
+      );
+    });
+  }
 
   function isStorageDenied(e) {
     const text = String((e && (e.code || e.message)) || e || '');
-    return /storage\/unauthorized|does not have permission to access/i.test(text);
+    return /storage\/unauthorized|does not have permission to access|storage-timeout|retry-limit-exceeded/i.test(text);
   }
 
   function storageErrorMessage(e) {
@@ -671,16 +685,16 @@ const MiraiBoard = (function () {
   }
 
   function canvasToJpegBlob(canvas, quality) {
-    return new Promise((resolve, reject) => {
+    return withTimeout(new Promise((resolve, reject) => {
       canvas.toBlob((blob) => {
         if (blob) resolve(blob);
         else reject(new Error('画像の処理に失敗しました。JPEGまたはPNGをお試しください。'));
       }, 'image/jpeg', quality);
-    });
+    }), 12000, '画像の処理がタイムアウトしました。');
   }
 
   function loadImageFromFile(file) {
-    return new Promise((resolve, reject) => {
+    return withTimeout(new Promise((resolve, reject) => {
       const fail = () => reject(new Error('この形式の画像は使えません。JPEGまたはPNGを選んでください。'));
       const reader = new FileReader();
       reader.onerror = fail;
@@ -691,7 +705,7 @@ const MiraiBoard = (function () {
         img.src = reader.result;
       };
       reader.readAsDataURL(file);
-    });
+    }), 15000, '画像の読み込みがタイムアウトしました。');
   }
 
   async function compressImageFile(file, maxDim, quality) {
@@ -737,67 +751,36 @@ const MiraiBoard = (function () {
   }
 
   function listStorageTargets(f, authUid, name) {
-    const storages = [];
-    if (f.storage) storages.push(f.storage);
-    if (f.app && f.storageFns && typeof f.storageFns.getStorage === 'function') {
-      try {
-        const alt = f.storageFns.getStorage(f.app, 'gs://cafe-9d3b7.appspot.com');
-        if (alt && storages.indexOf(alt) < 0) storages.push(alt);
-      } catch (e) { /* ignore */ }
-    }
     const paths = [
       'users/' + authUid + '/' + name,
-      'users/' + authUid + '/board_' + name,
       'board/' + authUid + '/' + name,
     ];
-    const out = [];
-    for (let s = 0; s < storages.length; s++) {
-      for (let p = 0; p < paths.length; p++) {
-        out.push({ storage: storages[s], path: paths[p] });
-      }
-    }
-    return out;
+    if (!f.storage) return [];
+    return paths.map((path) => ({ storage: f.storage, path: path }));
+  }
+
+  async function inlineImage(file, maxInlineBytes) {
+    const inline = await shrinkToMaxBytes(file, maxInlineBytes);
+    if (!inline || !inline.size) throw new Error('画像の処理に失敗しました。');
+    return blobToDataUrl(inline);
   }
 
   async function uploadImage(uid, file, name, opts) {
     opts = opts || {};
     const maxInlineBytes = opts.maxInlineBytes || 380 * 1024;
-    const blob = await toJpegBlob(file);
-    const f = await fb();
-    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     if (window.MiraiAuth && MiraiAuth.isLocalGuest && MiraiAuth.isLocalGuest()) {
       throw new Error('ローカルプレビューでは画像を保存できません。公開サイトにログインして保存してください。');
     }
+    const f = await fb();
+    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
     if (f.auth && typeof f.auth.authStateReady === 'function') {
-      try { await f.auth.authStateReady(); } catch (e) { /* ignore */ }
+      try { await withTimeout(f.auth.authStateReady(), 5000, 'auth-timeout'); } catch (e) { /* ignore */ }
     }
     const authUser = f.auth && f.auth.currentUser;
     if (!authUser) {
       throw new Error('ログインの有効期限が切れている可能性があります。ログインし直してから、もう一度お試しください。');
     }
-    const authUid = authUser.uid || uid;
-    if (!authUid || authUid === 'local-guest') {
-      throw new Error('画像の保存にはログインが必要です。');
-    }
-    const { ref, uploadBytes, getDownloadURL } = f.storageFns;
-    const targets = listStorageTargets(f, authUid, name);
-    let lastErr = null;
-    for (let i = 0; i < targets.length; i++) {
-      try {
-        const r = ref(targets[i].storage, targets[i].path);
-        await uploadBytes(r, blob, { contentType: 'image/jpeg' });
-        return await getDownloadURL(r);
-      } catch (e) {
-        lastErr = e;
-        if (!isStorageDenied(e)) throw new Error(storageErrorMessage(e));
-      }
-    }
-    const inline = await shrinkToMaxBytes(file, maxInlineBytes);
-    if (inline && inline.size) {
-      console.warn('[board] storage denied, inline image', lastErr);
-      return blobToDataUrl(inline);
-    }
-    throw new Error(storageErrorMessage(lastErr));
+    return inlineImage(file, maxInlineBytes);
   }
 
   /** マイセカイ画像を16:9に中央トリミング（余白・レターボックスを避ける） */
@@ -2350,7 +2333,11 @@ const MiraiBoard = (function () {
     const { doc, setDoc, serverTimestamp } = f.dbFns;
     const payload = Object.assign({}, data, { updatedAt: serverTimestamp() });
     if (isNew) payload.createdAt = serverTimestamp();
-    await setDoc(doc(f.db, collectionName, id), payload, { merge: true });
+    await withTimeout(
+      setDoc(doc(f.db, collectionName, id), payload, { merge: true }),
+      20000,
+      '保存がタイムアウトしました。通信環境を確認して、もう一度お試しください。'
+    );
   }
 
   async function loadOwnHub(uid) {
