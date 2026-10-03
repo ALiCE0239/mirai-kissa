@@ -455,21 +455,62 @@ const MiraiMyPage = (function () {
     return `<div class="${cls}">${esc(initial(hub.displayName))}</div>`;
   }
 
+  const AVATAR_MAX_BYTES = 12 * 1024 * 1024;
+  const AVATAR_INLINE_BUDGET = 180 * 1024;
+
+  function isLikelyImageFile(file) {
+    if (!file) return false;
+    if (file.type && /^image\//i.test(file.type)) return true;
+    return /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(file.name || '');
+  }
+
+  function loadImageElement(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('画像の読み込みに失敗しました。'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('この形式の画像は使えません。JPEG / PNG を選んでください。'));
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /** 中央を正方形に切り出して JPEG の data URL にする */
+  function avatarSquareDataUrl(img, size, quality) {
+    const side = Math.min(img.width, img.height);
+    const sx = (img.width - side) / 2;
+    const sy = (img.height - side) / 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('画像の処理に失敗しました。');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+    return canvas.toDataURL('image/jpeg', quality);
+  }
+
+  // 掲示板などと同様に、アイコンは Storage に上げず圧縮して直接保存する。
   async function uploadAvatar(uid, file) {
-    const f = await fb();
-    if (!f || !f.configured) throw new Error('Firebase 未設定です。');
-    const maxSize = 2 * 1024 * 1024;
-    if (file.size > maxSize) throw new Error('画像は2MB以下にしてください。');
-    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+    if (!file) throw new Error('画像を選んでください。');
+    if (!isLikelyImageFile(file)) {
       throw new Error('JPEG / PNG / WebP / GIF の画像を選んでください。');
     }
-    const ext = file.type === 'image/png' ? 'png'
-      : file.type === 'image/webp' ? 'webp'
-      : file.type === 'image/gif' ? 'gif' : 'jpg';
-    const { ref, uploadBytes, getDownloadURL } = f.storageFns;
-    const r = ref(f.storage, `users/${uid}/avatar.${ext}`);
-    await uploadBytes(r, file);
-    return getDownloadURL(r);
+    if (file.size > AVATAR_MAX_BYTES) {
+      throw new Error('画像が大きすぎます。別の画像を選んでください。');
+    }
+    const img = await loadImageElement(file);
+    // Firestore の文書サイズに収まるよう、収まらなければ段階的に縮小する。
+    const steps = [[256, 0.82], [224, 0.72], [192, 0.6], [160, 0.5], [128, 0.45]];
+    let dataUrl = avatarSquareDataUrl(img, steps[0][0], steps[0][1]);
+    for (let i = 1; i < steps.length && dataUrl.length > AVATAR_INLINE_BUDGET; i++) {
+      dataUrl = avatarSquareDataUrl(img, steps[i][0], steps[i][1]);
+    }
+    return dataUrl;
   }
 
   async function saveHub(uid, hub) {
@@ -1200,7 +1241,7 @@ const MiraiMyPage = (function () {
               </label>
               <button type="button" class="btn btn-secondary btn-sm" id="mpAvatarClear"${hub.avatarURL ? '' : ' hidden'}>削除</button>
             </div>
-            <p class="form-hint">JPEG / PNG / WebP / GIF・2MBまで</p>
+            <p class="form-hint">JPEG / PNG / WebP / GIF（自動で正方形に調整・圧縮されます）</p>
           </div>
         </div>
           <div class="form-group">
