@@ -488,9 +488,51 @@ const MiraiBoard = (function () {
     return sortPostsByUpdated(Array.from(byUid.values())).slice(0, listLimit);
   }
 
+  // Spark へのダウングレード（請求アカウント停止）で Firebase Storage は 402 で停止した。
+  // 残っている Storage の URL はリンク切れなので、使えないものとして扱い、
+  // 頭文字アイコンや「画像なし」へフォールバックする（壊れた画像アイコンを出さない）。
+  function isDeadStorageUrl(url) {
+    return /firebasestorage\.googleapis\.com|storage\.googleapis\.com|\.firebasestorage\.app\//i.test(String(url || ''));
+  }
+
+  function usableMediaUrl(url) {
+    const u = String(url || '').trim();
+    if (!u || isDeadStorageUrl(u)) return '';
+    return u;
+  }
+
+  // 投稿ドキュメントに埋め込む用のアイコンURL。base64（data URL）やリンク切れは
+  // 入れず null を返す（各投稿に数百KBの画像を複製すると一覧が激重＆無料枠を圧迫するため）。
+  // アイコンは表示時に enrichPostsWithAvatars が linkHub（キャッシュ済み）から解決する。
+  function denormAvatarUrl(url) {
+    const u = String(url || '').trim();
+    if (!u || isDeadStorageUrl(u) || /^data:/i.test(u) || u.length > 512) return null;
+    return u;
+  }
+
+  // 同一セッション内で linkHubs の読み取りをキャッシュ＆重複排除し、
+  // 一覧表示の読み取り回数（無料枠の消費）と待ち時間を抑える。
+  const hubCache = new Map();
+  async function getCachedHub(publicId) {
+    const id = String(publicId || '');
+    if (!id) return null;
+    if (hubCache.has(id)) return hubCache.get(id);
+    const f = await fb();
+    if (!f) return null;
+    const { doc, getDoc } = f.dbFns;
+    let data = null;
+    try {
+      const snap = await getDoc(doc(f.db, 'linkHubs', id));
+      if (snap.exists()) data = snap.data();
+    } catch (e) { /* ignore */ }
+    hubCache.set(id, data);
+    return data;
+  }
+
   function aspect16x9Html(url, emptyLabel) {
-    if (url) {
-      return `<div class="board-aspect-16x9"><img src="${esc(url)}" alt="" loading="lazy"></div>`;
+    const safe = usableMediaUrl(url);
+    if (safe) {
+      return `<div class="board-aspect-16x9"><img src="${esc(safe)}" alt="" loading="lazy"></div>`;
     }
     if (emptyLabel) {
       return `<div class="board-aspect-16x9 board-aspect-16x9--empty">${esc(emptyLabel)}</div>`;
@@ -501,8 +543,9 @@ const MiraiBoard = (function () {
   function authorAvatarHtml(p, className) {
     const cls = 'board-author-avatar' + (className ? ' ' + className : '');
     const name = p.authorName || '匿名';
-    if (p.authorAvatarURL) {
-      return `<div class="${cls} board-author-avatar--img"><img src="${esc(p.authorAvatarURL)}" alt="" loading="lazy"></div>`;
+    const av = usableMediaUrl(p.authorAvatarURL);
+    if (av) {
+      return `<div class="${cls} board-author-avatar--img"><img src="${esc(av)}" alt="" loading="lazy"></div>`;
     }
     return `<div class="${cls}">${esc(name.slice(0, 1))}</div>`;
   }
@@ -526,8 +569,9 @@ const MiraiBoard = (function () {
     const detailCls = opts.detail ? ' board-feed-card__hero--detail' : '';
     const headCls = opts.detail ? ' board-event-head--detail' : '';
     const title = esc(p.eventName || '(無題)') + visibilityChipHtml(p);
-    const inner = p.imageURL
-      ? `<img src="${esc(p.imageURL)}" alt="" loading="lazy">`
+    const heroImg = usableMediaUrl(p.imageURL);
+    const inner = heroImg
+      ? `<img src="${esc(heroImg)}" alt="" loading="lazy">`
       : `<span class="board-aspect-16x9--empty">${esc('画像なし')}</span>`;
     return `
       <div class="board-event-head${headCls}">
@@ -539,16 +583,15 @@ const MiraiBoard = (function () {
   async function enrichPostsWithAvatars(posts) {
     const f = await fb();
     if (!f) return posts;
-    const { doc, getDoc } = f.dbFns;
     return Promise.all(posts.map(async (p) => {
-      if (p.authorAvatarURL) return p;
+      // 使えるアイコン（data URL など）が既に付いていればそのまま。
+      if (usableMediaUrl(p.authorAvatarURL)) return p;
       if (!p.authorPublicId) return p;
-      try {
-        const snap = await getDoc(doc(f.db, 'linkHubs', p.authorPublicId));
-        if (snap.exists() && snap.data().avatarURL) {
-          return Object.assign({}, p, { authorAvatarURL: snap.data().avatarURL });
-        }
-      } catch (e) { /* ignore */ }
+      // 投稿に入っているのがリンク切れの Storage URL の場合も、
+      // 本人が再アップロードした最新アイコン（linkHub）を拾い直す。
+      const hub = await getCachedHub(p.authorPublicId);
+      const av = usableMediaUrl(hub && hub.avatarURL);
+      if (av) return Object.assign({}, p, { authorAvatarURL: av });
       return p;
     }));
   }
@@ -985,14 +1028,15 @@ const MiraiBoard = (function () {
   }
 
   function mysekaiThumbHtml(url, emptyLabel) {
-    if (url) {
-      return '<div class="board-mysekai-card__thumb"><img src="' + esc(url) + '" alt="" loading="lazy"></div>';
+    const safe = usableMediaUrl(url);
+    if (safe) {
+      return '<div class="board-mysekai-card__thumb"><img src="' + esc(safe) + '" alt="" loading="lazy"></div>';
     }
     return '<div class="board-mysekai-card__thumb board-mysekai-card__thumb--empty">' + esc(emptyLabel || '画像なし') + '</div>';
   }
 
   function mysekaiGalleryHtml(urls) {
-    const imgs = (urls || []).filter(Boolean).slice(0, MYSEKAI_IMAGE_MAX);
+    const imgs = (urls || []).map(usableMediaUrl).filter(Boolean).slice(0, MYSEKAI_IMAGE_MAX);
     if (!imgs.length) return '';
     const hero = imgs[0];
     const subs = imgs.slice(1);
@@ -1024,13 +1068,14 @@ const MiraiBoard = (function () {
 
   function setEventImagePreview(previewEl, url) {
     if (!previewEl) return;
-    if (!url) {
+    const safe = usableMediaUrl(url);
+    if (!safe) {
       previewEl.hidden = true;
       previewEl.innerHTML = '';
       return;
     }
     previewEl.hidden = false;
-    previewEl.innerHTML = '<img src="' + esc(url) + '" alt="">';
+    previewEl.innerHTML = '<img src="' + esc(safe) + '" alt="">';
   }
 
   function wireMysekaiImageInput(input, previewEl, hintEl, existingUrls) {
@@ -1129,7 +1174,7 @@ const MiraiBoard = (function () {
 
   function mysekaiDetailHtml(p, opts) {
     opts = opts || {};
-    const imgs = (p.imageURLs || []).slice(0, MYSEKAI_IMAGE_MAX);
+    const imgs = (p.imageURLs || []).map(usableMediaUrl).filter(Boolean).slice(0, MYSEKAI_IMAGE_MAX);
     const gallery = imgs.length
       ? mysekaiGalleryHtml(imgs)
       : '<p class="text-muted">画像はありません。</p>';
@@ -1242,8 +1287,9 @@ const MiraiBoard = (function () {
 
   function eventSekaiEmbedHtml(p) {
     const detailUrl = '#/board/event/' + encodeURIComponent(p.authorUid);
-    const thumb = p.imageURL
-      ? `<img src="${esc(p.imageURL)}" alt="" loading="lazy">`
+    const thumbSrc = usableMediaUrl(p.imageURL);
+    const thumb = thumbSrc
+      ? `<img src="${esc(thumbSrc)}" alt="" loading="lazy">`
       : '<span class="linkhub-embed__placeholder" aria-hidden="true">📣</span>';
     const rank = p.targetRank ? `<span class="linkhub-embed__meta-item">目標 ${esc(p.targetRank)}位</span>` : '';
     const banner = p.eventBanner ? `<span class="linkhub-embed__meta-item">${esc(p.eventBanner)}</span>` : '';
@@ -1262,7 +1308,7 @@ const MiraiBoard = (function () {
 
   function mysekaiSekaiEmbedHtml(p) {
     const detailUrl = mysekaiDetailUrl(p.authorUid);
-    const thumbSrc = (p.imageURLs || [])[0];
+    const thumbSrc = usableMediaUrl((p.imageURLs || [])[0]);
     const thumb = thumbSrc
       ? `<img src="${esc(thumbSrc)}" alt="" loading="lazy">`
       : '<span class="linkhub-embed__placeholder" aria-hidden="true">🌿</span>';
@@ -1990,7 +2036,7 @@ const MiraiBoard = (function () {
           authorUid: user.uid,
           authorPublicId: authorPublicId || '',
           authorName: box.querySelector('#evAuthor').value.trim() || name,
-          authorAvatarURL: authorAvatarURL || null,
+          authorAvatarURL: denormAvatarUrl(authorAvatarURL),
           eventName: name,
           body: box.querySelector('#evBody').value.trim(),
           imageURL: imageURL || null,
@@ -2350,13 +2396,7 @@ const MiraiBoard = (function () {
   }
 
   async function loadPublicHub(publicId) {
-    const f = await fb();
-    if (!f || !publicId) return null;
-    const { doc, getDoc } = f.dbFns;
-    try {
-      const snap = await getDoc(doc(f.db, 'linkHubs', publicId));
-      return snap.exists() ? snap.data() : null;
-    } catch (e) { return null; }
+    return getCachedHub(publicId);
   }
 
   return {

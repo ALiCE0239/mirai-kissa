@@ -447,16 +447,61 @@ const MiraiMyPage = (function () {
     return data;
   }
 
+  // 読み込み失敗（無料プランの枠超過・通信エラーなど）の原因ヒントを返す。
+  function loadErrorHint(e) {
+    const text = String((e && (e.code || e.message)) || e || '');
+    if (/resource-exhausted|quota|RESOURCE_EXHAUSTED/i.test(text)) {
+      return 'データの読み取りが一時的に上限（無料プランの1日あたりの枠）に達している可能性があります。時間をおいて（日付が変わる頃にリセットされます）から、もう一度お試しください。';
+    }
+    if (/permission-denied|PERMISSION_DENIED|insufficient permissions/i.test(text)) {
+      return 'データへのアクセスが拒否されました。ログインし直してから、もう一度お試しください。';
+    }
+    if (/unavailable|UNAVAILABLE|network|offline|failed to get|deadline/i.test(text)) {
+      return '通信が不安定な可能性があります。電波のよい場所で、もう一度お試しください。';
+    }
+    return '';
+  }
+
+  // 読み込みに失敗したとき、画面を真っ白にせず原因と再読み込みボタンを出す。
+  function renderLoadError(box, e, retry) {
+    const detail = e && e.message ? String(e.message) : String(e);
+    const hint = loadErrorHint(e);
+    box.innerHTML =
+      '<div class="info-box">' +
+      '<p class="form-error">データの読み込みに失敗しました。</p>' +
+      (hint ? '<p class="form-hint mt-1">' + esc(hint) + '</p>' : '') +
+      (detail ? '<p class="form-hint mt-1">' + esc(detail) + '</p>' : '') +
+      '<button type="button" class="btn btn-primary mt-2" id="mpLoadRetry">再読み込み</button>' +
+      '</div>';
+    const btn = box.querySelector('#mpLoadRetry');
+    if (btn && typeof retry === 'function') {
+      btn.addEventListener('click', () => { retry(); });
+    } else if (btn) {
+      btn.addEventListener('click', () => { location.reload(); });
+    }
+  }
+
+  // Spark ダウングレードで Firebase Storage は 402 停止（リンク切れ）。
+  // 残っている Storage URL のアイコンは使えないので頭文字へフォールバックする。
+  function usableAvatarUrl(url) {
+    const u = String(url || '').trim();
+    if (!u) return '';
+    if (/firebasestorage\.googleapis\.com|storage\.googleapis\.com|\.firebasestorage\.app\//i.test(u)) return '';
+    return u;
+  }
+
   function avatarHtml(hub, className) {
     const cls = 'linkhub-avatar' + (className ? ' ' + className : '');
-    if (hub.avatarURL) {
-      return `<div class="${cls} linkhub-avatar--img"><img src="${esc(hub.avatarURL)}" alt="" decoding="async"></div>`;
+    const av = usableAvatarUrl(hub && hub.avatarURL);
+    if (av) {
+      return `<div class="${cls} linkhub-avatar--img"><img src="${esc(av)}" alt="" decoding="async"></div>`;
     }
     return `<div class="${cls}">${esc(initial(hub.displayName))}</div>`;
   }
 
   const AVATAR_MAX_BYTES = 12 * 1024 * 1024;
-  const AVATAR_INLINE_BUDGET = 180 * 1024;
+  // 無料プランでは linkHub を一覧表示のたびに読むため、アイコンは小さめに抑える。
+  const AVATAR_INLINE_BUDGET = 80 * 1024;
 
   function isLikelyImageFile(file) {
     if (!file) return false;
@@ -504,8 +549,8 @@ const MiraiMyPage = (function () {
       throw new Error('画像が大きすぎます。別の画像を選んでください。');
     }
     const img = await loadImageElement(file);
-    // Firestore の文書サイズに収まるよう、収まらなければ段階的に縮小する。
-    const steps = [[256, 0.82], [224, 0.72], [192, 0.6], [160, 0.5], [128, 0.45]];
+    // Firestore の文書サイズ・転送量に収まるよう、収まらなければ段階的に縮小する。
+    const steps = [[192, 0.8], [160, 0.7], [144, 0.6], [128, 0.5], [112, 0.45]];
     let dataUrl = avatarSquareDataUrl(img, steps[0][0], steps[0][1]);
     for (let i = 1; i < steps.length && dataUrl.length > AVATAR_INLINE_BUDGET; i++) {
       dataUrl = avatarSquareDataUrl(img, steps[i][0], steps[i][1]);
@@ -730,7 +775,18 @@ const MiraiMyPage = (function () {
         return;
       }
 
-      const { hub, hubExisted } = await prepareHub(user);
+      let hub;
+      let hubExisted;
+      try {
+        const prepared = await prepareHub(user);
+        hub = prepared.hub;
+        hubExisted = prepared.hubExisted;
+      } catch (e) {
+        if (isStale()) return;
+        console.error('[mypage] プロフィールの読み込みに失敗:', e);
+        renderLoadError(box, e, () => renderPage());
+        return;
+      }
       if (isStale()) return;
 
       let sekaiSaved = hubExisted;
@@ -792,7 +848,17 @@ const MiraiMyPage = (function () {
       return;
     }
 
-    const { hub, hubExisted } = await prepareHub(user);
+    let hub;
+    let hubExisted;
+    try {
+      const prepared = await prepareHub(user);
+      hub = prepared.hub;
+      hubExisted = prepared.hubExisted;
+    } catch (e) {
+      console.error('[mypage] セカイノートの読み込みに失敗:', e);
+      renderLoadError(box, e, () => initSekaiNoteEdit());
+      return;
+    }
     let ownEvent = null;
     let ownMysekai = null;
     if (window.MiraiBoard) {
@@ -830,7 +896,15 @@ const MiraiMyPage = (function () {
       return;
     }
 
-    const { hub } = await prepareHub(user);
+    let hub;
+    try {
+      const prepared = await prepareHub(user);
+      hub = prepared.hub;
+    } catch (e) {
+      console.error('[mypage] マイページ設定の読み込みに失敗:', e);
+      renderLoadError(box, e, () => initSettings());
+      return;
+    }
     renderProfileSettings(box, user, hub);
   }
 
@@ -2053,8 +2127,17 @@ const MiraiMyPage = (function () {
       return;
     }
 
-    const { hub } = await prepareHub(user);
-    const rewards = await loadUserRewards(user.uid);
+    let hub;
+    let rewards;
+    try {
+      const prepared = await prepareHub(user);
+      hub = prepared.hub;
+      rewards = await loadUserRewards(user.uid);
+    } catch (e) {
+      console.error('[mypage] プロフィールカードの読み込みに失敗:', e);
+      renderLoadError(box, e, () => initProfileCard());
+      return;
+    }
     const grantedTitles = resolveGrantedTitles(rewards);
     const unlockedSpecial = resolveUnlockedSpecialThemeKeys(rewards);
     const cardTheme = resolveEffectiveProfileCardThemeKey(hub, rewards);
