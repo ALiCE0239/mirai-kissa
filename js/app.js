@@ -269,15 +269,17 @@
     router.start();
   }
 
-  document.addEventListener('DOMContentLoaded', async () => {
+  document.addEventListener('DOMContentLoaded', () => {
     createParticles();
     initNavScroll();
+    // 認証初期化は「待たずに」開始する。await するとルーター起動（＝描画）が
+    // Firebase モジュール読み込みや getRedirectResult の完了までブロックされ、
+    // 初回アクセスでページが真っ白のまま（リロードしないと見れない）になるため。
+    // 要ログインのページは requireUser / waitForUser 側で認証の準備を待つ。
     if (typeof MiraiAuth !== 'undefined') {
-      try {
-        await MiraiAuth.init();
-      } catch (err) {
+      MiraiAuth.init().catch((err) => {
         console.error('[未来喫茶] 認証初期化エラー:', err);
-      }
+      });
     }
     initRouter();
     if (typeof MiraiAds !== 'undefined') MiraiAds.init();
